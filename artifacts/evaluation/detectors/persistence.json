@@ -1,0 +1,6 @@
+{
+  "calibration_quantile": 0.99,
+  "kind": "persistence",
+  "schema_version": 1,
+  "threshold": 2.489579371682071
+}

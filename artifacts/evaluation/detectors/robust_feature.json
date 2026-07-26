@@ -1,0 +1,6 @@
+{
+  "calibration_quantile": 0.99,
+  "kind": "robust_feature",
+  "schema_version": 1,
+  "threshold": 6.479962026051322
+}

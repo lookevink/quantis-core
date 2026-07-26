@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantis-core"
+version = "0.1.0"
+description = "Evidence-first latent predictive anomaly detection experiments"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy>=1.26,<2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.11,<2",
+  "pytest>=8,<9",
+]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+packages = ["quantis_core"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+quantis_core = ["py.typed"]
