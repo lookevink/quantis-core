@@ -35,6 +35,7 @@ services:
     environment: &application-environment
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgresql://quantis:quantis@postgres:5432/quantis
+      OTLP_LOGS_ENDPOINT: http://collector:4318/v1/logs
     depends_on:
       redis:
         condition: service_healthy

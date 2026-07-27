@@ -10,8 +10,13 @@ processors:
     timeout: 200ms
 
 exporters:
-  file:
+  file/metrics:
     path: /captures/collector-output.jsonl
+    format: json
+    append: false
+    flush_interval: 100ms
+  file/logs:
+    path: /captures/collector-logs.jsonl
     format: json
     append: false
     flush_interval: 100ms
@@ -26,4 +31,8 @@ service:
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [file]
+      exporters: [file/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/logs]

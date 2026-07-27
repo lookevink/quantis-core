@@ -4,7 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
 from .evaluation import (
     EvaluationConfig,
@@ -28,7 +28,17 @@ from .fault_matrix import (
     write_fault_matrix_artifacts,
 )
 from .otlp import read_otlp_capture
+from .otlp_log_windowing import OtlpLogFeatureSpec
+from .otlp_logs import OtlpLogCapture, read_otlp_log_capture
 from .otlp_windowing import OtlpFeatureSpec, OtlpWindowCompiler
+from .multimodal_corpus import (
+    compile_multimodal_telemetry_corpus,
+)
+from .multimodal_training import (
+    MultimodalJepaTrainingConfig,
+    train_multimodal_jepa_world_model,
+    write_multimodal_jepa_development_artifacts,
+)
 from .telemetry_corpus import (
     TelemetryCorpusSplitSpec,
     compile_telemetry_corpus,
@@ -169,6 +179,76 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     )
     train_jepa.add_argument("--seed", type=int, default=0)
     train_jepa.add_argument("--output", type=Path, required=True)
+    train_multimodal = commands.add_parser(
+        "train-multimodal-jepa-world-model",
+        help="fit separate metric and application-log JEPA encoders",
+    )
+    train_multimodal.add_argument(
+        "--captures-directory",
+        type=Path,
+        required=True,
+    )
+    train_multimodal.add_argument(
+        "--manifests-directory",
+        type=Path,
+        required=True,
+    )
+    train_multimodal.add_argument(
+        "--metric-feature-spec",
+        type=Path,
+        required=True,
+    )
+    train_multimodal.add_argument(
+        "--log-feature-spec",
+        type=Path,
+        required=True,
+    )
+    train_multimodal.add_argument(
+        "--split-spec",
+        type=Path,
+        required=True,
+    )
+    train_multimodal.add_argument(
+        "--metric-latent-dimension",
+        type=int,
+        default=3,
+    )
+    train_multimodal.add_argument(
+        "--log-latent-dimension",
+        type=int,
+        default=2,
+    )
+    train_multimodal.add_argument(
+        "--epochs",
+        type=int,
+        default=200,
+    )
+    train_multimodal.add_argument(
+        "--learning-rate",
+        type=float,
+        default=2e-2,
+    )
+    train_multimodal.add_argument(
+        "--ema-decay",
+        type=float,
+        default=0.98,
+    )
+    train_multimodal.add_argument(
+        "--weight-decay",
+        type=float,
+        default=1e-4,
+    )
+    train_multimodal.add_argument(
+        "--calibration-quantile",
+        type=float,
+        default=0.98,
+    )
+    train_multimodal.add_argument("--seed", type=int, default=0)
+    train_multimodal.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+    )
     parsed = parser.parse_args(arguments)
 
     if parsed.command == "evaluate":
@@ -361,6 +441,57 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         print(f"Model: {jepa_paths['model']}")
         print(f"Report: {jepa_paths['report']}")
         return 0
+    if parsed.command == "train-multimodal-jepa-world-model":
+        multimodal_metric_spec = OtlpFeatureSpec.from_dict(
+            json.loads(parsed.metric_feature_spec.read_text())
+        )
+        multimodal_log_spec = OtlpLogFeatureSpec.from_dict(
+            json.loads(parsed.log_feature_spec.read_text())
+        )
+        multimodal_split_spec = TelemetryCorpusSplitSpec.from_dict(
+            json.loads(parsed.split_spec.read_text())
+        )
+        multimodal_runs = _load_fault_matrix_runs(
+            parsed.captures_directory,
+            parsed.manifests_directory,
+        )
+        multimodal_corpus = compile_multimodal_telemetry_corpus(
+            multimodal_runs,
+            _load_log_captures(
+                parsed.captures_directory,
+                multimodal_runs,
+            ),
+            multimodal_metric_spec,
+            multimodal_log_spec,
+            multimodal_split_spec,
+        )
+        multimodal_result = train_multimodal_jepa_world_model(
+            multimodal_corpus,
+            MultimodalJepaTrainingConfig(
+                metric_latent_dimension=(
+                    parsed.metric_latent_dimension
+                ),
+                log_latent_dimension=parsed.log_latent_dimension,
+                epochs=parsed.epochs,
+                learning_rate=parsed.learning_rate,
+                ema_decay=parsed.ema_decay,
+                weight_decay=parsed.weight_decay,
+                calibration_quantile=(
+                    parsed.calibration_quantile
+                ),
+                seed=parsed.seed,
+            ),
+        )
+        multimodal_paths = (
+            write_multimodal_jepa_development_artifacts(
+                multimodal_result,
+                parsed.output,
+            )
+        )
+        print("Multimodal JEPA development training: PASS")
+        print(f"Model: {multimodal_paths['model']}")
+        print(f"Report: {multimodal_paths['report']}")
+        return 0
     return 2
 
 
@@ -384,6 +515,20 @@ def _load_fault_matrix_runs(
             )
         )
     return runs
+
+
+def _load_log_captures(
+    captures_directory: Path,
+    runs: Sequence[FaultMatrixRun],
+) -> Mapping[str, OtlpLogCapture]:
+    return {
+        run.manifest.case_id: read_otlp_log_capture(
+            captures_directory
+            / run.manifest.case_id
+            / "collector-logs.jsonl"
+        )
+        for run in runs
+    }
 
 
 if __name__ == "__main__":

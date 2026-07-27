@@ -179,3 +179,31 @@ injection:
 This expands ten schedule families across one-, two-, and three-worker
 topologies. Eight complete families train the model and two complete families
 remain validation-only, yielding 30 runs and 10,020 run-isolated windows.
+
+## Add structured application logs
+
+The multimodal tracer bullet keeps metrics and application logs in separate
+encoders, then predicts their next joint latent state. The lab API and worker
+emit bounded-vocabulary OTLP events to a dedicated Collector Logs pipeline:
+
+- `checkout.accepted`;
+- `checkout.rejected`;
+- `checkout.completed`; and
+- error-severity events.
+
+Raw message text, request identifiers, payloads, and stack traces do not become
+model features. The log compiler aggregates declared events by logical window,
+verifies capture/manifest identity, and joins them with metrics without crossing
+run boundaries.
+
+Run the preregistered three-schedule multimodal pilot with:
+
+```bash
+./lab/fault_matrix/run-multimodal-jepa-pilot.sh
+```
+
+The pilot writes a fused application-log JEPA and a metrics-only baseline from
+the same training and validation runs under
+`artifacts/jepa-world-model-v0/multimodal-pilot`. See the
+[multimodal JEPA specification](docs/specs/multimodal-jepa-v0.md) for the
+interfaces, safety constraints, and development gates.

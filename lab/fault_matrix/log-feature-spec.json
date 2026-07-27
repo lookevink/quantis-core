@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "window_index_attribute": "quantis.experiment.window.index",
+  "features": [
+    {
+      "name": "checkout_accepted_count",
+      "resource_attributes": {},
+      "record_attributes": {
+        "event.name": "checkout.accepted"
+      },
+      "minimum_severity_number": null
+    },
+    {
+      "name": "checkout_rejected_count",
+      "resource_attributes": {},
+      "record_attributes": {
+        "event.name": "checkout.rejected"
+      },
+      "minimum_severity_number": null
+    },
+    {
+      "name": "checkout_completed_count",
+      "resource_attributes": {},
+      "record_attributes": {
+        "event.name": "checkout.completed"
+      },
+      "minimum_severity_number": null
+    },
+    {
+      "name": "error_event_count",
+      "resource_attributes": {},
+      "record_attributes": {},
+      "minimum_severity_number": 17
+    }
+  ]
+}

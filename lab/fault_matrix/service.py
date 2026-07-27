@@ -5,11 +5,13 @@ import os
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import NoReturn
+from typing import Mapping, NoReturn
 from urllib.parse import parse_qs, urlparse
 
 import psycopg
 import redis
+
+from application_logging import emit_application_event
 
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
@@ -24,6 +26,7 @@ WORKER_INSTANCES = "quantis:worker:instances"
 WORKER_CRASH = "quantis:fault:worker_crash"
 CACHE_OUTAGE = "quantis:fault:cache_outage"
 DATABASE_ADVISORY_LOCK = 424242
+APPLICATION_LOG_EMIT_ERRORS = "application_log_emit_errors"
 
 
 def _redis() -> redis.Redis:
@@ -60,11 +63,14 @@ class CheckoutHandler(BaseHTTPRequestHandler):
         if parsed.path != "/checkout":
             self.send_error(404)
             return
+        query = parse_qs(parsed.query)
+        experiment = _experiment_identity(query)
+        window_index = int(query["window_index"][0])
         started = time.perf_counter_ns()
         status = 202
         try:
             delay_ms = float(
-                parse_qs(parsed.query).get("delay_ms", ["0"])[0]
+                query.get("delay_ms", ["0"])[0]
             )
             if delay_ms > 0.0:
                 time.sleep(delay_ms / 1000.0)
@@ -74,7 +80,11 @@ class CheckoutHandler(BaseHTTPRequestHandler):
                 self.redis_client.hincrby(COUNTERS, "api_errors", 1)
             else:
                 payload = json.dumps(
-                    {"created_unix_nano": time.time_ns()},
+                    {
+                        "created_unix_nano": time.time_ns(),
+                        "experiment": experiment,
+                        "window_index": window_index,
+                    },
                     separators=(",", ":"),
                 )
                 self.redis_client.rpush(QUEUE, payload)
@@ -89,6 +99,18 @@ class CheckoutHandler(BaseHTTPRequestHandler):
             pipeline.hincrby(COUNTERS, "api_requests", 1)
             pipeline.hincrby(COUNTERS, "api_latency_us", latency_us)
             pipeline.execute()
+        _emit_checkout_event(
+            redis_client=self.redis_client,
+            service_name="quantis-fault-matrix-api",
+            event_name=(
+                "checkout.accepted"
+                if status == 202
+                else "checkout.rejected"
+            ),
+            status=status,
+            experiment=experiment,
+            window_index=window_index,
+        )
         self._json_response(status, {"accepted": status == 202})
 
     def _json_response(self, status: int, payload: object) -> None:
@@ -155,6 +177,68 @@ def run_worker() -> NoReturn:
         pipeline.hincrby(COUNTERS, "worker_processed", 1)
         pipeline.hincrby(COUNTERS, "worker_db_latency_us", latency_us)
         pipeline.execute()
+        _emit_checkout_event(
+            redis_client=redis_client,
+            service_name="quantis-fault-matrix-worker",
+            event_name="checkout.completed",
+            status=200,
+            experiment={
+                str(key): str(value)
+                for key, value in item["experiment"].items()
+            },
+            window_index=int(item["window_index"]),
+        )
+
+
+def _experiment_identity(
+    query: Mapping[str, list[str]],
+) -> dict[str, str]:
+    keys = (
+        "case_id",
+        "fault_kind",
+        "manifest_sha256",
+        "topology_id",
+    )
+    try:
+        return {key: query[key][0] for key in keys}
+    except (KeyError, IndexError) as error:
+        raise ValueError(
+            "checkout requires complete experiment identity"
+        ) from error
+
+
+def _emit_checkout_event(
+    *,
+    redis_client: redis.Redis,
+    service_name: str,
+    event_name: str,
+    status: int,
+    experiment: Mapping[str, str],
+    window_index: int,
+) -> None:
+    try:
+        emit_application_event(
+            service_name=service_name,
+            service_instance_id=os.environ.get(
+                "HOSTNAME",
+                f"pid-{os.getpid()}",
+            ),
+            event_name=event_name,
+            severity_number=9 if status < 500 else 17,
+            severity_text="INFO" if status < 500 else "ERROR",
+            body=event_name.replace(".", " "),
+            experiment=experiment,
+            attributes={
+                "quantis.experiment.window.index": window_index,
+                "http.response.status_code": status,
+            },
+        )
+    except Exception:
+        redis_client.hincrby(
+            COUNTERS,
+            APPLICATION_LOG_EMIT_ERRORS,
+            1,
+        )
 
 
 def main() -> NoReturn:

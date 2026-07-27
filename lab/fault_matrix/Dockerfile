@@ -4,6 +4,6 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 
-COPY service.py run_experiment.py /app/
+COPY application_logging.py service.py run_experiment.py /app/
 
 CMD ["python", "/app/service.py", "api"]

@@ -5,6 +5,7 @@ import json
 import os
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -151,7 +152,14 @@ def main() -> None:
                     )
                     futures.append(
                         executor.submit(
-                            _checkout, delay, expected_status
+                            _checkout,
+                            delay,
+                            expected_status,
+                            point_index,
+                            case_id,
+                            fault_kind,
+                            manifest_sha256,
+                            topology_id,
                         )
                     )
                 for future in futures:
@@ -191,6 +199,13 @@ def main() -> None:
                     f"worker_rate={values['worker_rate']:.1f}",
                     flush=True,
                 )
+        log_emit_errors = _counters(redis_client)[
+            "application_log_emit_errors"
+        ]
+        if log_emit_errors:
+            raise RuntimeError(
+                f"application log emission failed {log_emit_errors} times"
+            )
     finally:
         _stop_fault(fault_kind, redis_client, lock_connection)
     print(f"emitted {point_count} observed telemetry windows", flush=True)
@@ -268,9 +283,27 @@ def _active_worker_count(redis_client: redis.Redis) -> int:
     return int(redis_client.zcard(WORKER_INSTANCES))
 
 
-def _checkout(delay_ms: int, expected_status: int) -> None:
+def _checkout(
+    delay_ms: int,
+    expected_status: int,
+    point_index: int,
+    case_id: str,
+    fault_kind: str,
+    manifest_sha256: str,
+    topology_id: str,
+) -> None:
+    query = urllib.parse.urlencode(
+        {
+            "delay_ms": delay_ms,
+            "window_index": point_index,
+            "case_id": case_id,
+            "fault_kind": fault_kind,
+            "manifest_sha256": manifest_sha256,
+            "topology_id": topology_id,
+        }
+    )
     request = urllib.request.Request(
-        f"{API_URL}/checkout?delay_ms={delay_ms}",
+        f"{API_URL}/checkout?{query}",
         data=b"{}",
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -296,6 +329,7 @@ def _counters(redis_client: redis.Redis) -> Dict[str, int]:
             "api_errors",
             "worker_processed",
             "worker_db_latency_us",
+            "application_log_emit_errors",
         )
     }
 

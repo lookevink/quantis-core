@@ -6,6 +6,7 @@ from pathlib import Path
 
 FILES = (
     "Dockerfile",
+    "application_logging.py",
     "requirements.txt",
     "run_experiment.py",
     "service.py",
