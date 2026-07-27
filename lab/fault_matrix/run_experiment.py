@@ -39,6 +39,7 @@ WORKER_REPLICAS = int(os.environ.get("WORKER_REPLICAS", "1"))
 QUEUE = "quantis:checkout:queue"
 COUNTERS = "quantis:counters"
 WORKER_HEARTBEAT = "quantis:worker:heartbeat"
+WORKER_INSTANCES = "quantis:worker:instances"
 WORKER_CRASH = "quantis:fault:worker_crash"
 CACHE_OUTAGE = "quantis:fault:cache_outage"
 DATABASE_ADVISORY_LOCK = 424242
@@ -86,7 +87,9 @@ def main() -> None:
 
     redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
     database = psycopg.connect(DATABASE_URL, autocommit=True)
-    _wait_until_ready(redis_client, database)
+    observed_worker_replicas = _wait_until_ready(
+        redis_client, database, declared_worker_replicas
+    )
     redis_client.delete(
         QUEUE,
         COUNTERS,
@@ -104,6 +107,14 @@ def main() -> None:
     try:
         with ThreadPoolExecutor(max_workers=maximum_requests) as executor:
             for point_index in range(point_count):
+                if (
+                    point_index < fault_start
+                    and _active_worker_count(redis_client)
+                    != declared_worker_replicas
+                ):
+                    raise RuntimeError(
+                        "observed worker replica count changed before fault"
+                    )
                 window_started = time.monotonic()
                 request_count = (
                     requests_per_window
@@ -167,7 +178,7 @@ def main() -> None:
                     fault_kind,
                     manifest_sha256,
                     topology_id,
-                    declared_worker_replicas,
+                    observed_worker_replicas,
                 )
                 previous_counters = current_counters
                 previous_db_rows = db_rows
@@ -218,8 +229,10 @@ def _stop_fault(
 
 
 def _wait_until_ready(
-    redis_client: redis.Redis, database: psycopg.Connection
-) -> None:
+    redis_client: redis.Redis,
+    database: psycopg.Connection,
+    expected_worker_replicas: int,
+) -> int:
     for _ in range(120):
         try:
             redis_client.ping()
@@ -234,10 +247,22 @@ def _wait_until_ready(
             ) as response:
                 if response.status != 200:
                     continue
-            return
+            observed_worker_replicas = _active_worker_count(redis_client)
+            if observed_worker_replicas != expected_worker_replicas:
+                time.sleep(0.25)
+                continue
+            return observed_worker_replicas
         except Exception:
             time.sleep(0.25)
     raise RuntimeError("fault-matrix services did not become ready")
+
+
+def _active_worker_count(redis_client: redis.Redis) -> int:
+    now = time.time()
+    redis_client.zremrangebyscore(
+        WORKER_INSTANCES, "-inf", now - 2.0
+    )
+    return int(redis_client.zcard(WORKER_INSTANCES))
 
 
 def _checkout(delay_ms: int, expected_status: int) -> None:
@@ -398,7 +423,7 @@ def _emit(
                                 "value": {"stringValue": topology_id},
                             },
                             {
-                                "key": "quantis.experiment.worker.replicas",
+                                "key": "quantis.experiment.worker.replicas.observed",
                                 "value": {"intValue": worker_replicas},
                             },
                         ]

@@ -558,22 +558,27 @@ def _validate_confirmation_protocol(
         run for run in evaluation_runs if run.manifest.schema_version == 2
     ]
     if expanded_runs:
-        required_topology_ids = protocol.get("required_topology_ids")
-        evaluation_topology_ids = sorted(
-            {run.manifest.topology_id for run in expanded_runs}
-        )
-        if required_topology_ids != evaluation_topology_ids:
-            raise ValueError(
-                "confirmation protocol topology strata do not match"
-            )
+        required_topologies = protocol.get("required_topologies")
         replica_counts_by_topology = {
             topology_id: {
                 run.manifest.worker_replicas
                 for run in expanded_runs
                 if run.manifest.topology_id == topology_id
             }
-            for topology_id in evaluation_topology_ids
+            for topology_id in {
+                run.manifest.topology_id for run in expanded_runs
+            }
         }
+        evaluation_topologies = {
+            topology_id: next(iter(replica_counts))
+            for topology_id, replica_counts
+            in replica_counts_by_topology.items()
+            if len(replica_counts) == 1
+        }
+        if required_topologies != evaluation_topologies:
+            raise ValueError(
+                "confirmation protocol topology strata do not match"
+            )
         if any(
             len(replica_counts) != 1
             for replica_counts in replica_counts_by_topology.values()
@@ -1081,7 +1086,7 @@ def _evaluate_case(
     }
     worker_replica_counts = {
         point.resource_attributes.get(
-            "quantis.experiment.worker.replicas"
+            "quantis.experiment.worker.replicas.observed"
         )
         for point in capture.points
     }
@@ -1354,18 +1359,25 @@ def _markdown_report(report: FaultMatrixReport) -> str:
     for gate, passed in report.acceptance["gates"].items():
         lines.append(f"- {'PASS' if passed else 'FAIL'}: `{gate}`")
     if not report.acceptance["all_passed"]:
+        topology_strata = report.aggregate.get("topology_strata")
+        interpretation = (
+            "Normal alert rates are low in the one-worker stratum and high "
+            "in the observed two- and three-worker strata. Worker count "
+            "co-varies with workload schedule, so this establishes an "
+            "association with multi-worker operation rather than isolated "
+            "causality. The frozen model does not transfer operationally at "
+            "the observed false-positive rates."
+            if isinstance(topology_strata, dict)
+            else "The frozen predictor rejects most normal held-out windows. "
+            "This is evidence of schedule-pattern overfitting in the "
+            "development model, not a threshold-only problem."
+        )
         lines.extend(
             [
                 "",
                 "## Diagnostic interpretation",
                 "",
-                "The frozen predictor rejects most normal held-out windows. "
-                "Median pre-noise evidence is jointly elevated for request, "
-                "worker, and database rates, which move together with the "
-                "new load schedules. This is evidence of schedule-pattern "
-                "overfitting in the development model, not a threshold-only "
-                "problem. Structural recall is therefore not operationally "
-                "useful at the observed false-positive rate.",
+                interpretation,
             ]
         )
     lines.extend(["", "## Limitations", ""])

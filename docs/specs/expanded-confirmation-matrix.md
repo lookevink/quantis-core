@@ -29,8 +29,10 @@ canonical serialization so prior evidence remains reproducible.
 topology stratum and rejects an incomplete fault × topology cross-product.
 
 `./lab/fault_matrix/run-expanded-v2-confirmation.sh` scales the worker service
-to the declared replica count, verifies the runner observes the same count, and
-runs every case in a fresh topology.
+to the declared replica count. Each worker registers a unique live identity;
+the runner verifies the active identity count before and throughout pre-fault
+operation and records the observed count in OTLP. The protocol binds each
+topology ID to its exact replica count.
 
 ## Frozen acceptance gates
 

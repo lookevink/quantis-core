@@ -20,6 +20,7 @@ DATABASE_URL = os.environ.get(
 QUEUE = "quantis:checkout:queue"
 COUNTERS = "quantis:counters"
 WORKER_HEARTBEAT = "quantis:worker:heartbeat"
+WORKER_INSTANCES = "quantis:worker:instances"
 WORKER_CRASH = "quantis:fault:worker_crash"
 CACHE_OUTAGE = "quantis:fault:cache_outage"
 DATABASE_ADVISORY_LOCK = 424242
@@ -121,12 +122,18 @@ def run_worker() -> NoReturn:
         )
         """
     )
+    worker_id = os.environ.get("HOSTNAME", f"pid-{os.getpid()}")
     print("worker ready", flush=True)
     while True:
         if redis_client.get(WORKER_CRASH) == "1":
             print("worker fault: exiting with status 17", flush=True)
             os._exit(17)
         redis_client.set(WORKER_HEARTBEAT, repr(time.time()))
+        now = time.time()
+        redis_client.zadd(WORKER_INSTANCES, {worker_id: now})
+        redis_client.zremrangebyscore(
+            WORKER_INSTANCES, "-inf", now - 2.0
+        )
         payload = redis_client.lpop(QUEUE)
         if payload is None:
             time.sleep(0.005)
