@@ -17,9 +17,9 @@
     "expanded-workers-2-cache-outage-01": "92befe4e9163b3c5475ed9f2e10ce2410faa4b9f188d0e9540e782bcac7f7636",
     "expanded-workers-2-database-lock-01": "24e3c9e83de701cbb4daf86e6af05d450944078a4304316102a2bd25aef126fe",
     "expanded-workers-2-worker-crash-01": "843c74b1ebb516103137677a34ac7ced54bbbf7bbca02e7fb2996cdb311ca1e1",
-    "expanded-workers-3-cache-outage-01": "7d0c723e6e1e39e811d2060951634be2444ecef92fef76baca96e1ebb81bb640",
-    "expanded-workers-3-database-lock-01": "820e72550b19a59f144d3dc5e70e8ac65df7d3320e0006ea208ce180bcbcbd8a",
-    "expanded-workers-3-worker-crash-01": "7fbd84407ba65e615438672300c563d7fa5190549c42195c052c5ed003bc2e4d"
+    "expanded-workers-3-cache-outage-02": "d39d0501f8e711e16c7bac1232ad607b4a3c958912ab07ee2f62965ce9b2edea",
+    "expanded-workers-3-database-lock-02": "0e2011f656c78662bf6013b1d61f84751001fc69c5efa5828f3953036445a048",
+    "expanded-workers-3-worker-crash-02": "ff98e76d7cbd4ff374ee8c7cd9ed401df19339a2e0e5ab0a8caf00344e20039f"
   },
   "frozen_files": {
     "artifacts/demand-conditioned-v2/model.json": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
@@ -32,9 +32,9 @@
     "lab/fault_matrix/experiments_v2_expanded/workers-2-cache-outage.json": "596460e1f7665c0222dbf47daec7cef3058ad8a21b2e5d2888999ad5cbb214d5",
     "lab/fault_matrix/experiments_v2_expanded/workers-2-database-lock.json": "4c8fd7dd854aed76915756179b6ed8f0bfced860c93852ad152b4d8b38867e0a",
     "lab/fault_matrix/experiments_v2_expanded/workers-2-worker-crash.json": "a68eb87a7b932c18adfbe2ba5d19bd2de1fd7e798c7f12ea0f37a5401b241227",
-    "lab/fault_matrix/experiments_v2_expanded/workers-3-cache-outage.json": "9e0c9c55f32ae9cc527d00640938270ebb6ccfad87111b824ba3db9177e8bf4c",
-    "lab/fault_matrix/experiments_v2_expanded/workers-3-database-lock.json": "1fcb62b854dea86f0db449372bb28bc4a45c59bc7bb4d3b585e40d93e546a349",
-    "lab/fault_matrix/experiments_v2_expanded/workers-3-worker-crash.json": "f047baa9fabf87cf2abc695206cc1b31cc1487b0cc07b1100c4758cdc89e79cd",
+    "lab/fault_matrix/experiments_v2_expanded/workers-3-cache-outage.json": "58233607c7a58e63c5f4aa4bf75cd0cf45871230222b1ec3cbf8a345bc278c44",
+    "lab/fault_matrix/experiments_v2_expanded/workers-3-database-lock.json": "28301c00fae1d5b8097d603fb5ab3d85b9ff005e886c0e12ad30fd4230ede613",
+    "lab/fault_matrix/experiments_v2_expanded/workers-3-worker-crash.json": "c0273839d0b359d0c9e4c783c7f0094968beb2ca298a2e50bf05335afd86df70",
     "lab/fault_matrix/feature-spec.json": "43dcab91504e01738df33e9b61248a7aefa4ee32acf36940a5fcee62760b329e",
     "lab/fault_matrix/hash_build_context.py": "a3e2ae5b3cff82388493ffc0f23e8ef7a885513ab3bc020403a97d820118580f",
     "lab/fault_matrix/requirements.txt": "8f8bf648bd8431e4d7c9129a75491f23507334010d1fa8eadb215e443d1847d5",
