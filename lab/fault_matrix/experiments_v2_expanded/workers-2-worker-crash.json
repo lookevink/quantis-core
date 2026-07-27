@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "case_id": "expanded-workers-2-worker-crash-02",
+  "case_id": "expanded-workers-2-worker-crash-03",
   "fault_kind": "worker_crash",
   "topology_id": "workers-2",
   "worker_replicas": 2,
@@ -9,10 +9,10 @@
   "logical_window_period_nano": 1000000000,
   "baseline_interval": [0, 38],
   "routine_noise_interval": [48, 49],
-  "structural_interval": [67, 81],
+  "structural_interval": [68, 82],
   "affected_features": ["queue_depth", "worker_rate", "worker_heartbeat_age_s", "db_write_rate"],
-  "requests_per_window": 9,
-  "load_pattern_offsets": [4, -1, 2, -2, 3, 0, -3, 1],
+  "requests_per_window": 12,
+  "load_pattern_offsets": [-4, 2, 0, 3, -1, 1, -2, 0],
   "routine_noise_delay_ms": 150,
   "images": {
     "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
