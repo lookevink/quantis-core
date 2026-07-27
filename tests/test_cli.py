@@ -189,3 +189,75 @@ def test_train_multimodal_jepa_command_uses_application_logs(tmp_path):
     assert (output_path / "shuffled-log-model.json").exists()
     assert (output_path / "development.json").exists()
     assert (output_path / "report.md").exists()
+
+
+def test_train_contextual_multimodal_jepa_command_uses_controls(
+    tmp_path,
+):
+    (
+        captures_directory,
+        manifests_directory,
+        feature_spec_path,
+    ) = write_fresh_development_runs(
+        tmp_path / "fresh-contextual-corpus"
+    )
+    write_normal_log_captures(
+        captures_directory,
+        manifests_directory,
+    )
+    split_path = tmp_path / "contextual-split.json"
+    output_path = tmp_path / "contextual-output"
+    split_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "training_case_ids": list(FRESH_CASE_IDS[:2]),
+                "validation_case_ids": [FRESH_CASE_IDS[2]],
+                "reserved_case_ids": [],
+                "lookback": 6,
+            }
+        )
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "quantis_core",
+            "train-contextual-multimodal-jepa-world-model",
+            "--captures-directory",
+            str(captures_directory),
+            "--manifests-directory",
+            str(manifests_directory),
+            "--metric-feature-spec",
+            str(feature_spec_path),
+            "--log-feature-spec",
+            "lab/fault_matrix/log-feature-spec.json",
+            "--split-spec",
+            str(split_path),
+            "--pretraining-epochs",
+            "20",
+            "--predictor-refinement-epochs",
+            "5",
+            "--cross-validation-epochs",
+            "0",
+            "--output",
+            str(output_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "Contextual multimodal JEPA training: PASS" in (
+        completed.stdout
+    )
+    assert "Development selection: NOT_ASSESSED" in (
+        completed.stdout
+    )
+    assert (output_path / "corpus.json").exists()
+    assert (output_path / "model.json").exists()
+    assert (output_path / "log-only-model.json").exists()
+    assert (output_path / "development.json").exists()
+    assert (output_path / "report.md").exists()

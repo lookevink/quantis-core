@@ -220,3 +220,24 @@ ablation as separate artifacts. Publication is allowed only if every frozen
 promotion gate passes. The first collection attempt failed before training and
 is not reused; the recovery protocol is in the
 [multimodal corpus v2 specification](docs/specs/multimodal-jepa-corpus-v2.md).
+
+The follow-up development model removes the observed request-volume shortcut,
+uses demand and topology as predictor controls, and predicts contextual
+two-point blocks at horizons 1, 3, and 6. It preserves the v0 model and reuses
+the 30-run corpus only for development:
+
+```bash
+./lab/fault_matrix/run-contextual-multimodal-jepa-development.sh
+```
+
+The run produces the contextual model plus metrics-only, capacity-matched,
+shuffled-log, log-only, and modality-dropout controls. Previously inspected
+validation families remain diagnostic only; a new untouched corpus is required
+before publication. See the
+[contextual multimodal JEPA v1 specification](docs/specs/contextual-multimodal-jepa-v1.md)
+for the cited design rationale and evaluation protocol.
+
+The completed development comparison selected L1 loss with one log latent as a
+hypothesis for the next untouched corpus; the advantage was small and did not
+establish useful log transfer. See the
+[v1 development result](docs/research/contextual-multimodal-jepa-v1-results.md).

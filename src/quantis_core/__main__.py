@@ -39,6 +39,14 @@ from .multimodal_training import (
     train_multimodal_jepa_world_model,
     write_multimodal_jepa_development_artifacts,
 )
+from .contextual_multimodal_corpus import (
+    compile_contextual_multimodal_telemetry_corpus,
+)
+from .contextual_multimodal_training import (
+    ContextualMultimodalJepaTrainingConfig,
+    train_contextual_multimodal_jepa_world_model,
+    write_contextual_multimodal_jepa_artifacts,
+)
 from .telemetry_corpus import (
     TelemetryCorpusSplitSpec,
     compile_telemetry_corpus,
@@ -250,6 +258,119 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     )
     train_multimodal.add_argument("--seed", type=int, default=0)
     train_multimodal.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+    )
+    train_contextual = commands.add_parser(
+        "train-contextual-multimodal-jepa-world-model",
+        help=(
+            "fit a demand-conditioned contextual metrics and logs JEPA"
+        ),
+    )
+    train_contextual.add_argument(
+        "--captures-directory",
+        type=Path,
+        required=True,
+    )
+    train_contextual.add_argument(
+        "--manifests-directory",
+        type=Path,
+        required=True,
+    )
+    train_contextual.add_argument(
+        "--metric-feature-spec",
+        type=Path,
+        required=True,
+    )
+    train_contextual.add_argument(
+        "--log-feature-spec",
+        type=Path,
+        required=True,
+    )
+    train_contextual.add_argument(
+        "--split-spec",
+        type=Path,
+        required=True,
+    )
+    train_contextual.add_argument(
+        "--horizons",
+        type=int,
+        nargs="+",
+        default=[1, 3, 6],
+    )
+    train_contextual.add_argument(
+        "--target-block-size",
+        type=int,
+        default=2,
+    )
+    train_contextual.add_argument(
+        "--metric-latent-dimension",
+        type=int,
+        default=3,
+    )
+    train_contextual.add_argument(
+        "--log-latent-dimension",
+        type=int,
+        default=1,
+    )
+    train_contextual.add_argument(
+        "--pretraining-epochs",
+        type=int,
+        default=200,
+    )
+    train_contextual.add_argument(
+        "--predictor-refinement-epochs",
+        type=int,
+        default=100,
+    )
+    train_contextual.add_argument(
+        "--cross-validation-epochs",
+        type=int,
+        default=40,
+    )
+    train_contextual.add_argument(
+        "--learning-rate",
+        type=float,
+        default=2e-2,
+    )
+    train_contextual.add_argument(
+        "--ema-decay",
+        type=float,
+        default=0.98,
+    )
+    train_contextual.add_argument(
+        "--weight-decay",
+        type=float,
+        default=1e-4,
+    )
+    train_contextual.add_argument(
+        "--loss",
+        choices=("huber", "l1", "mse"),
+        default="huber",
+    )
+    train_contextual.add_argument(
+        "--huber-delta",
+        type=float,
+        default=1.0,
+    )
+    train_contextual.add_argument(
+        "--auxiliary-loss-weight",
+        type=float,
+        default=0.2,
+    )
+    train_contextual.add_argument(
+        "--rollout-loss-weight",
+        type=float,
+        default=0.2,
+    )
+    train_contextual.add_argument(
+        "--calibration-quantile",
+        type=float,
+        default=0.98,
+    )
+    train_contextual.add_argument("--seed", type=int, default=0)
+    train_contextual.add_argument(
         "--output",
         type=Path,
         required=True,
@@ -503,6 +624,94 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         )
         print(f"Model: {multimodal_paths['model']}")
         print(f"Report: {multimodal_paths['report']}")
+        return 0
+    if (
+        parsed.command
+        == "train-contextual-multimodal-jepa-world-model"
+    ):
+        contextual_metric_spec = OtlpFeatureSpec.from_dict(
+            json.loads(parsed.metric_feature_spec.read_text())
+        )
+        contextual_log_spec = OtlpLogFeatureSpec.from_dict(
+            json.loads(parsed.log_feature_spec.read_text())
+        )
+        contextual_split_spec = TelemetryCorpusSplitSpec.from_dict(
+            json.loads(parsed.split_spec.read_text())
+        )
+        contextual_runs = _load_fault_matrix_runs(
+            parsed.captures_directory,
+            parsed.manifests_directory,
+        )
+        base_contextual_corpus = (
+            compile_multimodal_telemetry_corpus(
+                contextual_runs,
+                _load_log_captures(
+                    parsed.captures_directory,
+                    contextual_runs,
+                ),
+                contextual_metric_spec,
+                contextual_log_spec,
+                contextual_split_spec,
+            )
+        )
+        contextual_corpus = (
+            compile_contextual_multimodal_telemetry_corpus(
+                base_contextual_corpus,
+                contextual_runs,
+                horizons=tuple(parsed.horizons),
+                target_block_size=parsed.target_block_size,
+            )
+        )
+        contextual_result = (
+            train_contextual_multimodal_jepa_world_model(
+                contextual_corpus,
+                ContextualMultimodalJepaTrainingConfig(
+                    metric_latent_dimension=(
+                        parsed.metric_latent_dimension
+                    ),
+                    log_latent_dimension=(
+                        parsed.log_latent_dimension
+                    ),
+                    pretraining_epochs=(
+                        parsed.pretraining_epochs
+                    ),
+                    predictor_refinement_epochs=(
+                        parsed.predictor_refinement_epochs
+                    ),
+                    cross_validation_epochs=(
+                        parsed.cross_validation_epochs
+                    ),
+                    learning_rate=parsed.learning_rate,
+                    ema_decay=parsed.ema_decay,
+                    weight_decay=parsed.weight_decay,
+                    loss=parsed.loss,
+                    huber_delta=parsed.huber_delta,
+                    auxiliary_loss_weight=(
+                        parsed.auxiliary_loss_weight
+                    ),
+                    rollout_loss_weight=(
+                        parsed.rollout_loss_weight
+                    ),
+                    calibration_quantile=(
+                        parsed.calibration_quantile
+                    ),
+                    seed=parsed.seed,
+                ),
+            )
+        )
+        contextual_paths = (
+            write_contextual_multimodal_jepa_artifacts(
+                contextual_result,
+                parsed.output,
+            )
+        )
+        print("Contextual multimodal JEPA training: PASS")
+        print(
+            "Development selection: "
+            f"{contextual_result.selection['status'].upper()}"
+        )
+        print(f"Model: {contextual_paths['model']}")
+        print(f"Report: {contextual_paths['report']}")
         return 0
     return 2
 
