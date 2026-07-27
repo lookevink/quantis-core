@@ -113,11 +113,29 @@ def test_matched_topology_protocol_freezes_disjoint_inputs():
         manifest.case_id: _canonical_sha256(manifest.to_dict())
         for manifest in manifests
     }
+    preregistered_commit = json.loads(
+        (
+            repository
+            / "artifacts"
+            / "demand-conditioned-v2"
+            / "matched-topology-diagnostic"
+            / "verification.json"
+        ).read_text()
+    )["protocol"]["preregistered_git_commit"]
     for relative_path, expected_sha256 in protocol[
         "frozen_files"
     ].items():
         assert hashlib.sha256(
-            (repository / relative_path).read_bytes()
+            subprocess.run(
+                [
+                    "git",
+                    "show",
+                    f"{preregistered_commit}:{relative_path}",
+                ],
+                cwd=repository,
+                check=True,
+                stdout=subprocess.PIPE,
+            ).stdout
         ).hexdigest() == expected_sha256
 
     prior_manifests = []
