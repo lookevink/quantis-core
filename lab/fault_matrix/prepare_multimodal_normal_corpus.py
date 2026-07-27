@@ -32,8 +32,8 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     parsed = parser.parse_args(arguments)
     prepare_normal_corpus(
         parsed.output,
-        case_prefix="multimodal-normal",
-        seed_label=47,
+        case_prefix="multimodal-normal-v2",
+        seed_label=48,
         schedule_families=SCHEDULE_FAMILIES,
         sample_period_seconds=0.1,
     )

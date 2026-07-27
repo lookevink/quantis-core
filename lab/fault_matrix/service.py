@@ -29,6 +29,12 @@ DATABASE_ADVISORY_LOCK = 424242
 APPLICATION_LOG_EMIT_ERRORS = "application_log_emit_errors"
 
 
+class QuantisThreadingHTTPServer(ThreadingHTTPServer):
+    """Lab server with room for the largest declared request burst."""
+
+    request_queue_size = 128
+
+
 def _redis() -> redis.Redis:
     client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
     for _ in range(120):
@@ -126,7 +132,10 @@ class CheckoutHandler(BaseHTTPRequestHandler):
 
 
 def run_api() -> NoReturn:
-    server = ThreadingHTTPServer(("0.0.0.0", 8080), CheckoutHandler)
+    server = QuantisThreadingHTTPServer(
+        ("0.0.0.0", 8080),
+        CheckoutHandler,
+    )
     print("api ready", flush=True)
     server.serve_forever()
     raise AssertionError("unreachable")

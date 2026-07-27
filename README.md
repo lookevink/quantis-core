@@ -217,5 +217,6 @@ Collect and train the separate target-sized metrics-plus-logs model with:
 This creates 30 fresh fault-free runs across ten new schedule families and
 trains the aligned model, two metrics-only baselines, and a shuffled-log
 ablation as separate artifacts. Publication is allowed only if every frozen
-promotion gate passes. The complete protocol is in the
-[multimodal corpus v1 specification](docs/specs/multimodal-jepa-corpus-v1.md).
+promotion gate passes. The first collection attempt failed before training and
+is not reused; the recovery protocol is in the
+[multimodal corpus v2 specification](docs/specs/multimodal-jepa-corpus-v2.md).

@@ -3,12 +3,12 @@ set -euo pipefail
 
 lab_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repository="$(cd "${lab_directory}/../.." && pwd)"
-output="${repository}/artifacts/jepa-world-model-v0/multimodal-normal-corpus-v1"
+output="${repository}/artifacts/jepa-world-model-v0/multimodal-normal-corpus-v2"
 inputs="${output}/inputs"
 captures="${output}/cases"
 manifests="${inputs}/manifests"
 split="${inputs}/split.json"
-specification="${repository}/docs/specs/multimodal-jepa-corpus-v1.md"
+specification="${repository}/docs/specs/multimodal-jepa-corpus-v2.md"
 compose=(
   docker compose
   --project-name quantis-multimodal-jepa-normal
@@ -99,5 +99,5 @@ cd "${repository}"
   --weight-decay 0.0001 \
   --calibration-quantile 0.98 \
   --maximum-validation-alert-rate 0.10 \
-  --seed 47 \
+  --seed 48 \
   --output "${output}/training"

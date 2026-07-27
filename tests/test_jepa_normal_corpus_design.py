@@ -229,7 +229,8 @@ def test_multimodal_corpus_uses_fresh_schedules_and_case_ids(
         }
     )
     assert all(
-        manifest.case_id.startswith("multimodal-normal-")
+        manifest.case_id.startswith("multimodal-normal-v2-")
+        and manifest.case_id.endswith("-48")
         and manifest.sample_period_seconds == 0.1
         and manifest.fault_kind == "none"
         and manifest.baseline_interval
