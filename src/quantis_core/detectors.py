@@ -1,7 +1,7 @@
 """Detectors sharing one observable scoring interface."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, Dict, Optional, Tuple, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
@@ -331,6 +331,314 @@ class DemandConditionedCoherentDetector(
         return detector
 
 
+class JepaWorldModelDetector(_CalibratedDetector):
+    """Learn a temporal joint embedding with an EMA target encoder."""
+
+    kind = "jepa_world_model_v0"
+
+    def __init__(
+        self,
+        latent_dimension: int = 4,
+        epochs: int = 200,
+        learning_rate: float = 2e-2,
+        ema_decay: float = 0.98,
+        weight_decay: float = 1e-4,
+        calibration_quantile: float = 0.98,
+        seed: int = 0,
+    ) -> None:
+        super().__init__(calibration_quantile)
+        if latent_dimension < 1:
+            raise ValueError("latent_dimension must be positive")
+        if epochs < 1:
+            raise ValueError("epochs must be positive")
+        if learning_rate <= 0.0:
+            raise ValueError("learning_rate must be positive")
+        if not 0.0 <= ema_decay < 1.0:
+            raise ValueError("ema_decay must be in [0, 1)")
+        if weight_decay < 0.0:
+            raise ValueError("weight_decay cannot be negative")
+        self.latent_dimension = latent_dimension
+        self.epochs = epochs
+        self.learning_rate = learning_rate
+        self.ema_decay = ema_decay
+        self.weight_decay = weight_decay
+        self.seed = seed
+        self.training_losses: tuple[float, ...] = ()
+        self._context_shape = (0, 0)
+        self._feature_names: Tuple[str, ...] = ()
+        self._encoder_weights: NDArray[np.float64] = np.asarray([[]])
+        self._encoder_bias: NDArray[np.float64] = np.asarray([])
+        self._target_weights: NDArray[np.float64] = np.asarray([[]])
+        self._target_bias: NDArray[np.float64] = np.asarray([])
+        self._predictor_weights: NDArray[np.float64] = np.asarray([[]])
+        self._predictor_bias: NDArray[np.float64] = np.asarray([])
+        self._feature_scale: NDArray[np.float64] = np.asarray([])
+
+    def _fit_model(self, windows: ModelWindows) -> None:
+        sample_count, lookback, feature_count = windows.contexts.shape
+        if self.latent_dimension > feature_count:
+            raise ValueError(
+                "JEPA latent_dimension cannot exceed feature count"
+            )
+        self._context_shape = (lookback, feature_count)
+        self._feature_names = windows.feature_names
+        generator = np.random.default_rng(self.seed)
+        initial_encoder = generator.normal(
+            0.0,
+            1.0 / np.sqrt(feature_count),
+            size=(feature_count, self.latent_dimension),
+        )
+        self._encoder_weights = _orthonormal_columns(initial_encoder)
+        self._encoder_bias = np.zeros(
+            self.latent_dimension,
+            dtype=np.float64,
+        )
+        self._target_weights = self._encoder_weights.copy()
+        self._target_bias = self._encoder_bias.copy()
+        self._predictor_weights = generator.normal(
+            0.0,
+            1.0 / np.sqrt(lookback * self.latent_dimension),
+            size=(
+                lookback * self.latent_dimension,
+                self.latent_dimension,
+            ),
+        )
+        self._predictor_bias = np.zeros(
+            self.latent_dimension,
+            dtype=np.float64,
+        )
+
+        losses = []
+        normalizer = float(sample_count * self.latent_dimension)
+        for _ in range(self.epochs):
+            context_latent = np.tanh(
+                windows.contexts @ self._encoder_weights
+                + self._encoder_bias
+            )
+            flattened = context_latent.reshape(sample_count, -1)
+            predicted = (
+                flattened @ self._predictor_weights
+                + self._predictor_bias
+            )
+            observed = np.tanh(
+                windows.targets @ self._target_weights
+                + self._target_bias
+            )
+            residual = predicted - observed
+            loss = float(np.mean(np.square(residual)))
+            losses.append(loss)
+
+            prediction_gradient = 2.0 * residual / normalizer
+            predictor_weights_before = (
+                self._predictor_weights.copy()
+            )
+            predictor_gradient = (
+                flattened.T @ prediction_gradient
+                + self.weight_decay * self._predictor_weights
+            )
+            predictor_bias_gradient = np.sum(
+                prediction_gradient,
+                axis=0,
+            )
+            flattened_gradient = (
+                prediction_gradient
+                @ predictor_weights_before.T
+            )
+            context_gradient = flattened_gradient.reshape(
+                context_latent.shape
+            )
+            encoder_pre_activation_gradient = (
+                context_gradient
+                * (1.0 - np.square(context_latent))
+            )
+            encoder_gradient = (
+                np.einsum(
+                    "nlf,nld->fd",
+                    windows.contexts,
+                    encoder_pre_activation_gradient,
+                )
+                + self.weight_decay * self._encoder_weights
+            )
+            encoder_bias_gradient = np.sum(
+                encoder_pre_activation_gradient,
+                axis=(0, 1),
+            )
+
+            self._predictor_weights -= (
+                self.learning_rate * predictor_gradient
+            )
+            self._predictor_bias -= (
+                self.learning_rate * predictor_bias_gradient
+            )
+            updated_encoder = (
+                self._encoder_weights
+                - self.learning_rate * encoder_gradient
+            )
+            self._encoder_weights = _orthonormal_columns(
+                updated_encoder
+            )
+            self._encoder_bias -= (
+                self.learning_rate * encoder_bias_gradient
+            )
+            self._target_weights = (
+                self.ema_decay * self._target_weights
+                + (1.0 - self.ema_decay) * self._encoder_weights
+            )
+            self._target_bias = (
+                self.ema_decay * self._target_bias
+                + (1.0 - self.ema_decay) * self._encoder_bias
+            )
+        self.training_losses = tuple(losses)
+        raw_evidence = np.abs(
+            self._raw_signed_feature_evidence(windows)
+        )
+        self._feature_scale = np.maximum(
+            np.median(raw_evidence, axis=0),
+            1e-3,
+        )
+
+    def _score_model(
+        self,
+        windows: ModelWindows,
+    ) -> DetectionScores:
+        if windows.contexts.shape[1:] != self._context_shape:
+            raise ValueError(
+                "window shape does not match fitted JEPA detector"
+            )
+        if windows.feature_names != self._feature_names:
+            raise ValueError(
+                "window features do not match fitted JEPA detector"
+            )
+        latent_residual, observed = self._latent_difference(windows)
+        scores = np.sqrt(
+            np.mean(np.square(latent_residual), axis=1)
+        )
+        encoder_sensitivity = (
+            latent_residual * (1.0 - np.square(observed))
+        )
+        signed_evidence = (
+            encoder_sensitivity @ self._target_weights.T
+        ) / self._feature_scale
+        return DetectionScores(
+            scores=scores,
+            feature_evidence=np.abs(signed_evidence),
+            threshold=self.threshold,
+            signed_feature_evidence=signed_evidence,
+        )
+
+    def _latent_difference(
+        self,
+        windows: ModelWindows,
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        context_latent = np.tanh(
+            windows.contexts @ self._encoder_weights
+            + self._encoder_bias
+        )
+        predicted = (
+            context_latent.reshape(len(context_latent), -1)
+            @ self._predictor_weights
+            + self._predictor_bias
+        )
+        observed = np.tanh(
+            windows.targets @ self._target_weights
+            + self._target_bias
+        )
+        return observed - predicted, observed
+
+    def _raw_signed_feature_evidence(
+        self,
+        windows: ModelWindows,
+    ) -> NDArray[np.float64]:
+        latent_residual, observed = self._latent_difference(windows)
+        return (
+            latent_residual * (1.0 - np.square(observed))
+        ) @ self._target_weights.T
+
+    def to_dict(self) -> Dict[str, Any]:
+        artifact = self._base_artifact()
+        artifact.update(
+            {
+                "latent_dimension": self.latent_dimension,
+                "epochs": self.epochs,
+                "learning_rate": self.learning_rate,
+                "ema_decay": self.ema_decay,
+                "weight_decay": self.weight_decay,
+                "seed": self.seed,
+                "training_losses": list(self.training_losses),
+                "context_shape": list(self._context_shape),
+                "feature_names": list(self._feature_names),
+                "encoder_weights": self._encoder_weights.tolist(),
+                "encoder_bias": self._encoder_bias.tolist(),
+                "target_weights": self._target_weights.tolist(),
+                "target_bias": self._target_bias.tolist(),
+                "predictor_weights": (
+                    self._predictor_weights.tolist()
+                ),
+                "predictor_bias": self._predictor_bias.tolist(),
+                "feature_scale": self._feature_scale.tolist(),
+            }
+        )
+        return artifact
+
+    @classmethod
+    def from_dict(
+        cls,
+        payload: Dict[str, Any],
+    ) -> "JepaWorldModelDetector":
+        detector = cls(
+            latent_dimension=int(payload["latent_dimension"]),
+            epochs=int(payload["epochs"]),
+            learning_rate=float(payload["learning_rate"]),
+            ema_decay=float(payload["ema_decay"]),
+            weight_decay=float(payload["weight_decay"]),
+            calibration_quantile=float(
+                payload["calibration_quantile"]
+            ),
+            seed=int(payload["seed"]),
+        )
+        detector.threshold = float(payload["threshold"])
+        detector.training_losses = tuple(
+            float(value) for value in payload["training_losses"]
+        )
+        context_shape = payload["context_shape"]
+        detector._context_shape = (
+            int(context_shape[0]),
+            int(context_shape[1]),
+        )
+        detector._feature_names = tuple(
+            str(value) for value in payload["feature_names"]
+        )
+        detector._encoder_weights = np.asarray(
+            payload["encoder_weights"],
+            dtype=np.float64,
+        )
+        detector._encoder_bias = np.asarray(
+            payload["encoder_bias"],
+            dtype=np.float64,
+        )
+        detector._target_weights = np.asarray(
+            payload["target_weights"],
+            dtype=np.float64,
+        )
+        detector._target_bias = np.asarray(
+            payload["target_bias"],
+            dtype=np.float64,
+        )
+        detector._predictor_weights = np.asarray(
+            payload["predictor_weights"],
+            dtype=np.float64,
+        )
+        detector._predictor_bias = np.asarray(
+            payload["predictor_bias"],
+            dtype=np.float64,
+        )
+        detector._feature_scale = np.asarray(
+            payload["feature_scale"],
+            dtype=np.float64,
+        )
+        return detector
+
+
 def _restore_latent_state(
     detector: LatentPredictiveDetector, payload: Dict[str, Any]
 ) -> None:
@@ -362,12 +670,23 @@ def detector_from_dict(payload: Dict[str, Any]) -> _CalibratedDetector:
         return CoherentLatentPredictiveDetector.from_dict(payload)
     if kind == DemandConditionedCoherentDetector.kind:
         return DemandConditionedCoherentDetector.from_dict(payload)
+    if kind == JepaWorldModelDetector.kind:
+        return JepaWorldModelDetector.from_dict(payload)
     raise ValueError(f"unsupported detector kind: {kind}")
 
 
 def _design_matrix(contexts: NDArray[np.float64]) -> NDArray[np.float64]:
     flattened = contexts.reshape(len(contexts), -1)
     return np.column_stack((flattened, np.ones(len(flattened), dtype=np.float64)))
+
+
+def _orthonormal_columns(
+    values: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    columns, upper = np.linalg.qr(values)
+    diagonal = np.diag(upper)
+    signs = np.where(diagonal < 0.0, -1.0, 1.0)
+    return np.asarray(columns * signs, dtype=np.float64)
 
 
 def _validate_windows(windows: ModelWindows) -> None:

@@ -29,6 +29,15 @@ from .fault_matrix import (
 )
 from .otlp import read_otlp_capture
 from .otlp_windowing import OtlpFeatureSpec, OtlpWindowCompiler
+from .telemetry_corpus import (
+    TelemetryCorpusSplitSpec,
+    compile_telemetry_corpus,
+)
+from .world_model import (
+    JepaTrainingConfig,
+    train_jepa_world_model,
+    write_jepa_development_artifacts,
+)
 
 
 def main(arguments: Optional[Sequence[str]] = None) -> int:
@@ -108,6 +117,58 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     evaluate_v2.add_argument("--confirmation-protocol", type=Path)
     evaluate_v2.add_argument("--preregistered-git-commit")
     evaluate_v2.add_argument("--output", type=Path, required=True)
+    train_jepa = commands.add_parser(
+        "train-jepa-world-model",
+        help="compile a run-isolated corpus and fit JEPA v0",
+    )
+    train_jepa.add_argument(
+        "--captures-directory",
+        type=Path,
+        required=True,
+    )
+    train_jepa.add_argument(
+        "--manifests-directory",
+        type=Path,
+        required=True,
+    )
+    train_jepa.add_argument(
+        "--feature-spec",
+        type=Path,
+        required=True,
+    )
+    train_jepa.add_argument(
+        "--split-spec",
+        type=Path,
+        required=True,
+    )
+    train_jepa.add_argument(
+        "--latent-dimension",
+        type=int,
+        default=4,
+    )
+    train_jepa.add_argument("--epochs", type=int, default=200)
+    train_jepa.add_argument(
+        "--learning-rate",
+        type=float,
+        default=2e-2,
+    )
+    train_jepa.add_argument(
+        "--ema-decay",
+        type=float,
+        default=0.98,
+    )
+    train_jepa.add_argument(
+        "--weight-decay",
+        type=float,
+        default=1e-4,
+    )
+    train_jepa.add_argument(
+        "--calibration-quantile",
+        type=float,
+        default=0.98,
+    )
+    train_jepa.add_argument("--seed", type=int, default=0)
+    train_jepa.add_argument("--output", type=Path, required=True)
     parsed = parser.parse_args(arguments)
 
     if parsed.command == "evaluate":
@@ -263,6 +324,43 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         print(f"Demand-conditioned matrix acceptance: {v2_status}")
         print(f"Report: {v2_paths['report']}")
         return 0 if v2_report.acceptance["all_passed"] else 1
+    if parsed.command == "train-jepa-world-model":
+        jepa_feature_spec = OtlpFeatureSpec.from_dict(
+            json.loads(parsed.feature_spec.read_text())
+        )
+        split_spec = TelemetryCorpusSplitSpec.from_dict(
+            json.loads(parsed.split_spec.read_text())
+        )
+        corpus = compile_telemetry_corpus(
+            _load_fault_matrix_runs(
+                parsed.captures_directory,
+                parsed.manifests_directory,
+            ),
+            jepa_feature_spec,
+            split_spec,
+        )
+        result = train_jepa_world_model(
+            corpus,
+            JepaTrainingConfig(
+                latent_dimension=parsed.latent_dimension,
+                epochs=parsed.epochs,
+                learning_rate=parsed.learning_rate,
+                ema_decay=parsed.ema_decay,
+                weight_decay=parsed.weight_decay,
+                calibration_quantile=(
+                    parsed.calibration_quantile
+                ),
+                seed=parsed.seed,
+            ),
+        )
+        jepa_paths = write_jepa_development_artifacts(
+            result,
+            parsed.output,
+        )
+        print("JEPA development training: PASS")
+        print(f"Model: {jepa_paths['model']}")
+        print(f"Report: {jepa_paths['report']}")
+        return 0
     return 2
 
 

@@ -130,3 +130,29 @@ below 20 percentage points, while aggregate pre-noise and routine-noise rates
 still fail at 133/393 and 27/63. Holding schedule fixed removes the earlier
 topology gradient: the v2 failure is better explained by schedule sensitivity
 than worker count alone.
+
+## Build the JEPA world-model v0
+
+Compile run-isolated, demand-conditioned normal windows and train the first
+learned joint-embedding predictor:
+
+```bash
+.venv/bin/python -m quantis_core train-jepa-world-model \
+  --captures-directory path/to/fresh-normal-corpus/cases \
+  --manifests-directory path/to/fresh-normal-manifests \
+  --feature-spec lab/fault_matrix/feature-spec.json \
+  --split-spec path/to/corpus-split.json \
+  --output artifacts/jepa-world-model-v0
+```
+
+The split specification declares training, validation, and additional
+reserved-evidence case IDs. The compiler automatically reserves every committed
+result-bearing case and rejects case overlap, held-out schedule overlap,
+capture/manifest mismatch, incomplete cells, and any attempt to place reserved
+evidence in a model split. Normalization is fitted only on training runs and
+windows are compiled separately per run.
+
+The [JEPA corpus v1 specification](docs/specs/jepa-corpus-v1.md) describes the
+single-step NumPy tracer bullet and the fresh-corpus gate required before model
+selection. Existing result-bearing captures are reserved automatically; they are
+not training data.

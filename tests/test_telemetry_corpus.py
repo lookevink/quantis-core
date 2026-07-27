@@ -1,0 +1,103 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from quantis_core.fault_matrix import (
+    FaultMatrixCaseManifest,
+    FaultMatrixRun,
+)
+from quantis_core.telemetry_corpus import (
+    RESERVED_EVIDENCE_CASE_IDS,
+    TelemetryCorpusSplitSpec,
+    compile_telemetry_corpus,
+)
+from tests.corpus_test_support import (
+    FRESH_CASE_IDS,
+    fresh_development_runs,
+)
+
+
+def test_corpus_compiles_normal_windows_without_crossing_runs():
+    runs, feature_spec = fresh_development_runs()
+    corpus = compile_telemetry_corpus(
+        runs,
+        feature_spec,
+        TelemetryCorpusSplitSpec(
+            training_case_ids=FRESH_CASE_IDS[:2],
+            validation_case_ids=(FRESH_CASE_IDS[2],),
+            reserved_case_ids=(),
+            lookback=6,
+        ),
+    )
+
+    assert corpus.training.case_ids == FRESH_CASE_IDS[:2]
+    assert corpus.validation.case_ids == (FRESH_CASE_IDS[2],)
+    assert len(corpus.training.windows.targets) == 60
+    assert len(corpus.validation.windows.targets) == 30
+    assert corpus.training.window_case_ids[:30] == (
+        FRESH_CASE_IDS[0],
+    ) * 30
+    assert corpus.training.window_case_ids[30:] == (
+        FRESH_CASE_IDS[1],
+    ) * 30
+    assert corpus.protocol["training_point_count"] == 72
+    assert corpus.protocol["validation_point_count"] == 36
+    assert corpus.protocol["context_crosses_run_boundary"] is False
+    assert corpus.protocol["training_validation_schedule_overlap"] == []
+    assert set(
+        corpus.protocol["split_spec"]["reserved_case_ids"]
+    ) == RESERVED_EVIDENCE_CASE_IDS
+    assert corpus.training.windows.feature_names == (
+        "request_latency_ms",
+        "error_rate",
+        "queue_depth",
+        "worker_completion_ratio",
+        "worker_heartbeat_age_s",
+        "db_write_completion_ratio",
+    )
+
+
+def test_corpus_rejects_reserved_evidence_and_schedule_leakage():
+    runs, feature_spec = fresh_development_runs()
+
+    with pytest.raises(ValueError, match="reserved evidence"):
+        TelemetryCorpusSplitSpec(
+            training_case_ids=("cache-outage-held-out-01",),
+            validation_case_ids=(FRESH_CASE_IDS[2],),
+            reserved_case_ids=(),
+        )
+
+    repeated_schedule_run = FaultMatrixRun(
+        manifest=FaultMatrixCaseManifest.from_dict(
+            {
+                **runs[0].manifest.to_dict(),
+                "case_id": "same-schedule-validation",
+            }
+        ),
+        capture=runs[0].capture,
+    )
+    with pytest.raises(ValueError, match="canonical request schedules"):
+        compile_telemetry_corpus(
+            [runs[0], repeated_schedule_run],
+            feature_spec,
+            TelemetryCorpusSplitSpec(
+                training_case_ids=(runs[0].manifest.case_id,),
+                validation_case_ids=(
+                    repeated_schedule_run.manifest.case_id,
+                ),
+                reserved_case_ids=(),
+            ),
+        )
+
+
+def test_reserved_evidence_registry_covers_all_committed_manifests():
+    repository = Path(__file__).resolve().parents[1]
+    lab = repository / "lab" / "fault_matrix"
+    manifest_case_ids = {
+        str(json.loads(path.read_text())["case_id"])
+        for directory in lab.glob("experiments*")
+        for path in directory.glob("*.json")
+    }
+
+    assert manifest_case_ids == RESERVED_EVIDENCE_CASE_IDS
