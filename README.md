@@ -123,8 +123,10 @@ request schedule and identical non-topology manifest fields:
 ./lab/fault_matrix/run-matched-v2-diagnostic.sh
 ```
 
-The [matched diagnostic specification](docs/specs/matched-topology-diagnostic.md)
-freezes pre-noise alert rate as the primary outcome and reports paired risk
-differences against the one-worker treatment. The protocol must be committed
-before the first capture; the runner refuses an uncommitted or changed
-preregistration.
+The [matched diagnostic report](artifacts/demand-conditioned-v2/matched-topology-diagnostic/report.md)
+finds no material topology effect. Pre-noise alert rates are 35.1%, 33.6%, and
+32.8% for one, two, and three workers. Every preregistered paired difference is
+below 20 percentage points, while aggregate pre-noise and routine-noise rates
+still fail at 133/393 and 27/63. Holding schedule fixed removes the earlier
+topology gradient: the v2 failure is better explained by schedule sensitivity
+than worker count alone.
