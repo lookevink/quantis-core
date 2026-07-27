@@ -91,3 +91,24 @@ records 3/3 recall, 3/3 attribution hit@3, zero-window maximum delay, 22/148
 pre-noise alerts, and 3/21 noise-response alerts. Its machine-readable evidence
 records the preregistration commit and hashes the full 27-file evaluation
 dependency closure.
+
+## Expanded topology confirmation
+
+The expanded 3×3 matrix runs every fault across one-, two-, and three-worker
+topologies:
+
+```bash
+./lab/fault_matrix/run-expanded-v2-confirmation.sh
+```
+
+The preregistered [expanded report](artifacts/demand-conditioned-v2/expanded-confirmation/report.md)
+is an important negative result. Recall, attribution, and detection delay remain
+perfect at 9/9, 9/9, and zero windows, but pre-noise alert rates rise from 10.0%
+with one observed worker to 70.5% with two and 87.4% with three. Routine-noise
+rates similarly rise from 0.0% to 61.9% and 100.0%. The aggregate false-positive
+gates therefore fail at 216/377 pre-noise alerts and 34/63 routine-noise alerts.
+Worker count co-varies with
+the workload schedules in this matrix, so the result establishes an
+association with multi-worker operation rather than isolated causality. V2
+transfers operationally to the new one-worker cases but not to this expanded
+multi-worker workload envelope.

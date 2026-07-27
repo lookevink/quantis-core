@@ -1,0 +1,1573 @@
+{
+  "acceptance": {
+    "all_passed": false,
+    "gates": {
+      "aggregate_pre_noise_alert_rate_within_limit": false,
+      "aggregate_routine_noise_alert_rate_within_limit": false,
+      "all_captures_match_manifests": true,
+      "all_detection_delays_within_limit": true,
+      "all_raw_fault_effects_observed": true,
+      "all_topology_strata_within_limits": false,
+      "attribution_hit_rate_at_3_is_one": true,
+      "complete_fault_kind_coverage": true,
+      "complete_fault_topology_coverage": true,
+      "content_addressed_inputs": true,
+      "frozen_artifacts_unchanged": true,
+      "one_application_image_and_build": true,
+      "structural_event_recall_is_one": true
+    }
+  },
+  "aggregate": {
+    "attribution_hit_rate_at_3": 1.0,
+    "attribution_hits_at_3": 9,
+    "maximum_detection_delay_windows": 0,
+    "pre_noise_alert_rate": 0.5729442970822282,
+    "pre_noise_alerts": 216,
+    "pre_noise_points": 377,
+    "routine_noise_alert_rate": 0.5396825396825397,
+    "routine_noise_alerts": 34,
+    "routine_noise_points": 63,
+    "structural_event_recall": 1.0,
+    "structural_events": 9,
+    "structural_events_detected": 9,
+    "topology_strata": {
+      "workers-1": {
+        "attribution_hit_rate_at_3": 1.0,
+        "attribution_hits_at_3": 3,
+        "maximum_detection_delay_windows": 0,
+        "pre_noise_alert_rate": 0.1,
+        "pre_noise_alerts": 12,
+        "pre_noise_points": 120,
+        "routine_noise_alert_rate": 0.0,
+        "routine_noise_alerts": 0,
+        "routine_noise_points": 21,
+        "structural_event_recall": 1.0,
+        "structural_events": 3,
+        "structural_events_detected": 3
+      },
+      "workers-2": {
+        "attribution_hit_rate_at_3": 1.0,
+        "attribution_hits_at_3": 3,
+        "maximum_detection_delay_windows": 0,
+        "pre_noise_alert_rate": 0.7049180327868853,
+        "pre_noise_alerts": 86,
+        "pre_noise_points": 122,
+        "routine_noise_alert_rate": 0.6190476190476191,
+        "routine_noise_alerts": 13,
+        "routine_noise_points": 21,
+        "structural_event_recall": 1.0,
+        "structural_events": 3,
+        "structural_events_detected": 3
+      },
+      "workers-3": {
+        "attribution_hit_rate_at_3": 1.0,
+        "attribution_hits_at_3": 3,
+        "maximum_detection_delay_windows": 0,
+        "pre_noise_alert_rate": 0.8740740740740741,
+        "pre_noise_alerts": 118,
+        "pre_noise_points": 135,
+        "routine_noise_alert_rate": 1.0,
+        "routine_noise_alerts": 21,
+        "routine_noise_points": 21,
+        "structural_event_recall": 1.0,
+        "structural_events": 3,
+        "structural_events_detected": 3
+      }
+    }
+  },
+  "cases": {
+    "expanded-workers-1-cache-outage-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_completion_ratio",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_rate",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "db_write_completion_ratio",
+          "worker_completion_ratio",
+          "error_rate"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 73,
+        "metric_point_count": 511,
+        "sha256": "4f105a8da5e0fafd003a8d09fb14eaaee936db21a7319b1651915b3f1a2301dd"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 73
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 52,
+        "pre_noise_alert_rate": 0.10256410256410256,
+        "pre_noise_alerts": 4,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 0.0,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 1.2377753353641787,
+          "worker_completion_ratio": 0.0,
+          "worker_heartbeat_age_s": 1.0489387493404843
+        },
+        "pre_noise_points": 39,
+        "pre_noise_score_maximum": 333.33333333333326,
+        "pre_noise_score_median": 0.6563283087138699,
+        "repaired_isolated_context_cells": 90,
+        "routine_noise_alert_rate": 0.0,
+        "routine_noise_alerts": 0,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_rate",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          36
+        ],
+        "case_id": "expanded-workers-1-cache-outage-10",
+        "fault_kind": "cache_outage",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          1,
+          -1,
+          2,
+          -2,
+          3,
+          -3,
+          4,
+          0,
+          2,
+          -1
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 73,
+        "requests_per_window": 6,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          45,
+          46
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          52,
+          66
+        ],
+        "topology_id": "workers-1",
+        "worker_replicas": 1
+      },
+      "manifest_sha256": "56ae11023eaca1c25d29879afe49d9b552e228721e9b03c183be773646714840",
+      "raw_effect_gates": {
+        "cache_error_rate_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 1.0,
+        "fault_queue_depth_max": 0.0,
+        "queue_depth_growth": 0.0,
+        "routine_noise_latency_ratio": 52.26284924786746,
+        "worker_rate_fault_ratio": 0.0
+      }
+    },
+    "expanded-workers-1-database-lock-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "queue_depth",
+          "worker_completion_ratio",
+          "worker_heartbeat_age_s",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "queue_depth",
+          "db_write_completion_ratio",
+          "worker_completion_ratio"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 74,
+        "metric_point_count": 518,
+        "sha256": "e1484d6214d83d3112c0f0b5f9e4ca11b8da9267c854b46ddf84be28517bd519"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 74
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 53,
+        "pre_noise_alert_rate": 0.1,
+        "pre_noise_alerts": 4,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 0.0,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 1.2315689326409531,
+          "worker_completion_ratio": 0.0,
+          "worker_heartbeat_age_s": 0.9206427235646171
+        },
+        "pre_noise_points": 40,
+        "pre_noise_score_maximum": 285.7142857142858,
+        "pre_noise_score_median": 0.7065559681634703,
+        "repaired_isolated_context_cells": 6,
+        "routine_noise_alert_rate": 0.0,
+        "routine_noise_alerts": 0,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          36
+        ],
+        "case_id": "expanded-workers-1-database-lock-10",
+        "fault_kind": "database_lock",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          -2,
+          2,
+          -1,
+          3,
+          -3,
+          1,
+          4,
+          0,
+          -1,
+          2
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 74,
+        "requests_per_window": 7,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          46,
+          47
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          53,
+          67
+        ],
+        "topology_id": "workers-1",
+        "worker_replicas": 1
+      },
+      "manifest_sha256": "d6a2dda4c40b471487ba0d7fae5e93d69276bed095b65498f9ecda466861d6a3",
+      "raw_effect_gates": {
+        "backlog_growth_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 0.0,
+        "fault_queue_depth_max": 107.0,
+        "queue_depth_growth": 107.0,
+        "routine_noise_latency_ratio": 13.272501170884544,
+        "worker_rate_fault_ratio": 0.0
+      }
+    },
+    "expanded-workers-1-worker-crash-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "queue_depth",
+          "worker_completion_ratio",
+          "worker_heartbeat_age_s",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "queue_depth",
+          "db_write_completion_ratio",
+          "worker_completion_ratio"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 75,
+        "metric_point_count": 525,
+        "sha256": "8bbca01642dd4e249fe27bb5c114f74b544def4edd2fdf505f07cf75b623c5a5"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 75
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 54,
+        "pre_noise_alert_rate": 0.0975609756097561,
+        "pre_noise_alerts": 4,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 0.0,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 1.345344042292931,
+          "worker_completion_ratio": 0.0,
+          "worker_heartbeat_age_s": 1.1628746493433735
+        },
+        "pre_noise_points": 41,
+        "pre_noise_score_maximum": 333.33333333333326,
+        "pre_noise_score_median": 0.9317304393181534,
+        "repaired_isolated_context_cells": 6,
+        "routine_noise_alert_rate": 0.0,
+        "routine_noise_alerts": 0,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          37
+        ],
+        "case_id": "expanded-workers-1-worker-crash-10",
+        "fault_kind": "worker_crash",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          3,
+          -2,
+          1,
+          -3,
+          2,
+          0,
+          4,
+          -1,
+          1,
+          -2
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 75,
+        "requests_per_window": 7,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          47,
+          48
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          54,
+          68
+        ],
+        "topology_id": "workers-1",
+        "worker_replicas": 1
+      },
+      "manifest_sha256": "bfed307bfa9de0ec074a5d5d254b2f1bda63a1cbfc4e27b2b832eceaf8412154",
+      "raw_effect_gates": {
+        "backlog_growth_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 0.0,
+        "fault_queue_depth_max": 106.0,
+        "queue_depth_growth": 106.0,
+        "routine_noise_latency_ratio": 24.80496019595836,
+        "worker_rate_fault_ratio": 0.0
+      }
+    },
+    "expanded-workers-2-cache-outage-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_completion_ratio",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_rate",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "db_write_completion_ratio",
+          "worker_completion_ratio",
+          "error_rate"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 72,
+        "metric_point_count": 504,
+        "sha256": "7883254380df7a71f367b1c6f2bac0a392f75c975e4ef0785448fbcf37a49601"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 72
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 52,
+        "pre_noise_alert_rate": 0.46153846153846156,
+        "pre_noise_alerts": 18,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 0.0,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 0.9141306241573803,
+          "worker_completion_ratio": 0.0,
+          "worker_heartbeat_age_s": 1.0483740403906496
+        },
+        "pre_noise_points": 39,
+        "pre_noise_score_maximum": 333.33333333333326,
+        "pre_noise_score_median": 1.484923576445079,
+        "repaired_isolated_context_cells": 84,
+        "routine_noise_alert_rate": 0.5714285714285714,
+        "routine_noise_alerts": 4,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_rate",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          36
+        ],
+        "case_id": "expanded-workers-2-cache-outage-10",
+        "fault_kind": "cache_outage",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          2,
+          -2,
+          3,
+          -3,
+          1,
+          -1,
+          4,
+          0,
+          2,
+          -2
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 72,
+        "requests_per_window": 9,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          45,
+          46
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          52,
+          65
+        ],
+        "topology_id": "workers-2",
+        "worker_replicas": 2
+      },
+      "manifest_sha256": "2c44bf1cdb8b268ceaaef9d76f737e11a56d2d67e8319bf142df2b404a2dc19d",
+      "raw_effect_gates": {
+        "cache_error_rate_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 1.0,
+        "fault_queue_depth_max": 0.0,
+        "queue_depth_growth": 0.0,
+        "routine_noise_latency_ratio": 17.21974727384818,
+        "worker_rate_fault_ratio": 0.0
+      }
+    },
+    "expanded-workers-2-database-lock-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "queue_depth",
+          "worker_completion_ratio",
+          "worker_heartbeat_age_s",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "queue_depth",
+          "db_write_completion_ratio",
+          "worker_completion_ratio"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 74,
+        "metric_point_count": 518,
+        "sha256": "c5cd404938b31f39fdccd56d66eacacf876497e08f7069a0f29e38a550eb7fa9"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 74
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 54,
+        "pre_noise_alert_rate": 0.7560975609756098,
+        "pre_noise_alerts": 31,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 125.0,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 0.9257278450634658,
+          "worker_completion_ratio": 125.0,
+          "worker_heartbeat_age_s": 0.9871695447631316
+        },
+        "pre_noise_points": 41,
+        "pre_noise_score_maximum": 300.00000000000006,
+        "pre_noise_score_median": 125.0,
+        "repaired_isolated_context_cells": 12,
+        "routine_noise_alert_rate": 0.42857142857142855,
+        "routine_noise_alerts": 3,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          37
+        ],
+        "case_id": "expanded-workers-2-database-lock-10",
+        "fault_kind": "database_lock",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          -3,
+          3,
+          -1,
+          1,
+          -2,
+          2,
+          4,
+          0,
+          -3,
+          1
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 74,
+        "requests_per_window": 10,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          47,
+          48
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          54,
+          67
+        ],
+        "topology_id": "workers-2",
+        "worker_replicas": 2
+      },
+      "manifest_sha256": "8ac308e6e799499ebc30f3ff29496c10ef091bb339436b48fc1b96e6c2440eb8",
+      "raw_effect_gates": {
+        "backlog_growth_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 0.0,
+        "fault_queue_depth_max": 134.0,
+        "queue_depth_growth": 134.0,
+        "routine_noise_latency_ratio": 13.78968802540631,
+        "worker_rate_fault_ratio": 0.0
+      }
+    },
+    "expanded-workers-2-worker-crash-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "queue_depth",
+          "worker_completion_ratio",
+          "worker_heartbeat_age_s",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "queue_depth",
+          "db_write_completion_ratio",
+          "worker_completion_ratio"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 75,
+        "metric_point_count": 525,
+        "sha256": "fb363d55cb6d5ffe3a074a2c15242e2411ecaa9324ee4243ce31d1628bd0ca86"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 75
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 55,
+        "pre_noise_alert_rate": 0.8809523809523809,
+        "pre_noise_alerts": 37,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 125.0,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 0.8661830661969708,
+          "worker_completion_ratio": 138.09523809523807,
+          "worker_heartbeat_age_s": 0.8771898054402459
+        },
+        "pre_noise_points": 42,
+        "pre_noise_score_maximum": 333.33333333333326,
+        "pre_noise_score_median": 129.16666666666666,
+        "repaired_isolated_context_cells": 6,
+        "routine_noise_alert_rate": 0.8571428571428571,
+        "routine_noise_alerts": 6,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          38
+        ],
+        "case_id": "expanded-workers-2-worker-crash-10",
+        "fault_kind": "worker_crash",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          1,
+          -4,
+          2,
+          -2,
+          3,
+          -1,
+          4,
+          0,
+          1,
+          -3
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 75,
+        "requests_per_window": 11,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          48,
+          49
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          55,
+          68
+        ],
+        "topology_id": "workers-2",
+        "worker_replicas": 2
+      },
+      "manifest_sha256": "6b14896085aabb34d4ddb9ec678ae8ea892d93fd5d4271749f41d1ab6da48c58",
+      "raw_effect_gates": {
+        "backlog_growth_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 0.0,
+        "fault_queue_depth_max": 147.0,
+        "queue_depth_growth": 147.0,
+        "routine_noise_latency_ratio": 10.07734487817342,
+        "worker_rate_fault_ratio": 0.0
+      }
+    },
+    "expanded-workers-3-cache-outage-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_completion_ratio",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_rate",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "error_rate",
+          "db_write_completion_ratio",
+          "worker_completion_ratio"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 76,
+        "metric_point_count": 532,
+        "sha256": "00cd0877a55dcf549da2fd2cc327a15beb6bf49684af502088eb97e33c54facb"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 76
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 57,
+        "pre_noise_alert_rate": 0.8181818181818182,
+        "pre_noise_alerts": 36,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 138.0952380952381,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 0.904713717885529,
+          "worker_completion_ratio": 142.8571428571429,
+          "worker_heartbeat_age_s": 0.8529330679591669
+        },
+        "pre_noise_points": 44,
+        "pre_noise_score_maximum": 500.0,
+        "pre_noise_score_median": 142.8571428571429,
+        "repaired_isolated_context_cells": 78,
+        "routine_noise_alert_rate": 1.0,
+        "routine_noise_alerts": 7,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "request_latency_ms",
+          "error_rate",
+          "worker_rate",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          38
+        ],
+        "case_id": "expanded-workers-3-cache-outage-10",
+        "fault_kind": "cache_outage",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          1,
+          -2,
+          3,
+          -3,
+          2,
+          -1,
+          0,
+          3,
+          -2,
+          1
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 76,
+        "requests_per_window": 12,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          50,
+          51
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          57,
+          69
+        ],
+        "topology_id": "workers-3",
+        "worker_replicas": 3
+      },
+      "manifest_sha256": "a585115c16af2be19e96407c92908a79aa3d844d7ff220076c56fbbad4aa3e08",
+      "raw_effect_gates": {
+        "cache_error_rate_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 1.0,
+        "fault_queue_depth_max": 0.0,
+        "queue_depth_growth": 0.0,
+        "routine_noise_latency_ratio": 7.75705472456921,
+        "worker_rate_fault_ratio": 0.0
+      }
+    },
+    "expanded-workers-3-database-lock-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "queue_depth",
+          "worker_completion_ratio",
+          "worker_heartbeat_age_s",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "queue_depth",
+          "db_write_completion_ratio",
+          "worker_completion_ratio"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 78,
+        "metric_point_count": 546,
+        "sha256": "567f90da107df7d0731ecb94940c46ff2d852f15816069e417e687a966ea09f3"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 78
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 58,
+        "pre_noise_alert_rate": 0.8888888888888888,
+        "pre_noise_alerts": 40,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 133.33333333333331,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 0.672542417950397,
+          "worker_completion_ratio": 153.84615384615384,
+          "worker_heartbeat_age_s": 0.9671977655404671
+        },
+        "pre_noise_points": 45,
+        "pre_noise_score_maximum": 333.33333333333326,
+        "pre_noise_score_median": 142.8571428571429,
+        "repaired_isolated_context_cells": 8,
+        "routine_noise_alert_rate": 1.0,
+        "routine_noise_alerts": 7,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          39
+        ],
+        "case_id": "expanded-workers-3-database-lock-10",
+        "fault_kind": "database_lock",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          -3,
+          2,
+          -1,
+          1,
+          -2,
+          0,
+          2,
+          -4,
+          1,
+          -1
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 78,
+        "requests_per_window": 13,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          51,
+          52
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          58,
+          71
+        ],
+        "topology_id": "workers-3",
+        "worker_replicas": 3
+      },
+      "manifest_sha256": "bce34bd22712ed8574ccb7740ddf06587625cf2d11ff80629817c6a2b76a2e13",
+      "raw_effect_gates": {
+        "backlog_growth_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 0.0,
+        "fault_queue_depth_max": 158.0,
+        "queue_depth_growth": 158.0,
+        "routine_noise_latency_ratio": 7.225157496850063,
+        "worker_rate_fault_ratio": 0.0
+      }
+    },
+    "expanded-workers-3-worker-crash-10": {
+      "acceptance": {
+        "capture_matches_manifest": true,
+        "content_addressed_inputs": true,
+        "raw_effects_observed": true
+      },
+      "attribution": {
+        "expected_features": [
+          "queue_depth",
+          "worker_completion_ratio",
+          "worker_heartbeat_age_s",
+          "db_write_completion_ratio"
+        ],
+        "hit_at_3": true,
+        "raw_expected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "top_features": [
+          "queue_depth",
+          "db_write_completion_ratio",
+          "worker_completion_ratio"
+        ]
+      },
+      "capture": {
+        "application_build_context_sha256": "23f4a571d98b80c63b60e29c147ad51bb85fc3090dc209f84f37c0e7cca12d72",
+        "application_image_id": "sha256:a79df6e9b32f1c8a1957ff1866f78cb7672186fa425da9954b64423290975196",
+        "json_message_count": 80,
+        "metric_point_count": 560,
+        "sha256": "738fa6c1ac2c14958bf1be6445bb706c2d6530c40cef67be220bee550514aa58"
+      },
+      "compiled": {
+        "data_quality": {
+          "flagged_points": 0,
+          "missing_cells": 0,
+          "reset_points": 0
+        },
+        "feature_count": 7,
+        "feature_names": [
+          "request_rate",
+          "request_latency_ms",
+          "error_rate",
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "window_count": 80
+      },
+      "detection": {
+        "detection_delay_windows": 0,
+        "detection_latency_wall_seconds_upper_bound": 0.25,
+        "first_detection_point": 59,
+        "pre_noise_alert_rate": 0.9130434782608695,
+        "pre_noise_alerts": 42,
+        "pre_noise_feature_evidence_median": {
+          "db_write_completion_ratio": 100.00000000000009,
+          "error_rate": 0.0,
+          "queue_depth": 0.0,
+          "request_latency_ms": 1.0053005704876747,
+          "worker_completion_ratio": 133.33333333333331,
+          "worker_heartbeat_age_s": 0.7780456554972465
+        },
+        "pre_noise_points": 46,
+        "pre_noise_score_maximum": 300.00000000000006,
+        "pre_noise_score_median": 100.00000000000009,
+        "repaired_isolated_context_cells": 6,
+        "routine_noise_alert_rate": 1.0,
+        "routine_noise_alerts": 7,
+        "routine_noise_points": 7,
+        "structural_detected": true,
+        "threshold": 2.9512678944677826
+      },
+      "manifest": {
+        "affected_features": [
+          "queue_depth",
+          "worker_rate",
+          "worker_heartbeat_age_s",
+          "db_write_rate"
+        ],
+        "baseline_interval": [
+          0,
+          40
+        ],
+        "case_id": "expanded-workers-3-worker-crash-10",
+        "fault_kind": "worker_crash",
+        "images": {
+          "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+          "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+          "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+          "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2"
+        },
+        "load_pattern_offsets": [
+          -4,
+          1,
+          -2,
+          0,
+          -3,
+          1,
+          -1,
+          -4,
+          0,
+          -2
+        ],
+        "logical_window_period_nano": 1000000000,
+        "point_count": 80,
+        "requests_per_window": 14,
+        "routine_noise_delay_ms": 150,
+        "routine_noise_interval": [
+          52,
+          53
+        ],
+        "sample_period_seconds": 0.25,
+        "schema_version": 2,
+        "structural_interval": [
+          59,
+          73
+        ],
+        "topology_id": "workers-3",
+        "worker_replicas": 3
+      },
+      "manifest_sha256": "1fc76444b66a482344c11e66a0aba4a333ed28b675916aebac1277d053b12a59",
+      "raw_effect_gates": {
+        "backlog_growth_at_least_minimum": true,
+        "db_write_rate_collapses": true,
+        "routine_noise_has_observed_effect": true,
+        "worker_rate_collapses": true
+      },
+      "raw_effects": {
+        "baseline_queue_depth_median": 0.0,
+        "db_write_rate_fault_ratio": 0.0,
+        "fault_error_rate_median": 0.0,
+        "fault_queue_depth_max": 175.0,
+        "queue_depth_growth": 175.0,
+        "routine_noise_latency_ratio": 8.639249530956848,
+        "worker_rate_fault_ratio": 0.0
+      }
+    }
+  },
+  "limitations": [
+    "Preregistration attests frozen inputs and disjoint cases, canonical realized request schedules, and fault timings; nine local cases across three worker-count strata still provide limited external validity.",
+    "Demand ratios assume positive observed request demand in every window.",
+    "Completion ratios encode a domain assumption that admitted requests should lead to worker and database completions.",
+    "Worker replica count is only one dimension of topology diversity.",
+    "Redis, PostgreSQL, API, Collector, host, and telemetry vocabulary remain unchanged.",
+    "Nine controlled local cases do not estimate production incident prevalence.",
+    "The cache fault is a logical application-path outage, not a killed Redis process, because Redis also carries this lab's public counters.",
+    "Logical event-time windows are sampled faster than wall clock.",
+    "Feature evidence is associative attribution, not causal proof.",
+    "The target encoder is linear PCA, not a learned JEPA encoder."
+  ],
+  "protocol": {
+    "artifact_file_sha256": {
+      "model": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a"
+    },
+    "case_fault_kinds": [
+      "cache_outage",
+      "database_lock",
+      "worker_crash"
+    ],
+    "case_topology_ids": [
+      "workers-1",
+      "workers-2",
+      "workers-3"
+    ],
+    "conditioning": {
+      "kind": "request_demand_ratios",
+      "schema_version": 1
+    },
+    "config": {
+      "isolated_context_z_threshold": 8.0,
+      "maximum_detection_delay_windows": 6,
+      "maximum_fault_rate_ratio": 0.2,
+      "maximum_noise_alert_rate": 0.2,
+      "maximum_pre_noise_alert_rate": 0.2,
+      "minimum_backlog_growth": 20.0,
+      "minimum_cache_error_rate": 0.8,
+      "minimum_noise_latency_ratio": 3.0
+    },
+    "confirmation_protocol": {
+      "confirmation_manifest_sha256": {
+        "expanded-workers-1-cache-outage-10": "56ae11023eaca1c25d29879afe49d9b552e228721e9b03c183be773646714840",
+        "expanded-workers-1-database-lock-10": "d6a2dda4c40b471487ba0d7fae5e93d69276bed095b65498f9ecda466861d6a3",
+        "expanded-workers-1-worker-crash-10": "bfed307bfa9de0ec074a5d5d254b2f1bda63a1cbfc4e27b2b832eceaf8412154",
+        "expanded-workers-2-cache-outage-10": "2c44bf1cdb8b268ceaaef9d76f737e11a56d2d67e8319bf142df2b404a2dc19d",
+        "expanded-workers-2-database-lock-10": "8ac308e6e799499ebc30f3ff29496c10ef091bb339436b48fc1b96e6c2440eb8",
+        "expanded-workers-2-worker-crash-10": "6b14896085aabb34d4ddb9ec678ae8ea892d93fd5d4271749f41d1ab6da48c58",
+        "expanded-workers-3-cache-outage-10": "a585115c16af2be19e96407c92908a79aa3d844d7ff220076c56fbbad4aa3e08",
+        "expanded-workers-3-database-lock-10": "bce34bd22712ed8574ccb7740ddf06587625cf2d11ff80629817c6a2b76a2e13",
+        "expanded-workers-3-worker-crash-10": "1fc76444b66a482344c11e66a0aba4a333ed28b675916aebac1277d053b12a59"
+      },
+      "evaluation_config_sha256": "e73ba367cf255f6c05e2d81508282d2cf4b70634dc94e92552a1c7660da60188",
+      "feature_spec_sha256": "e737796d34e83d2441ac3c5681da2652e36f3f5307e92e03250ec34344008bf6",
+      "frozen_files": {
+        "artifacts/demand-conditioned-v2/model.json": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
+        "lab/fault_matrix/Dockerfile": "9659bb2bc85df9e31cbfca487c54f216fe029cc05ef76361f018f1aeb4b91078",
+        "lab/fault_matrix/collector.yaml": "cd978836855e72f77d52821a0b4966ba73906ed78c3f0b89a4a1670521c7477d",
+        "lab/fault_matrix/compose.yaml": "98a716c511f0180de2148187f9fb25e0da9bee0085f2c9e11f3750d5dee13e4e",
+        "lab/fault_matrix/experiments_v2_expanded/workers-1-cache-outage.json": "780459a9472bd4b9f63be0158cc34d03b2689a3b7707220bd7581dbeed53efcb",
+        "lab/fault_matrix/experiments_v2_expanded/workers-1-database-lock.json": "a64b3c4888afd9ec7690f8301dc840428a245051dc696938c3fee7b1d86f2850",
+        "lab/fault_matrix/experiments_v2_expanded/workers-1-worker-crash.json": "6a26768462acb3c2ce060597ab4ef1d7a62bb1da47cd4a65bab1c3173186e083",
+        "lab/fault_matrix/experiments_v2_expanded/workers-2-cache-outage.json": "17b8b12ed7c24483e0315636ed7f7d4bb674ce919e53d1376f21d6b84653f837",
+        "lab/fault_matrix/experiments_v2_expanded/workers-2-database-lock.json": "b876d511b3aaea9c5582bda5ba89f0da191f2fab1e948e6d96cc53d9a89da098",
+        "lab/fault_matrix/experiments_v2_expanded/workers-2-worker-crash.json": "7246176c77d3baa276cc99f2de4f9cee271a18d25b51dcf4758fa16b90d6e37d",
+        "lab/fault_matrix/experiments_v2_expanded/workers-3-cache-outage.json": "d78370a20ae96b4b1e63c5a7d290a8af627aed36b25a877673998d49892eddc5",
+        "lab/fault_matrix/experiments_v2_expanded/workers-3-database-lock.json": "cdeec86550648bd1d2fd989ac87fa699601ce02094e9344e99705b1152f570f2",
+        "lab/fault_matrix/experiments_v2_expanded/workers-3-worker-crash.json": "3e0102f4620b5bc3292b9c97e610150c4fcf7a1eff76cbe197cb8456c160dcdd",
+        "lab/fault_matrix/feature-spec.json": "43dcab91504e01738df33e9b61248a7aefa4ee32acf36940a5fcee62760b329e",
+        "lab/fault_matrix/hash_build_context.py": "a3e2ae5b3cff82388493ffc0f23e8ef7a885513ab3bc020403a97d820118580f",
+        "lab/fault_matrix/requirements.txt": "8f8bf648bd8431e4d7c9129a75491f23507334010d1fa8eadb215e443d1847d5",
+        "lab/fault_matrix/run-expanded-v2-confirmation.sh": "5b77db5d14480a62208ee7422f0be8812e7872ae1cfb85694610b6d9a52b5920",
+        "lab/fault_matrix/run_experiment.py": "a86020c4a295c75cc9ff3dab0c8a029a688f7cc799d943f1155a208b0637bb90",
+        "lab/fault_matrix/service.py": "32240dac1a00a59be893fe8ead5536409001a8f715b5fbee9aace9d7de5fbce7",
+        "lab/fault_matrix/verify_v2_protocol.py": "540fddb9182e3426176c8d61ab08e2819efa83efc88f1aa24fca23bd9d03aa78",
+        "src/quantis_core/__init__.py": "e9f3f683d101cd91f581ca3210df4da24a3830845993ffbf754922f04f267bd0",
+        "src/quantis_core/__main__.py": "bc45549652a64b1cb835b209899b5ccfa745061c19e21472aec673755b4cd483",
+        "src/quantis_core/contracts.py": "182e2d8b9a91961c79dcb291313c3233e44f9d63127a5ec3b2b84169def0650d",
+        "src/quantis_core/demand_conditioning.py": "10bf7ebae27612f0319507f3fa315889b70569b9398cfe440fb68a5153016fef",
+        "src/quantis_core/detectors.py": "dc43ca7127fcf818bf8300f061b99cf33ccd405acaa79b86fa0bf86b68dcbef6",
+        "src/quantis_core/evaluation.py": "b470978d95cf2fa3b2e34877203a24765c82c758ec19299a5b9b75b4a645620a",
+        "src/quantis_core/fault_lab.py": "f7f2a86946d4879f41b5494266a596a9eb87433afef1d3d0187457f64a2d66b8",
+        "src/quantis_core/fault_matrix.py": "07b8cca3ac3e42bf314bf1dc428dc435bd917591c8e20a860715c0b3ac7332f1",
+        "src/quantis_core/otlp.py": "e9fb5c06d0c79ad3830a053ceb97ad32fe316bfcf43c53258c5a8e86c822e86a",
+        "src/quantis_core/otlp_windowing.py": "5a364d3d6d350713d60dd7c2a9c17960d171f117afd54d586e04a16f76f4f83e",
+        "src/quantis_core/py.typed": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+        "src/quantis_core/scenarios.py": "3de63d02fb07b175a51481f8a6e8c2ce6961276dd846b4d29d07bc42b58870ba",
+        "src/quantis_core/windowing.py": "f98131b7c90a23844c561b3764d337cfd858f7fc5026e5a5eb1e7f18efd33c00"
+      },
+      "kind": "demand_conditioned_v2_confirmation_protocol",
+      "model_file_sha256": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
+      "required_topologies": {
+        "workers-1": 1,
+        "workers-2": 2,
+        "workers-3": 3
+      },
+      "schema_version": 1,
+      "training_manifest_sha256": [
+        "37fc1687a56625b170a98fcd20bc747f3f08571a01f2cdcfb93d85f62fdce649",
+        "473d257411a53c628161a956f52ef5c94453fef9d1943fa3013eb7d8f269f401",
+        "debdfc8ef8d45b95980f8e684fdcf3eafde364949854a4bb0b371ed4d5eedc74"
+      ]
+    },
+    "confirmation_protocol_sha256": "fbcbcc8579eabff157c19e41d5cc779fb9a52dfa3a971e9aa5c055267cca42a0",
+    "confirmation_status": "preregistered_held_out_confirmation",
+    "detector_sha256": "c2920f4dba3117a2c25f11bf16bef902c717170371c8062fc98ccdd2062eacfe",
+    "evaluation_kind": "demand_conditioned_fault_matrix",
+    "evaluator_config_sha256": "e73ba367cf255f6c05e2d81508282d2cf4b70634dc94e92552a1c7660da60188",
+    "feature_schema_id": "e737796d34e83d2441ac3c5681da2652e36f3f5307e92e03250ec34344008bf6",
+    "model_artifact_sha256": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
+    "model_fit_calls": 0,
+    "preregistered_git_commit": "24259f9080f9a84bf21ed99774c4bde899a06263",
+    "training_case_overlap": [],
+    "training_fault_timing_overlap": [],
+    "training_protocol": {
+      "config": {
+        "calibration_quantile": 0.98,
+        "consensus_rank": 2,
+        "latent_dimension": 1,
+        "lookback": 6,
+        "residual_scale_floor": 0.001,
+        "ridge": 0.01,
+        "threshold_safety_multiplier": 2.0
+      },
+      "config_sha256": "bc203f3ce166b7ab3f422bebc4c7e7c07385726b5083b978b844d247ce67b283",
+      "distinct_load_schedule_count": 3,
+      "training_point_count": 108,
+      "training_run_count": 3,
+      "training_runs": [
+        {
+          "canonical_request_schedule": [
+            7,
+            6,
+            8,
+            8
+          ],
+          "capture_sha256": "cc9c8698bb4c2fd60f4b6b937cd100b8c42595fc4b7535a59c3880e46715f08a",
+          "case_id": "cache-outage-held-out-01",
+          "fault_timing": {
+            "fault_kind": "cache_outage",
+            "structural_interval": [
+              57,
+              71
+            ]
+          },
+          "load_pattern_offsets": [
+            0,
+            -1,
+            1,
+            1,
+            0,
+            -1
+          ],
+          "manifest_sha256": "473d257411a53c628161a956f52ef5c94453fef9d1943fa3013eb7d8f269f401",
+          "requests_per_window": 7,
+          "training_interval": [
+            0,
+            36
+          ]
+        },
+        {
+          "canonical_request_schedule": [
+            7,
+            6,
+            6,
+            5,
+            6
+          ],
+          "capture_sha256": "be22c84e00fa036317156a3e7dbfc64373eacd933e536d5ce650b351a7de3ac1",
+          "case_id": "database-lock-held-out-01",
+          "fault_timing": {
+            "fault_kind": "database_lock",
+            "structural_interval": [
+              59,
+              73
+            ]
+          },
+          "load_pattern_offsets": [
+            1,
+            0,
+            0,
+            -1,
+            0,
+            1
+          ],
+          "manifest_sha256": "debdfc8ef8d45b95980f8e684fdcf3eafde364949854a4bb0b371ed4d5eedc74",
+          "requests_per_window": 6,
+          "training_interval": [
+            0,
+            36
+          ]
+        },
+        {
+          "canonical_request_schedule": [
+            6,
+            7,
+            5,
+            6,
+            7
+          ],
+          "capture_sha256": "ace68f352e8a425291b875b0a92faa04df7c4f9902444c7e1954e6b99ea021fc",
+          "case_id": "worker-crash-held-out-01",
+          "fault_timing": {
+            "fault_kind": "worker_crash",
+            "structural_interval": [
+              58,
+              72
+            ]
+          },
+          "load_pattern_offsets": [
+            0,
+            1,
+            -1,
+            0,
+            1,
+            0
+          ],
+          "manifest_sha256": "37fc1687a56625b170a98fcd20bc747f3f08571a01f2cdcfb93d85f62fdce649",
+          "requests_per_window": 6,
+          "training_interval": [
+            0,
+            36
+          ]
+        }
+      ],
+      "training_structural_points": 0,
+      "training_window_count": 90,
+      "window_boundary_policy": "compile each run separately before concatenating windows"
+    },
+    "training_schedule_overlap": [],
+    "window_compiler_sha256": "042c5a05559ba4c8c0ed8f13c72dabf3f5550ebaf72977fe96059e404f6095c3"
+  },
+  "schema_version": 1
+}
