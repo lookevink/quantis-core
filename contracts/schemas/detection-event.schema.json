@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantis.dev/contracts/detection-event.v1.schema.json",
+  "title": "Quantis detection event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "model_kind",
+    "model_version",
+    "feature_schema_id",
+    "capture_sha256",
+    "window_end_unix_nano",
+    "score",
+    "threshold",
+    "alert",
+    "top_features",
+    "data_quality"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "model_kind": {"type": "string", "minLength": 1},
+    "model_version": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "feature_schema_id": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "capture_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "window_end_unix_nano": {"type": "integer", "minimum": 1},
+    "score": {"type": "number"},
+    "threshold": {"type": "number"},
+    "alert": {"type": "boolean"},
+    "top_features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "magnitude", "direction"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "magnitude": {"type": "number", "minimum": 0},
+          "direction": {"enum": [-1, 0, 1]}
+        }
+      }
+    },
+    "data_quality": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    }
+  }
+}

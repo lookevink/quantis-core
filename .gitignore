@@ -8,3 +8,5 @@ artifacts/*
 !artifacts/.gitkeep
 !artifacts/evaluation/
 !artifacts/evaluation/**
+!artifacts/otlp-replay/
+!artifacts/otlp-replay/**

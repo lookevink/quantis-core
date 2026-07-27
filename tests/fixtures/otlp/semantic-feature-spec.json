@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "window_period_nano": 1000000000,
+  "features": [
+    {"name": "temperature", "metric_name": "demo.temperature", "statistic": "gauge_last", "resource_attributes": {}, "point_attributes": {}},
+    {"name": "request_rate", "metric_name": "demo.requests", "statistic": "sum_rate", "resource_attributes": {}, "point_attributes": {}},
+    {"name": "error_rate", "metric_name": "demo.errors", "statistic": "sum_rate", "resource_attributes": {}, "point_attributes": {}},
+    {"name": "latency_mean", "metric_name": "demo.latency", "statistic": "histogram_mean", "resource_attributes": {}, "point_attributes": {}},
+    {"name": "latency_count_rate", "metric_name": "demo.latency", "statistic": "histogram_count_rate", "resource_attributes": {}, "point_attributes": {}},
+    {"name": "payload_mean", "metric_name": "demo.payload", "statistic": "histogram_mean", "resource_attributes": {}, "point_attributes": {}}
+  ]
+}

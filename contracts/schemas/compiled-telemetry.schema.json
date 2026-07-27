@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantis.dev/contracts/compiled-telemetry.v1.schema.json",
+  "title": "Quantis compiled telemetry v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "window_end_unix_nano",
+    "feature_names",
+    "values",
+    "observed_mask",
+    "reset_mask",
+    "feature_schema_id",
+    "capture_sha256",
+    "data_quality"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "window_end_unix_nano": {
+      "type": "array",
+      "items": {"type": "integer", "minimum": 1}
+    },
+    "feature_names": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "values": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {"type": ["number", "null"]}
+      }
+    },
+    "observed_mask": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {"type": "boolean"}
+      }
+    },
+    "reset_mask": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {"type": "boolean"}
+      }
+    },
+    "feature_schema_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "capture_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "data_quality": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    }
+  }
+}

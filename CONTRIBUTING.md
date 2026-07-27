@@ -13,3 +13,7 @@ All stochastic behavior accepts an explicit seed.
 Run `python -m pytest` for the full test suite and
 `python -m quantis_core evaluate --output artifacts/evaluation` for the thesis
 evaluation.
+
+Changes to OTLP semantics must include an independently worked JSON fixture.
+Regenerate Collector evidence with `./lab/otel/run-roundtrip.sh`; never edit
+capture, compiled-telemetry, or verification artifacts by hand.

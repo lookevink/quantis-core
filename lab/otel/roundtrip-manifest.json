@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "collector_image": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
+  "scenario_seed": 211,
+  "scenario_length": 240,
+  "capture_sha256": "df8b4a4108bf41bc3b468244f700cd86e77ca2d6694a3e18c08cd141b2a670e8",
+  "compiled_sha256": "eaeb2b4b56219fbc8d0cf45f3b51a4382057954b7b8aad647e9ab6bd0780ffcf"
+}

@@ -1,6 +1,8 @@
 """Command-line entry point for reproducible Quantis experiments."""
 
 import argparse
+import hashlib
+import json
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -9,6 +11,8 @@ from .evaluation import (
     run_evaluation,
     write_evaluation_artifacts,
 )
+from .otlp import read_otlp_capture
+from .otlp_windowing import OtlpFeatureSpec, OtlpWindowCompiler
 
 
 def main(arguments: Optional[Sequence[str]] = None) -> int:
@@ -26,6 +30,12 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="use four held-out scenarios for a fast CI evaluation",
     )
+    replay = commands.add_parser(
+        "replay-otlp", help="compile an OTLP JSON capture into model features"
+    )
+    replay.add_argument("--capture", type=Path, required=True)
+    replay.add_argument("--feature-spec", type=Path, required=True)
+    replay.add_argument("--output", type=Path, required=True)
     parsed = parser.parse_args(arguments)
 
     if parsed.command == "evaluate":
@@ -44,6 +54,36 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         print(f"Acceptance: {status}")
         print(f"Report: {paths['report']}")
         return 0 if report.acceptance["all_passed"] else 1
+    if parsed.command == "replay-otlp":
+        capture = read_otlp_capture(parsed.capture)
+        feature_spec = OtlpFeatureSpec.from_dict(
+            json.loads(parsed.feature_spec.read_text())
+        )
+        compiled = OtlpWindowCompiler(feature_spec).compile(capture)
+        compiled_payload = compiled.to_dict()
+        encoded = json.dumps(
+            compiled_payload,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        ) + "\n"
+        parsed.output.mkdir(parents=True, exist_ok=True)
+        (parsed.output / "compiled-telemetry.json").write_text(encoded)
+        summary = {
+            "schema_version": 1,
+            "capture_sha256": capture.sha256,
+            "feature_schema_id": compiled.feature_schema_id,
+            "compiled_sha256": hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+            "window_count": len(compiled.window_end_unix_nano),
+            "feature_count": len(compiled.feature_names),
+            "data_quality": dict(compiled.data_quality),
+        }
+        (parsed.output / "replay.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n"
+        )
+        print("OTLP replay: PASS")
+        print(f"Compiled telemetry: {parsed.output / 'compiled-telemetry.json'}")
+        return 0
     return 2
 
 

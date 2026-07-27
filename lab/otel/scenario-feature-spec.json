@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "window_period_nano": 1000000000,
+  "features": [
+    {"name": "cpu_utilization", "metric_name": "cpu_utilization", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "memory_utilization", "metric_name": "memory_utilization", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "request_latency_ms", "metric_name": "request_latency_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "active_connections", "metric_name": "active_connections", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "request_rate", "metric_name": "request_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "error_rate", "metric_name": "error_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "queue_depth", "metric_name": "queue_depth", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "cache_hit_ratio", "metric_name": "cache_hit_ratio", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "disk_io_ops", "metric_name": "disk_io_ops", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "network_receive_mbps", "metric_name": "network_receive_mbps", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "gc_pause_ms", "metric_name": "gc_pause_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}},
+    {"name": "thread_count", "metric_name": "thread_count", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-lab"}, "point_attributes": {}}
+  ]
+}

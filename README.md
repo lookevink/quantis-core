@@ -24,3 +24,25 @@ python3 -m venv .venv
 
 The final command writes machine-readable results, a Markdown report, the exact
 scenario manifest, and model artifacts.
+
+## Replay OTLP metrics
+
+Compile a newline-delimited OTLP JSON capture using a versioned feature
+specification:
+
+```bash
+.venv/bin/python -m quantis_core replay-otlp \
+  --capture tests/fixtures/otlp/semantic-metrics.jsonl \
+  --feature-spec tests/fixtures/otlp/semantic-feature-spec.json \
+  --output artifacts/replay
+```
+
+Run the pinned OpenTelemetry Collector round-trip verification:
+
+```bash
+./lab/otel/run-roundtrip.sh
+```
+
+The checked-in [OTLP verification report](artifacts/otlp-replay/report.md)
+records the Collector image digest, capture and feature-schema hashes, data
+quality, tensor parity, detector-score parity, and limitations.

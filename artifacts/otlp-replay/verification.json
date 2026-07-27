@@ -1,0 +1,60 @@
+{
+  "acceptance": {
+    "all_passed": true,
+    "gates": {
+      "alerts_match_direct_path": true,
+      "capture_matches_golden": true,
+      "compiled_matches_golden": true,
+      "no_missing_cells": true,
+      "scores_match_direct_path": true,
+      "structural_event_detected": true,
+      "values_match_direct_path": true
+    }
+  },
+  "capture": {
+    "json_message_count": 1,
+    "metric_point_count": 2880,
+    "path": "artifacts/otlp-replay/collector-output.jsonl",
+    "sha256": "df8b4a4108bf41bc3b468244f700cd86e77ca2d6694a3e18c08cd141b2a670e8"
+  },
+  "collector": {
+    "config_sha256": "cd978836855e72f77d52821a0b4966ba73906ed78c3f0b89a4a1670521c7477d",
+    "image": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa"
+  },
+  "compiled": {
+    "data_quality": {
+      "flagged_points": 0,
+      "missing_cells": 0,
+      "reset_points": 0
+    },
+    "feature_count": 12,
+    "feature_schema_id": "6fd422e11f03b343ab9084179fda8234d11945cf16bbd2a5ebd3bda7b8b34eac",
+    "sha256": "eaeb2b4b56219fbc8d0cf45f3b51a4382057954b7b8aad647e9ab6bd0780ffcf",
+    "window_count": 240
+  },
+  "detection": {
+    "detection_event_count": 41,
+    "detector_kind": "coherent_latent_predictive",
+    "model_version": "fe63344c13dec0629df2f21b157797416033f2375e4bc58ff718c55c7ff4d656",
+    "routine_noise_alert_rate": 0.0,
+    "routine_noise_alerts": 0,
+    "routine_noise_points": 14,
+    "structural_event_detected": true
+  },
+  "limitations": [
+    "The Collector round trip carries deterministic synthetic gauges, not telemetry from a production workload.",
+    "The parity result validates transport and replay semantics, not real-world anomaly detection.",
+    "The checked-in capture covers gauges; worked fixtures separately cover sums, histograms, resets, flags, and missingness."
+  ],
+  "parity": {
+    "alerts_identical": true,
+    "max_score_absolute_difference": 0.0,
+    "max_value_absolute_difference": 0.0
+  },
+  "scenario": {
+    "generator_version": 2,
+    "length": 240,
+    "seed": 211
+  },
+  "schema_version": 1
+}
