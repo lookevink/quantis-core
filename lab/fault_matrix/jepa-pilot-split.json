@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "training_case_ids": [
+    "jepa-pilot-schedule-a-12",
+    "jepa-pilot-schedule-b-12"
+  ],
+  "validation_case_ids": [
+    "jepa-pilot-schedule-c-12"
+  ],
+  "reserved_case_ids": [],
+  "lookback": 6
+}

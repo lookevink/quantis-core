@@ -156,3 +156,15 @@ The [JEPA corpus v1 specification](docs/specs/jepa-corpus-v1.md) describes the
 single-step NumPy tracer bullet and the fresh-corpus gate required before model
 selection. Existing result-bearing captures are reserved automatically; they are
 not training data.
+
+Run the three-schedule fresh-log pilot with:
+
+```bash
+./lab/fault_matrix/run-jepa-pilot.sh
+```
+
+The pilot collects two training schedules and one disjoint validation schedule,
+then trains only on each capture's first 60 fault-free points. Each capture
+injects a fault afterward to reuse the current lab runner, so these runs do not
+count toward the normal-only corpus target. Development-only model and corpus
+artifacts are written under `artifacts/jepa-world-model-v0/pilot`.
