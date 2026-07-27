@@ -25,11 +25,14 @@ if [[ -e "${output}" ]]; then
   exit 1
 fi
 mkdir -p "${output}"
+export QUANTIS_API_REQUEST_QUEUE_SIZE=128
 "${repository}/.venv/bin/python" \
   "${lab_directory}/prepare_multimodal_normal_corpus.py" \
   --output "${inputs}"
 echo "${preregistered_commit}" >"${inputs}/git-commit.txt"
 echo "true" >"${inputs}/worktree-clean.txt"
+echo "${QUANTIS_API_REQUEST_QUEUE_SIZE}" \
+  >"${inputs}/api-request-queue-size.txt"
 "${repository}/.venv/bin/python" -c \
   'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
   "${specification}" >"${inputs}/specification-sha256.txt"

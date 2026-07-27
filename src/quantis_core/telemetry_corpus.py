@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -44,6 +44,12 @@ RESERVED_EVIDENCE_CASE_IDS = frozenset(
         "worker-crash-confirmation-04",
         "worker-crash-held-out-01",
     }
+)
+FAILED_CORPUS_CASE_IDS = frozenset(
+    f"multimodal-normal-f{family_index:02d}"
+    f"-w{worker_replicas}-47"
+    for family_index in range(1, 11)
+    for worker_replicas in (1, 2, 3)
 )
 
 
@@ -85,6 +91,10 @@ class TelemetryCorpusSplitSpec:
         if (training | validation) & reserved:
             raise ValueError(
                 "reserved evidence cannot enter a telemetry corpus split"
+            )
+        if (training | validation) & FAILED_CORPUS_CASE_IDS:
+            raise ValueError(
+                "failed corpus cases cannot enter a telemetry corpus split"
             )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -189,6 +199,7 @@ def compile_telemetry_corpus(
     conditioned_by_case_id = {}
     provenance_by_case_id = {}
     application_builds = set()
+    application_queue_sizes = set()
     for case_id in selected_ids:
         run = run_by_case_id[case_id]
         manifest_sha256 = _canonical_sha256(
@@ -201,6 +212,10 @@ def compile_telemetry_corpus(
         application_builds.add(
             (application_image_id, application_build_hash)
         )
+        application_queue_size = (
+            _application_api_request_queue_size(run)
+        )
+        application_queue_sizes.add(application_queue_size)
         compiled = compiler.compile(run.capture)
         if len(compiled.values) != run.manifest.point_count:
             raise ValueError(
@@ -226,6 +241,9 @@ def compile_telemetry_corpus(
             "application_build_context_sha256": (
                 application_build_hash
             ),
+            "application_api_request_queue_size": (
+                application_queue_size
+            ),
             "normal_interval": list(
                 run.manifest.baseline_interval
             ),
@@ -243,6 +261,14 @@ def compile_telemetry_corpus(
         )
     application_image_id, application_build_hash = next(
         iter(application_builds)
+    )
+    if len(application_queue_sizes) != 1:
+        raise ValueError(
+            "telemetry corpus runs must use the same API request "
+            "queue size"
+        )
+    application_queue_size = next(
+        iter(application_queue_sizes)
     )
 
     training_values = [
@@ -282,6 +308,9 @@ def compile_telemetry_corpus(
         "application_image_id": application_image_id,
         "application_build_context_sha256": (
             application_build_hash
+        ),
+        "application_api_request_queue_size": (
+            application_queue_size
         ),
         "runs": {
             case_id: provenance_by_case_id[case_id]
@@ -388,6 +417,30 @@ def _application_build_provenance(
             "is missing or invalid"
         )
     return image_id, build_hash
+
+
+def _application_api_request_queue_size(
+    run: FaultMatrixRun,
+) -> Optional[int]:
+    values = {
+        point.resource_attributes.get(
+            "quantis.application.api.request_queue_size"
+        )
+        for point in run.capture.points
+    }
+    if values == {None}:
+        return None
+    raw = next(iter(values)) if len(values) == 1 else None
+    if (
+        isinstance(raw, bool)
+        or not isinstance(raw, int)
+        or raw < 1
+    ):
+        raise ValueError(
+            f"{run.manifest.case_id} API request queue size "
+            "provenance is missing or invalid"
+        )
+    return raw
 
 
 def _compile_split(

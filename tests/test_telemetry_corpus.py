@@ -128,6 +128,17 @@ def test_corpus_rejects_reserved_evidence_and_schedule_leakage():
         )
 
 
+def test_split_rejects_failed_multimodal_corpus_case_ids():
+    with pytest.raises(ValueError, match="failed corpus"):
+        TelemetryCorpusSplitSpec(
+            training_case_ids=(
+                "multimodal-normal-f01-w1-47",
+            ),
+            validation_case_ids=(FRESH_CASE_IDS[2],),
+            reserved_case_ids=(),
+        )
+
+
 def test_reserved_evidence_registry_covers_all_committed_manifests():
     repository = Path(__file__).resolve().parents[1]
     lab = repository / "lab" / "fault_matrix"

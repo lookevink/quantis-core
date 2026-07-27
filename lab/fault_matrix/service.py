@@ -27,12 +27,17 @@ WORKER_CRASH = "quantis:fault:worker_crash"
 CACHE_OUTAGE = "quantis:fault:cache_outage"
 DATABASE_ADVISORY_LOCK = 424242
 APPLICATION_LOG_EMIT_ERRORS = "application_log_emit_errors"
+API_REQUEST_QUEUE_SIZE = int(
+    os.environ.get("QUANTIS_API_REQUEST_QUEUE_SIZE", "5")
+)
+if API_REQUEST_QUEUE_SIZE < 1:
+    raise ValueError("QUANTIS_API_REQUEST_QUEUE_SIZE must be positive")
 
 
 class QuantisThreadingHTTPServer(ThreadingHTTPServer):
     """Lab server with room for the largest declared request burst."""
 
-    request_queue_size = 128
+    request_queue_size = API_REQUEST_QUEUE_SIZE
 
 
 def _redis() -> redis.Redis:

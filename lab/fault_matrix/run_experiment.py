@@ -37,6 +37,9 @@ APPLICATION_BUILD_CONTEXT_SHA256 = os.environ.get(
     "APPLICATION_BUILD_CONTEXT_SHA256", "unverified"
 )
 WORKER_REPLICAS = int(os.environ.get("WORKER_REPLICAS", "1"))
+API_REQUEST_QUEUE_SIZE = int(
+    os.environ.get("QUANTIS_API_REQUEST_QUEUE_SIZE", "5")
+)
 QUEUE = "quantis:checkout:queue"
 COUNTERS = "quantis:counters"
 WORKER_HEARTBEAT = "quantis:worker:heartbeat"
@@ -551,6 +554,12 @@ def _post_metrics(
                                     "stringValue": (
                                         APPLICATION_BUILD_CONTEXT_SHA256
                                     )
+                                },
+                            },
+                            {
+                                "key": "quantis.application.api.request_queue_size",
+                                "value": {
+                                    "intValue": API_REQUEST_QUEUE_SIZE
                                 },
                             },
                             {

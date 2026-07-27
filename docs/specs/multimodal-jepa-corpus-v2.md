@@ -22,6 +22,10 @@ seed label 48. Schedules, topology expansion, sample period, point count,
 feature vocabularies, split membership by family, and promotion gates remain
 unchanged.
 
+The backlog defaults to the historical value of 5 for every other lab runner.
+The v2 runner explicitly sets 128 and records it in both the input provenance
+and every metric capture.
+
 Reusing the schedule design does not follow an inspected model result: the v1
 failure occurred during collection and the training command was never reached.
 
