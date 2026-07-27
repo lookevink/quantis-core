@@ -2,14 +2,17 @@ import copy
 import hashlib
 import inspect
 import json
+from pathlib import Path
 
 import numpy as np
 
 from quantis_core.detectors import CoherentLatentPredictiveDetector
 from quantis_core.fault_matrix import (
     FaultMatrixCaseManifest,
+    FaultMatrixReport,
     FaultMatrixRun,
     evaluate_fault_matrix,
+    write_fault_matrix_artifacts,
 )
 from quantis_core.otlp import (
     MetricKind,
@@ -120,6 +123,77 @@ def test_fault_matrix_rejects_capture_manifest_swaps_and_has_no_tuning_seam():
     assert "config" not in inspect.signature(
         evaluate_fault_matrix
     ).parameters
+
+
+def test_report_does_not_mislabel_non_false_positive_failure(
+    tmp_path: Path,
+) -> None:
+    report = FaultMatrixReport(
+        protocol={
+            "confirmation_status": "preregistered_held_out_confirmation",
+            "config": {
+                "maximum_noise_alert_rate": 0.2,
+                "maximum_pre_noise_alert_rate": 0.2,
+            },
+            "confirmation_protocol": {
+                "required_topologies": {
+                    "workers-1": 1,
+                    "workers-2": 2,
+                }
+            },
+        },
+        cases={},
+        aggregate={
+            "structural_events_detected": 1,
+            "structural_events": 2,
+            "attribution_hits_at_3": 2,
+            "maximum_detection_delay_windows": 0,
+            "routine_noise_alerts": 0,
+            "routine_noise_points": 2,
+            "pre_noise_alerts": 0,
+            "pre_noise_points": 2,
+            "topology_strata": {
+                "workers-1": {
+                    "structural_events_detected": 0,
+                    "structural_events": 1,
+                    "attribution_hits_at_3": 1,
+                    "pre_noise_alerts": 0,
+                    "pre_noise_points": 1,
+                    "routine_noise_alerts": 0,
+                    "routine_noise_points": 1,
+                    "pre_noise_alert_rate": 0.0,
+                    "routine_noise_alert_rate": 0.0,
+                },
+                "workers-2": {
+                    "structural_events_detected": 1,
+                    "structural_events": 1,
+                    "attribution_hits_at_3": 1,
+                    "pre_noise_alerts": 0,
+                    "pre_noise_points": 1,
+                    "routine_noise_alerts": 0,
+                    "routine_noise_points": 1,
+                    "pre_noise_alert_rate": 0.0,
+                    "routine_noise_alert_rate": 0.0,
+                },
+            },
+        },
+        acceptance={
+            "all_passed": False,
+            "gates": {
+                "structural_event_recall_is_one": False,
+                "aggregate_routine_noise_alert_rate_within_limit": True,
+                "aggregate_pre_noise_alert_rate_within_limit": True,
+                "all_topology_strata_within_limits": True,
+            },
+        },
+        limitations=(),
+    )
+
+    paths = write_fault_matrix_artifacts(report, tmp_path)
+    markdown = paths["report"].read_text()
+
+    assert "unrelated to normal-alert rate" in markdown
+    assert "association with multi-worker operation" not in markdown
 
 
 def _run(fault_kind: str) -> FaultMatrixRun:

@@ -22,7 +22,7 @@
     "expanded-workers-2-database-lock-03": "ca42a2cdaaa5af4aab3d018aab60bb78abe82b50b6b176b97c7ba9000302e3eb",
     "expanded-workers-2-worker-crash-03": "859f3f23738ec1674d2923373f3871aa6899becc8dc70edc28c48a8b8f7ee2f4",
     "expanded-workers-3-cache-outage-04": "00f59e035bb04bc171dbb679176ae74a30ffa3113d18e84607b96fd262286c72",
-    "expanded-workers-3-database-lock-04": "91c54a130a238c787be3d8e19d72aa59442fae7862e594bbc383ec8d5c48d09c",
+    "expanded-workers-3-database-lock-05": "61323847a373a5e6285cc6f2c77d7933dfbc28b4aa19c93bbf19617fab508d7e",
     "expanded-workers-3-worker-crash-04": "3442ef1fcbaa0c397206123cc601e61a24fa99fab2bc42d5084b017adfe4b0b5"
   },
   "frozen_files": {
@@ -37,7 +37,7 @@
     "lab/fault_matrix/experiments_v2_expanded/workers-2-database-lock.json": "0f890982d29adfb5c81a423a234400d1f9cdeda73a4f7c850e5a968e9a26a28f",
     "lab/fault_matrix/experiments_v2_expanded/workers-2-worker-crash.json": "2e51e16da5e400c559cd23bb96a4cb57efffec013f66fec506fe4c9b21989a13",
     "lab/fault_matrix/experiments_v2_expanded/workers-3-cache-outage.json": "34091cdf4b7ee34d73e06fe4cfb3fc80858623c1957967490658820ac0b87e10",
-    "lab/fault_matrix/experiments_v2_expanded/workers-3-database-lock.json": "4313d75280ea328a6ea79cd195d9fa2149db64b975889777bb2ca5dafffd883e",
+    "lab/fault_matrix/experiments_v2_expanded/workers-3-database-lock.json": "6e37122bfdbfeca834c0ef470bf078a399ee8c2c6afba2e3509c40d33c753392",
     "lab/fault_matrix/experiments_v2_expanded/workers-3-worker-crash.json": "860a6aab86f4a92d74e4735495dc8cd4e63bec913b77a483b1ad21689808d063",
     "lab/fault_matrix/feature-spec.json": "43dcab91504e01738df33e9b61248a7aefa4ee32acf36940a5fcee62760b329e",
     "lab/fault_matrix/hash_build_context.py": "a3e2ae5b3cff82388493ffc0f23e8ef7a885513ab3bc020403a97d820118580f",
@@ -53,7 +53,7 @@
     "src/quantis_core/detectors.py": "dc43ca7127fcf818bf8300f061b99cf33ccd405acaa79b86fa0bf86b68dcbef6",
     "src/quantis_core/evaluation.py": "b470978d95cf2fa3b2e34877203a24765c82c758ec19299a5b9b75b4a645620a",
     "src/quantis_core/fault_lab.py": "f7f2a86946d4879f41b5494266a596a9eb87433afef1d3d0187457f64a2d66b8",
-    "src/quantis_core/fault_matrix.py": "a3100fb78859129c21acb5fb82eac3e12c425bf11a9912843b8fef2731684d0c",
+    "src/quantis_core/fault_matrix.py": "6643ae5b41fa7658b65e0de66ed3f9956a1c7c209eb8737190f4af1a66bb70de",
     "src/quantis_core/otlp.py": "e9fb5c06d0c79ad3830a053ceb97ad32fe316bfcf43c53258c5a8e86c822e86a",
     "src/quantis_core/otlp_windowing.py": "5a364d3d6d350713d60dd7c2a9c17960d171f117afd54d586e04a16f76f4f83e",
     "src/quantis_core/py.typed": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",

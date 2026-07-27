@@ -1359,19 +1359,7 @@ def _markdown_report(report: FaultMatrixReport) -> str:
     for gate, passed in report.acceptance["gates"].items():
         lines.append(f"- {'PASS' if passed else 'FAIL'}: `{gate}`")
     if not report.acceptance["all_passed"]:
-        topology_strata = report.aggregate.get("topology_strata")
-        interpretation = (
-            "Normal alert rates are low in the one-worker stratum and high "
-            "in the observed two- and three-worker strata. Worker count "
-            "co-varies with workload schedule, so this establishes an "
-            "association with multi-worker operation rather than isolated "
-            "causality. The frozen model does not transfer operationally at "
-            "the observed false-positive rates."
-            if isinstance(topology_strata, dict)
-            else "The frozen predictor rejects most normal held-out windows. "
-            "This is evidence of schedule-pattern overfitting in the "
-            "development model, not a threshold-only problem."
-        )
+        interpretation = _failure_interpretation(report)
         lines.extend(
             [
                 "",
@@ -1385,6 +1373,101 @@ def _markdown_report(report: FaultMatrixReport) -> str:
         lines.append(f"- {limitation}")
     lines.append("")
     return "\n".join(lines)
+
+
+def _failure_interpretation(report: FaultMatrixReport) -> str:
+    gates = report.acceptance.get("gates")
+    false_positive_gates = (
+        "aggregate_routine_noise_alert_rate_within_limit",
+        "aggregate_pre_noise_alert_rate_within_limit",
+        "all_topology_strata_within_limits",
+    )
+    false_positive_failure = isinstance(gates, Mapping) and any(
+        gates.get(gate) is False for gate in false_positive_gates
+    )
+    if not false_positive_failure:
+        return (
+            "The frozen model failed one or more preregistered acceptance "
+            "gates unrelated to normal-alert rate. Inspect the failed gates "
+            "and case evidence before assigning a failure mechanism."
+        )
+    if _has_multiworker_false_positive_pattern(report):
+        return (
+            "Normal alert rates are low in the one-worker stratum and high "
+            "in the observed two- and three-worker strata. Worker count "
+            "co-varies with workload schedule, so this establishes an "
+            "association with multi-worker operation rather than isolated "
+            "causality. The frozen model does not transfer operationally at "
+            "the observed false-positive rates."
+        )
+    return (
+        "The frozen model exceeds one or more preregistered normal-alert "
+        "limits. The available gate and stratum evidence does not isolate "
+        "a more specific failure mechanism."
+    )
+
+
+def _has_multiworker_false_positive_pattern(
+    report: FaultMatrixReport,
+) -> bool:
+    topology_strata = report.aggregate.get("topology_strata")
+    config = report.protocol.get("config")
+    confirmation_protocol = report.protocol.get("confirmation_protocol")
+    if (
+        not isinstance(topology_strata, Mapping)
+        or not isinstance(config, Mapping)
+        or not isinstance(confirmation_protocol, Mapping)
+    ):
+        return False
+    required_topologies = confirmation_protocol.get("required_topologies")
+    noise_limit = config.get("maximum_noise_alert_rate")
+    pre_noise_limit = config.get("maximum_pre_noise_alert_rate")
+    if (
+        not isinstance(required_topologies, Mapping)
+        or not isinstance(noise_limit, (int, float))
+        or not isinstance(pre_noise_limit, (int, float))
+    ):
+        return False
+    ordered_strata = sorted(
+        (
+            int(replica_count),
+            topology_strata.get(str(topology_id)),
+        )
+        for topology_id, replica_count in required_topologies.items()
+        if isinstance(replica_count, int)
+    )
+    if (
+        len(ordered_strata) < 2
+        or not isinstance(ordered_strata[0][1], Mapping)
+        or any(
+            not isinstance(stratum, Mapping)
+            for _, stratum in ordered_strata[1:]
+        )
+    ):
+        return False
+    lowest = ordered_strata[0][1]
+    assert isinstance(lowest, Mapping)
+    low_noise = lowest.get("routine_noise_alert_rate")
+    low_pre_noise = lowest.get("pre_noise_alert_rate")
+    if (
+        not isinstance(low_noise, (int, float))
+        or not isinstance(low_pre_noise, (int, float))
+        or low_noise > noise_limit
+        or low_pre_noise > pre_noise_limit
+    ):
+        return False
+    return all(
+        isinstance(stratum, Mapping)
+        and isinstance(
+            stratum.get("routine_noise_alert_rate"), (int, float)
+        )
+        and isinstance(
+            stratum.get("pre_noise_alert_rate"), (int, float)
+        )
+        and stratum["routine_noise_alert_rate"] > noise_limit
+        and stratum["pre_noise_alert_rate"] > pre_noise_limit
+        for _, stratum in ordered_strata[1:]
+    )
 
 
 def copy_mapping(payload: Mapping[str, Any]) -> Dict[str, Any]:
