@@ -8,6 +8,7 @@ import numpy as np
 
 from quantis_core.detectors import CoherentLatentPredictiveDetector
 from quantis_core.fault_matrix import (
+    _failure_interpretation,
     FaultMatrixCaseManifest,
     FaultMatrixReport,
     FaultMatrixRun,
@@ -194,6 +195,45 @@ def test_report_does_not_mislabel_non_false_positive_failure(
 
     assert "unrelated to normal-alert rate" in markdown
     assert "association with multi-worker operation" not in markdown
+
+
+def test_report_recognizes_stratum_only_false_positive_failure() -> None:
+    report = FaultMatrixReport(
+        protocol={
+            "config": {
+                "maximum_noise_alert_rate": 0.2,
+                "maximum_pre_noise_alert_rate": 0.2,
+            }
+        },
+        cases={},
+        aggregate={
+            "topology_strata": {
+                "workers-1": {
+                    "pre_noise_alert_rate": 0.0,
+                    "routine_noise_alert_rate": 0.0,
+                },
+                "workers-2": {
+                    "pre_noise_alert_rate": 0.25,
+                    "routine_noise_alert_rate": 0.0,
+                },
+            }
+        },
+        acceptance={
+            "all_passed": False,
+            "gates": {
+                "structural_event_recall_is_one": False,
+                "aggregate_routine_noise_alert_rate_within_limit": True,
+                "aggregate_pre_noise_alert_rate_within_limit": True,
+                "all_topology_strata_within_limits": False,
+            },
+        },
+        limitations=(),
+    )
+
+    interpretation = _failure_interpretation(report)
+
+    assert "exceeds one or more" in interpretation
+    assert "unrelated to normal-alert rate" not in interpretation
 
 
 def _run(fault_kind: str) -> FaultMatrixRun:

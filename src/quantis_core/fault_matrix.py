@@ -1384,6 +1384,10 @@ def _failure_interpretation(report: FaultMatrixReport) -> str:
     false_positive_failure = isinstance(gates, Mapping) and any(
         gates.get(gate) is False for gate in false_positive_gates
     )
+    false_positive_failure = (
+        false_positive_failure
+        or _any_stratum_alert_rate_exceeds_limits(report)
+    )
     if not false_positive_failure:
         return (
             "The frozen model failed one or more preregistered acceptance "
@@ -1404,6 +1408,37 @@ def _failure_interpretation(report: FaultMatrixReport) -> str:
         "limits. The available gate and stratum evidence does not isolate "
         "a more specific failure mechanism."
     )
+
+
+def _any_stratum_alert_rate_exceeds_limits(
+    report: FaultMatrixReport,
+) -> bool:
+    topology_strata = report.aggregate.get("topology_strata")
+    config = report.protocol.get("config")
+    if not isinstance(topology_strata, Mapping) or not isinstance(
+        config, Mapping
+    ):
+        return False
+    noise_limit = config.get("maximum_noise_alert_rate")
+    pre_noise_limit = config.get("maximum_pre_noise_alert_rate")
+    if not isinstance(noise_limit, (int, float)) or not isinstance(
+        pre_noise_limit, (int, float)
+    ):
+        return False
+    for stratum in topology_strata.values():
+        if not isinstance(stratum, Mapping):
+            continue
+        noise_rate = stratum.get("routine_noise_alert_rate")
+        pre_noise_rate = stratum.get("pre_noise_alert_rate")
+        if (
+            isinstance(noise_rate, (int, float))
+            and noise_rate > noise_limit
+        ) or (
+            isinstance(pre_noise_rate, (int, float))
+            and pre_noise_rate > pre_noise_limit
+        ):
+            return True
+    return False
 
 
 def _has_multiworker_false_positive_pattern(

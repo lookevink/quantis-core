@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "case_id": "expanded-workers-3-database-lock-06",
+  "case_id": "expanded-workers-3-database-lock-07",
   "fault_kind": "database_lock",
   "topology_id": "workers-3",
   "worker_replicas": 3,
@@ -9,10 +9,10 @@
   "logical_window_period_nano": 1000000000,
   "baseline_interval": [0, 39],
   "routine_noise_interval": [51, 52],
-  "structural_interval": [71, 85],
+  "structural_interval": [57, 70],
   "affected_features": ["queue_depth", "worker_rate", "worker_heartbeat_age_s", "db_write_rate"],
-  "requests_per_window": 14,
-  "load_pattern_offsets": [4, 1, -1, 0, -3, -2, 3, 2],
+  "requests_per_window": 13,
+  "load_pattern_offsets": [0, 4, -1, -4, 1, -2, 3, -3],
   "routine_noise_delay_ms": 150,
   "images": {
     "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
