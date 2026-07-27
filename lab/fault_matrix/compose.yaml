@@ -73,6 +73,7 @@ services:
       EXPERIMENT_PATH: ${EXPERIMENT_PATH}
       APPLICATION_IMAGE_ID: ${APPLICATION_IMAGE_ID:-unverified}
       APPLICATION_BUILD_CONTEXT_SHA256: ${APPLICATION_BUILD_CONTEXT_SHA256:-unverified}
+      WORKER_REPLICAS: ${WORKER_REPLICAS:-1}
     depends_on:
       api:
         condition: service_healthy

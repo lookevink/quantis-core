@@ -35,6 +35,7 @@ APPLICATION_IMAGE_ID = os.environ.get(
 APPLICATION_BUILD_CONTEXT_SHA256 = os.environ.get(
     "APPLICATION_BUILD_CONTEXT_SHA256", "unverified"
 )
+WORKER_REPLICAS = int(os.environ.get("WORKER_REPLICAS", "1"))
 QUEUE = "quantis:checkout:queue"
 COUNTERS = "quantis:counters"
 WORKER_HEARTBEAT = "quantis:worker:heartbeat"
@@ -67,6 +68,16 @@ def main() -> None:
     noise_delay_ms = int(experiment["routine_noise_delay_ms"])
     fault_kind = str(experiment["fault_kind"])
     case_id = str(experiment["case_id"])
+    topology_id = str(
+        experiment.get("topology_id", "legacy-single-worker")
+    )
+    declared_worker_replicas = int(
+        experiment.get("worker_replicas", 1)
+    )
+    if declared_worker_replicas != WORKER_REPLICAS:
+        raise ValueError(
+            "manifest worker_replicas does not match runner topology"
+        )
     manifest_sha256 = hashlib.sha256(
         json.dumps(
             experiment, sort_keys=True, separators=(",", ":")
@@ -155,6 +166,8 @@ def main() -> None:
                     case_id,
                     fault_kind,
                     manifest_sha256,
+                    topology_id,
+                    declared_worker_replicas,
                 )
                 previous_counters = current_counters
                 previous_db_rows = db_rows
@@ -321,6 +334,8 @@ def _emit(
     case_id: str,
     fault_kind: str,
     manifest_sha256: str,
+    topology_id: str,
+    worker_replicas: int,
 ) -> None:
     timestamp = str((point_index + 1) * 1_000_000_000)
     metrics = [
@@ -377,6 +392,14 @@ def _emit(
                                 "value": {
                                     "stringValue": manifest_sha256
                                 },
+                            },
+                            {
+                                "key": "quantis.experiment.topology.id",
+                                "value": {"stringValue": topology_id},
+                            },
+                            {
+                                "key": "quantis.experiment.worker.replicas",
+                                "value": {"intValue": worker_replicas},
                             },
                         ]
                     },

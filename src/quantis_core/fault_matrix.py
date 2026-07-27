@@ -46,8 +46,22 @@ class FaultMatrixCaseManifest:
     routine_noise_delay_ms: int = 0
     load_pattern_offsets: Tuple[int, ...] = (0,)
     images: Mapping[str, str] = field(default_factory=dict)
+    schema_version: int = 1
+    topology_id: str = "legacy-single-worker"
+    worker_replicas: int = 1
 
     def __post_init__(self) -> None:
+        if self.schema_version not in {1, 2}:
+            raise ValueError("unsupported manifest schema_version")
+        if self.schema_version == 1 and (
+            self.topology_id != "legacy-single-worker"
+            or self.worker_replicas != 1
+        ):
+            raise ValueError("schema-v1 manifests cannot declare topology")
+        if not self.topology_id:
+            raise ValueError("topology_id cannot be empty")
+        if self.worker_replicas < 1:
+            raise ValueError("worker_replicas must be positive")
         if not self.case_id:
             raise ValueError("case_id cannot be empty")
         if self.fault_kind not in FAULT_KINDS:
@@ -95,8 +109,8 @@ class FaultMatrixCaseManifest:
         return slice(*self.baseline_interval)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            "schema_version": 1,
+        payload = {
+            "schema_version": self.schema_version,
             "case_id": self.case_id,
             "fault_kind": self.fault_kind,
             "point_count": self.point_count,
@@ -111,12 +125,17 @@ class FaultMatrixCaseManifest:
             "load_pattern_offsets": list(self.load_pattern_offsets),
             "images": dict(self.images),
         }
+        if self.schema_version == 2:
+            payload["topology_id"] = self.topology_id
+            payload["worker_replicas"] = self.worker_replicas
+        return payload
 
     @classmethod
     def from_dict(
         cls, payload: Mapping[str, Any]
     ) -> "FaultMatrixCaseManifest":
-        if payload.get("schema_version") != 1:
+        schema_version = int(payload.get("schema_version", 0))
+        if schema_version not in {1, 2}:
             raise ValueError(
                 "unsupported FaultMatrixCaseManifest schema_version"
             )
@@ -150,6 +169,11 @@ class FaultMatrixCaseManifest:
                 str(name): str(image)
                 for name, image in payload.get("images", {}).items()
             },
+            schema_version=schema_version,
+            topology_id=str(
+                payload.get("topology_id", "legacy-single-worker")
+            ),
+            worker_replicas=int(payload.get("worker_replicas", 1)),
         )
 
 
@@ -422,10 +446,15 @@ def evaluate_demand_conditioned_fault_matrix(
             "evidence."
         )
     elif confirmation_status == "preregistered_held_out_confirmation":
+        case_scope = (
+            "nine local cases across three worker-count strata"
+            if any(run.manifest.schema_version == 2 for run in runs)
+            else "three local cases"
+        )
         evidence_limitation = (
             "Preregistration attests frozen inputs and disjoint cases, "
-            "canonical realized request schedules, and fault timings; three "
-            "local cases still provide limited external validity."
+            "canonical realized request schedules, and fault timings; "
+            f"{case_scope} still provide limited external validity."
         )
     else:
         evidence_limitation = (
@@ -465,7 +494,11 @@ def evaluate_demand_conditioned_fault_matrix(
             "Completion ratios encode a domain assumption that admitted requests "
             "should lead to worker and database completions.",
         )
-        + _base_limitations(),
+        + (
+            _expanded_limitations()
+            if any(run.manifest.schema_version == 2 for run in runs)
+            else _base_limitations()
+        ),
     )
 
 
@@ -521,6 +554,33 @@ def _validate_confirmation_protocol(
         raise ValueError(
             "confirmation protocol evaluation manifests do not match"
         )
+    expanded_runs = [
+        run for run in evaluation_runs if run.manifest.schema_version == 2
+    ]
+    if expanded_runs:
+        required_topology_ids = protocol.get("required_topology_ids")
+        evaluation_topology_ids = sorted(
+            {run.manifest.topology_id for run in expanded_runs}
+        )
+        if required_topology_ids != evaluation_topology_ids:
+            raise ValueError(
+                "confirmation protocol topology strata do not match"
+            )
+        replica_counts_by_topology = {
+            topology_id: {
+                run.manifest.worker_replicas
+                for run in expanded_runs
+                if run.manifest.topology_id == topology_id
+            }
+            for topology_id in evaluation_topology_ids
+        }
+        if any(
+            len(replica_counts) != 1
+            for replica_counts in replica_counts_by_topology.values()
+        ):
+            raise ValueError(
+                "each topology_id must have one worker replica count"
+            )
     frozen_files = protocol.get("frozen_files")
     if not isinstance(frozen_files, dict) or not frozen_files:
         raise ValueError("confirmation protocol must list frozen files")
@@ -625,7 +685,7 @@ def _evaluate_restored_fault_matrix(
         for case in ordered_cases
         if case["detection"]["detection_delay_windows"] is not None
     ]
-    aggregate = {
+    aggregate: Dict[str, Any] = {
         "structural_events": event_count,
         "structural_events_detected": detected_count,
         "structural_event_recall": detected_count / event_count,
@@ -639,6 +699,32 @@ def _evaluate_restored_fault_matrix(
         "pre_noise_points": pre_noise_points,
         "pre_noise_alert_rate": pre_noise_rate,
     }
+    expanded_topology_evaluation = any(
+        int(case["manifest"].get("schema_version", 1)) == 2
+        for case in ordered_cases
+    )
+    topology_ids = {
+        str(
+            case["manifest"].get(
+                "topology_id", "legacy-single-worker"
+            )
+        )
+        for case in ordered_cases
+    }
+    topology_strata: Dict[str, Mapping[str, Any]] = {}
+    if expanded_topology_evaluation:
+        topology_strata = {
+            topology_id: _stratum_metrics(
+                [
+                    case
+                    for case in ordered_cases
+                    if case["manifest"].get("topology_id")
+                    == topology_id
+                ]
+            )
+            for topology_id in sorted(topology_ids)
+        }
+        aggregate["topology_strata"] = topology_strata
     observed_kinds = {
         str(case["manifest"]["fault_kind"]) for case in ordered_cases
     }
@@ -653,7 +739,10 @@ def _evaluate_restored_fault_matrix(
     gates = {
         "complete_fault_kind_coverage": (
             observed_kinds == FAULT_KINDS
-            and event_count == len(FAULT_KINDS)
+            and (
+                expanded_topology_evaluation
+                or event_count == len(FAULT_KINDS)
+            )
         ),
         "frozen_artifacts_unchanged": (
             compiler_sha256 == _canonical_sha256(compiler_payload)
@@ -703,6 +792,40 @@ def _evaluate_restored_fault_matrix(
             for value in artifact_file_sha256.values()
         ),
     }
+    if expanded_topology_evaluation:
+        observed_fault_topologies = {
+            (
+                str(case["manifest"]["fault_kind"]),
+                str(case["manifest"]["topology_id"]),
+            )
+            for case in ordered_cases
+        }
+        required_fault_topologies = {
+            (fault_kind, topology_id)
+            for fault_kind in FAULT_KINDS
+            for topology_id in topology_ids
+        }
+        gates["complete_fault_topology_coverage"] = (
+            observed_fault_topologies == required_fault_topologies
+            and event_count == len(required_fault_topologies)
+        )
+        gates["all_topology_strata_within_limits"] = all(
+            (
+                stratum["structural_event_recall"] == 1.0
+                and stratum["attribution_hit_rate_at_3"] == 1.0
+                and stratum["maximum_detection_delay_windows"]
+                is not None
+                and int(
+                    stratum["maximum_detection_delay_windows"]
+                )
+                <= config.maximum_detection_delay_windows
+                and float(stratum["routine_noise_alert_rate"])
+                <= config.maximum_noise_alert_rate
+                and float(stratum["pre_noise_alert_rate"])
+                <= config.maximum_pre_noise_alert_rate
+            )
+            for stratum in topology_strata.values()
+        )
     return FaultMatrixReport(
         protocol={
             "evaluation_kind": evaluation_kind,
@@ -712,6 +835,11 @@ def _evaluate_restored_fault_matrix(
             "artifact_file_sha256": dict(artifact_file_sha256),
             "feature_schema_id": feature_spec.schema_id,
             "case_fault_kinds": sorted(observed_kinds),
+            **(
+                {"case_topology_ids": sorted(topology_ids)}
+                if expanded_topology_evaluation
+                else {}
+            ),
             "config": config_payload,
             "evaluator_config_sha256": _canonical_sha256(config_payload),
             **dict(protocol_extension),
@@ -726,6 +854,62 @@ def _evaluate_restored_fault_matrix(
         },
         limitations=limitations,
     )
+
+
+def _stratum_metrics(
+    cases: Sequence[Mapping[str, Any]],
+) -> Mapping[str, Any]:
+    event_count = len(cases)
+    detected_count = sum(
+        bool(case["detection"]["structural_detected"])
+        for case in cases
+    )
+    attribution_hits = sum(
+        bool(case["attribution"]["hit_at_3"]) for case in cases
+    )
+    delays = [
+        int(case["detection"]["detection_delay_windows"])
+        for case in cases
+        if case["detection"]["detection_delay_windows"] is not None
+    ]
+    noise_alerts = sum(
+        int(case["detection"]["routine_noise_alerts"])
+        for case in cases
+    )
+    noise_points = sum(
+        int(case["detection"]["routine_noise_points"])
+        for case in cases
+    )
+    pre_noise_alerts = sum(
+        int(case["detection"]["pre_noise_alerts"])
+        for case in cases
+    )
+    pre_noise_points = sum(
+        int(case["detection"]["pre_noise_points"])
+        for case in cases
+    )
+    return {
+        "structural_events": event_count,
+        "structural_events_detected": detected_count,
+        "structural_event_recall": detected_count / event_count,
+        "attribution_hits_at_3": attribution_hits,
+        "attribution_hit_rate_at_3": attribution_hits / event_count,
+        "maximum_detection_delay_windows": (
+            max(delays) if delays else None
+        ),
+        "routine_noise_alerts": noise_alerts,
+        "routine_noise_points": noise_points,
+        "routine_noise_alert_rate": (
+            noise_alerts / noise_points if noise_points else 0.0
+        ),
+        "pre_noise_alerts": pre_noise_alerts,
+        "pre_noise_points": pre_noise_points,
+        "pre_noise_alert_rate": (
+            pre_noise_alerts / pre_noise_points
+            if pre_noise_points
+            else 0.0
+        ),
+    }
 
 
 def write_fault_matrix_artifacts(
@@ -891,10 +1075,28 @@ def _evaluate_case(
         )
         for point in capture.points
     }
+    topology_ids = {
+        point.resource_attributes.get("quantis.experiment.topology.id")
+        for point in capture.points
+    }
+    worker_replica_counts = {
+        point.resource_attributes.get(
+            "quantis.experiment.worker.replicas"
+        )
+        for point in capture.points
+    }
+    topology_matches = (
+        manifest.schema_version == 1
+        or (
+            topology_ids == {manifest.topology_id}
+            and worker_replica_counts == {manifest.worker_replicas}
+        )
+    )
     capture_matches_manifest = (
         case_ids == {manifest.case_id}
         and fault_kinds == {manifest.fault_kind}
         and manifest_hashes == {manifest_sha256}
+        and topology_matches
     )
     content_addressed = (
         _is_sha256_hex(capture.sha256)
@@ -1099,9 +1301,26 @@ def _markdown_report(report: FaultMatrixReport) -> str:
         f"- {pre_noise_label}: {aggregate['pre_noise_alerts']}/"
         f"{aggregate['pre_noise_points']}",
         "",
-        "## Cases",
-        "",
     ]
+    topology_strata = aggregate.get("topology_strata")
+    if isinstance(topology_strata, dict):
+        lines.extend(["## Topology strata", ""])
+        for topology_id, stratum in topology_strata.items():
+            lines.extend(
+                [
+                    f"- `{topology_id}`: recall "
+                    f"{stratum['structural_events_detected']}/"
+                    f"{stratum['structural_events']}, attribution "
+                    f"{stratum['attribution_hits_at_3']}/"
+                    f"{stratum['structural_events']}, pre-noise "
+                    f"{stratum['pre_noise_alerts']}/"
+                    f"{stratum['pre_noise_points']}, noise "
+                    f"{stratum['routine_noise_alerts']}/"
+                    f"{stratum['routine_noise_points']}",
+                ]
+            )
+        lines.append("")
+    lines.extend(["## Cases", ""])
     for case_id, case in report.cases.items():
         detection = case["detection"]
         attribution = case["attribution"]
@@ -1110,6 +1329,14 @@ def _markdown_report(report: FaultMatrixReport) -> str:
                 f"### {case_id}",
                 "",
                 f"- Fault kind: `{case['manifest']['fault_kind']}`",
+                *(
+                    [
+                        f"- Topology: `{case['manifest']['topology_id']}` "
+                        f"({case['manifest']['worker_replicas']} workers)"
+                    ]
+                    if "topology_id" in case["manifest"]
+                    else []
+                ),
                 f"- Detected: {detection['structural_detected']}",
                 f"- Detection delay: "
                 f"{detection['detection_delay_windows']} logical windows",
@@ -1177,6 +1404,21 @@ def _base_limitations() -> Tuple[str, ...]:
     return (
         "Three local cases are not representative of production fault diversity.",
         "The topology and telemetry vocabulary remain the same as development.",
+        "The cache fault is a logical application-path outage, not a killed "
+        "Redis process, because Redis also carries this lab's public counters.",
+        "Logical event-time windows are sampled faster than wall clock.",
+        "Feature evidence is associative attribution, not causal proof.",
+        "The target encoder is linear PCA, not a learned JEPA encoder.",
+    )
+
+
+def _expanded_limitations() -> Tuple[str, ...]:
+    return (
+        "Worker replica count is only one dimension of topology diversity.",
+        "Redis, PostgreSQL, API, Collector, host, and telemetry vocabulary "
+        "remain unchanged.",
+        "Nine controlled local cases do not estimate production incident "
+        "prevalence.",
         "The cache fault is a logical application-path outage, not a killed "
         "Redis process, because Redis also carries this lab's public counters.",
         "Logical event-time windows are sampled faster than wall clock.",

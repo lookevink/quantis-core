@@ -1,5 +1,6 @@
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 from quantis_core.fault_matrix import (
@@ -83,6 +84,7 @@ def test_checked_in_fault_matrix_evidence_recomputes_and_preserves_failure():
     )
 
     build_context_hash = hashlib.sha256()
+    evidence_commit = "610ecf8"
     for name in (
         "Dockerfile",
         "requirements.txt",
@@ -91,7 +93,18 @@ def test_checked_in_fault_matrix_evidence_recomputes_and_preserves_failure():
     ):
         build_context_hash.update(name.encode("utf-8"))
         build_context_hash.update(b"\0")
-        build_context_hash.update((lab / name).read_bytes())
+        build_context_hash.update(
+            subprocess.run(
+                [
+                    "git",
+                    "show",
+                    f"{evidence_commit}:lab/fault_matrix/{name}",
+                ],
+                cwd=repository,
+                check=True,
+                stdout=subprocess.PIPE,
+            ).stdout
+        )
         build_context_hash.update(b"\0")
     expected_build_hash = build_context_hash.hexdigest()
     assert all(

@@ -135,7 +135,6 @@ def test_v2_model_and_regression_recompute_from_raw_captures() -> None:
         assert hashlib.sha256(committed_bytes).hexdigest() == (
             expected_sha256
         )
-        assert committed_bytes == (repository / relative_path).read_bytes()
     subprocess.run(
         [
             "git",
@@ -190,7 +189,13 @@ def test_v2_model_and_regression_recompute_from_raw_captures() -> None:
     ):
         build_context_hash.update(name.encode("utf-8"))
         build_context_hash.update(b"\0")
-        build_context_hash.update((lab / name).read_bytes())
+        build_context_hash.update(
+            _git_bytes(
+                repository,
+                preregistered_commit,
+                f"lab/fault_matrix/{name}",
+            )
+        )
         build_context_hash.update(b"\0")
     expected_build_hash = build_context_hash.hexdigest()
     assert all(

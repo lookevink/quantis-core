@@ -35,6 +35,35 @@ def test_request_schedule_is_canonicalized_from_realized_demand():
     assert canonical_request_schedule(5, (0, 2)) == (5, 7)
 
 
+def test_topology_manifest_v2_roundtrips_without_changing_v1_shape():
+    legacy = FaultMatrixCaseManifest(
+        case_id="legacy",
+        fault_kind="worker_crash",
+        point_count=20,
+        sample_period_seconds=0.25,
+        logical_window_period_nano=1_000_000_000,
+        baseline_interval=(0, 5),
+        routine_noise_interval=(8, 9),
+        structural_interval=(16, 18),
+        affected_features=("queue_depth",),
+    )
+    assert "topology_id" not in legacy.to_dict()
+    assert "worker_replicas" not in legacy.to_dict()
+
+    payload = {
+        **legacy.to_dict(),
+        "schema_version": 2,
+        "case_id": "dual-worker",
+        "topology_id": "workers-2",
+        "worker_replicas": 2,
+    }
+    expanded = FaultMatrixCaseManifest.from_dict(payload)
+
+    assert expanded.topology_id == "workers-2"
+    assert expanded.worker_replicas == 2
+    assert expanded.to_dict() == payload
+
+
 def test_demand_conditioner_replaces_throughput_with_completion_ratios():
     raw = np.asarray(
         [
@@ -164,3 +193,43 @@ def test_v2_training_combines_fault_free_schedules_without_crossing_runs():
     assert regression.aggregate["routine_noise_alerts"] == 0
     assert regression.aggregate["routine_noise_points"] == 21
     assert regression.protocol["model_fit_calls"] == 0
+
+    expanded_runs = [
+        FaultMatrixRun(
+            replace(
+                run.manifest,
+                schema_version=2,
+                case_id=(
+                    f"{run.manifest.fault_kind}-workers-{replicas}"
+                ),
+                topology_id=f"workers-{replicas}",
+                worker_replicas=replicas,
+            ),
+            run.capture,
+        )
+        for replicas in (1, 2)
+        for run in runs
+    ]
+    complete_matrix = evaluate_demand_conditioned_fault_matrix(
+        expanded_runs, feature_spec, model.to_bytes()
+    )
+    incomplete_matrix = evaluate_demand_conditioned_fault_matrix(
+        expanded_runs[:-1], feature_spec, model.to_bytes()
+    )
+
+    assert complete_matrix.acceptance["gates"][
+        "complete_fault_topology_coverage"
+    ] is True
+    assert complete_matrix.acceptance["gates"][
+        "all_topology_strata_within_limits"
+    ] is True
+    assert complete_matrix.acceptance["gates"][
+        "all_captures_match_manifests"
+    ] is False
+    assert set(complete_matrix.aggregate["topology_strata"]) == {
+        "workers-1",
+        "workers-2",
+    }
+    assert incomplete_matrix.acceptance["gates"][
+        "complete_fault_topology_coverage"
+    ] is False
