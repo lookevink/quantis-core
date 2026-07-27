@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "kind": "demand_conditioned_v2_confirmation_protocol",
+  "model_file_sha256": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
+  "evaluation_config_sha256": "e73ba367cf255f6c05e2d81508282d2cf4b70634dc94e92552a1c7660da60188",
+  "feature_spec_sha256": "e737796d34e83d2441ac3c5681da2652e36f3f5307e92e03250ec34344008bf6",
+  "required_topologies": {
+    "workers-1": 1,
+    "workers-2": 2,
+    "workers-3": 3
+  },
+  "diagnostic_design": {
+    "kind": "matched_topology_diagnostic",
+    "reference_topology_id": "workers-1",
+    "primary_outcome": "pre_noise_alert_rate",
+    "minimum_material_risk_difference": 0.2
+  },
+  "training_manifest_sha256": [
+    "37fc1687a56625b170a98fcd20bc747f3f08571a01f2cdcfb93d85f62fdce649",
+    "473d257411a53c628161a956f52ef5c94453fef9d1943fa3013eb7d8f269f401",
+    "debdfc8ef8d45b95980f8e684fdcf3eafde364949854a4bb0b371ed4d5eedc74"
+  ],
+  "confirmation_manifest_sha256": {
+    "matched-workers-1-cache-outage-11": "171f8dd2623787e406fe529fee49370246d5d6dbc834b6d793a9285a4eb00e7d",
+    "matched-workers-1-database-lock-11": "f7b11baff7181d19beaa3e119bdfe258be5e0c659794f560248f28dce878e062",
+    "matched-workers-1-worker-crash-11": "0c1336b94a21be33e619a0c0d732181ece16404084e78dae6c481d8fb6a476ed",
+    "matched-workers-2-cache-outage-11": "51e2cb0c916a1197fe87d837db28722297ea346367c44cdd280d421c1eb6d266",
+    "matched-workers-2-database-lock-11": "9ff5e0e78d1fd9b3a13dcd04eb83d107d818105ba68adba39062989e01c169f8",
+    "matched-workers-2-worker-crash-11": "13f2576ad7321b10ba3b610fb372a9bf20cb9bdb29ebe51f528ad3d28c19dde7",
+    "matched-workers-3-cache-outage-11": "fd865baa8bbaf6f43bfdcbde4a655e02d4637058e99f443348becb4aeb4c5fd7",
+    "matched-workers-3-database-lock-11": "842eb74759053d69031a9c88a54205d02c7d2e366aadca0eb28df748370ab6c3",
+    "matched-workers-3-worker-crash-11": "ae677639879d41345326d98c23e47f0d6917ef1a40e695f2840a18e605c696cd"
+  },
+  "frozen_files": {
+    "artifacts/demand-conditioned-v2/model.json": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
+    "docs/specs/matched-topology-diagnostic.md": "89619ff1a8968cb6995b3ebae07facba2fdf06ce80488a5b0ca9eccf0a5fd6c2",
+    "lab/fault_matrix/Dockerfile": "9659bb2bc85df9e31cbfca487c54f216fe029cc05ef76361f018f1aeb4b91078",
+    "lab/fault_matrix/collector.yaml": "cd978836855e72f77d52821a0b4966ba73906ed78c3f0b89a4a1670521c7477d",
+    "lab/fault_matrix/compose.yaml": "98a716c511f0180de2148187f9fb25e0da9bee0085f2c9e11f3750d5dee13e4e",
+    "lab/fault_matrix/experiments_v2_matched/workers-1-cache-outage.json": "2a5dfb3c1a354cc12776dca6b46160c90d1267915b8a7d6fb30e89b5e9c917d3",
+    "lab/fault_matrix/experiments_v2_matched/workers-1-database-lock.json": "30a7d8e51b1b5b7f45cdf6b1d8b660652919d2b03933a42ee5e2888c9470932f",
+    "lab/fault_matrix/experiments_v2_matched/workers-1-worker-crash.json": "2b24e5b54fbdc95df254ea3ed5878c8c9da2cedfec04a3699e1a488e119ce4d2",
+    "lab/fault_matrix/experiments_v2_matched/workers-2-cache-outage.json": "4928cfa1a1500fdfa4d4e342a24566859c0b983706b0a822f43df5ec539eada6",
+    "lab/fault_matrix/experiments_v2_matched/workers-2-database-lock.json": "8726f6e91ef6443d4af79d4c40f84aa133abbe21eeed34b0b0ffadde00cd78cd",
+    "lab/fault_matrix/experiments_v2_matched/workers-2-worker-crash.json": "e8a9a8aab1fce83a31b939a2140a2a686cee4d88dd78c4c9e9e509766c1cba7d",
+    "lab/fault_matrix/experiments_v2_matched/workers-3-cache-outage.json": "4753448fdb5076d4e38cd34984aa76a428aa3b79b2cbeafce62f04f73f2fa08e",
+    "lab/fault_matrix/experiments_v2_matched/workers-3-database-lock.json": "5e9e52a14bef107cfa98e86de42468c7d9e5d08ab88db8c363d320c8a4c4530e",
+    "lab/fault_matrix/experiments_v2_matched/workers-3-worker-crash.json": "d26ca2d1355fccedebb1dbab1e4ed89e289cb29517bdb719410e7542a0abad5d",
+    "lab/fault_matrix/feature-spec.json": "43dcab91504e01738df33e9b61248a7aefa4ee32acf36940a5fcee62760b329e",
+    "lab/fault_matrix/hash_build_context.py": "a3e2ae5b3cff82388493ffc0f23e8ef7a885513ab3bc020403a97d820118580f",
+    "lab/fault_matrix/requirements.txt": "8f8bf648bd8431e4d7c9129a75491f23507334010d1fa8eadb215e443d1847d5",
+    "lab/fault_matrix/run-matched-v2-diagnostic.sh": "10b6386a60c20eec46d9dd4859ca108c82773e47b568c278980c1e881ec0f338",
+    "lab/fault_matrix/run_experiment.py": "a86020c4a295c75cc9ff3dab0c8a029a688f7cc799d943f1155a208b0637bb90",
+    "lab/fault_matrix/service.py": "32240dac1a00a59be893fe8ead5536409001a8f715b5fbee9aace9d7de5fbce7",
+    "lab/fault_matrix/verify_v2_protocol.py": "540fddb9182e3426176c8d61ab08e2819efa83efc88f1aa24fca23bd9d03aa78",
+    "src/quantis_core/__init__.py": "e9f3f683d101cd91f581ca3210df4da24a3830845993ffbf754922f04f267bd0",
+    "src/quantis_core/__main__.py": "bc45549652a64b1cb835b209899b5ccfa745061c19e21472aec673755b4cd483",
+    "src/quantis_core/contracts.py": "182e2d8b9a91961c79dcb291313c3233e44f9d63127a5ec3b2b84169def0650d",
+    "src/quantis_core/demand_conditioning.py": "10bf7ebae27612f0319507f3fa315889b70569b9398cfe440fb68a5153016fef",
+    "src/quantis_core/detectors.py": "dc43ca7127fcf818bf8300f061b99cf33ccd405acaa79b86fa0bf86b68dcbef6",
+    "src/quantis_core/evaluation.py": "b470978d95cf2fa3b2e34877203a24765c82c758ec19299a5b9b75b4a645620a",
+    "src/quantis_core/fault_lab.py": "f7f2a86946d4879f41b5494266a596a9eb87433afef1d3d0187457f64a2d66b8",
+    "src/quantis_core/fault_matrix.py": "eb5bee782f3dbe585e143018d5423d5adbc4522f79a150d70cd2f48414142d6a",
+    "src/quantis_core/otlp.py": "e9fb5c06d0c79ad3830a053ceb97ad32fe316bfcf43c53258c5a8e86c822e86a",
+    "src/quantis_core/otlp_windowing.py": "5a364d3d6d350713d60dd7c2a9c17960d171f117afd54d586e04a16f76f4f83e",
+    "src/quantis_core/py.typed": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "src/quantis_core/scenarios.py": "3de63d02fb07b175a51481f8a6e8c2ce6961276dd846b4d29d07bc42b58870ba",
+    "src/quantis_core/windowing.py": "f98131b7c90a23844c561b3764d337cfd858f7fc5026e5a5eb1e7f18efd33c00"
+  }
+}

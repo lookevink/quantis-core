@@ -112,3 +112,19 @@ the workload schedules in this matrix, so the result establishes an
 association with multi-worker operation rather than isolated causality. V2
 transfers operationally to the new one-worker cases but not to this expanded
 multi-worker workload envelope.
+
+## Matched topology diagnostic
+
+The next milestone removes that confound with three blocked comparisons. Within
+each fault block, the one-, two-, and three-worker cases use the same absolute
+request schedule and identical non-topology manifest fields:
+
+```bash
+./lab/fault_matrix/run-matched-v2-diagnostic.sh
+```
+
+The [matched diagnostic specification](docs/specs/matched-topology-diagnostic.md)
+freezes pre-noise alert rate as the primary outcome and reports paired risk
+differences against the one-worker treatment. The protocol must be committed
+before the first capture; the runner refuses an uncommitted or changed
+preregistration.

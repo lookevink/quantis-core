@@ -27,6 +27,22 @@ Interval = Tuple[int, int]
 FAULT_KINDS = frozenset(
     {"worker_crash", "database_lock", "cache_outage"}
 )
+MATCHED_TOPOLOGY_DESIGN_KIND = "matched_topology_diagnostic"
+MATCHED_TOPOLOGY_CONTROLLED_FIELDS = (
+    "schema_version",
+    "fault_kind",
+    "point_count",
+    "sample_period_seconds",
+    "logical_window_period_nano",
+    "baseline_interval",
+    "routine_noise_interval",
+    "structural_interval",
+    "affected_features",
+    "requests_per_window",
+    "routine_noise_delay_ms",
+    "load_pattern_offsets",
+    "images",
+)
 
 
 @dataclass(frozen=True)
@@ -183,6 +199,126 @@ class FaultMatrixRun:
 
     manifest: FaultMatrixCaseManifest
     capture: TelemetryCapture
+
+
+def validate_matched_topology_design(
+    manifests: Sequence[FaultMatrixCaseManifest],
+    required_topologies: Mapping[str, int],
+    reference_topology_id: str,
+) -> Mapping[str, Any]:
+    """Validate blocks where worker count is the only changed field."""
+
+    if len(required_topologies) < 2:
+        raise ValueError(
+            "matched topology design requires at least two topologies"
+        )
+    if reference_topology_id not in required_topologies:
+        raise ValueError(
+            "matched topology reference must be a required topology"
+        )
+    if any(
+        not topology_id or replica_count < 1
+        for topology_id, replica_count in required_topologies.items()
+    ):
+        raise ValueError("matched topology requirements are invalid")
+    if any(manifest.schema_version != 2 for manifest in manifests):
+        raise ValueError(
+            "matched topology design requires schema-v2 manifests"
+        )
+    case_ids = [manifest.case_id for manifest in manifests]
+    if len(set(case_ids)) != len(case_ids):
+        raise ValueError("matched topology case_ids must be unique")
+
+    expected_pairs = {
+        (fault_kind, topology_id)
+        for fault_kind in FAULT_KINDS
+        for topology_id in required_topologies
+    }
+    observed_pairs = {
+        (manifest.fault_kind, manifest.topology_id)
+        for manifest in manifests
+    }
+    if (
+        observed_pairs != expected_pairs
+        or len(manifests) != len(expected_pairs)
+    ):
+        raise ValueError(
+            "matched topology design requires one case per fault and topology"
+        )
+
+    topology_replica_counts = {
+        topology_id: {
+            manifest.worker_replicas
+            for manifest in manifests
+            if manifest.topology_id == topology_id
+        }
+        for topology_id in required_topologies
+    }
+    if any(
+        replica_counts != {required_topologies[topology_id]}
+        for topology_id, replica_counts
+        in topology_replica_counts.items()
+    ):
+        raise ValueError(
+            "matched topology manifests do not match required replica counts"
+        )
+
+    blocks: Dict[str, Mapping[str, Any]] = {}
+    schedules = set()
+    for fault_kind in sorted(FAULT_KINDS):
+        block = sorted(
+            (
+                manifest
+                for manifest in manifests
+                if manifest.fault_kind == fault_kind
+            ),
+            key=lambda manifest: manifest.worker_replicas,
+        )
+        control_payloads = {
+            json.dumps(
+                {
+                    field: manifest.to_dict()[field]
+                    for field in MATCHED_TOPOLOGY_CONTROLLED_FIELDS
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            for manifest in block
+        }
+        if len(control_payloads) != 1:
+            raise ValueError(
+                f"{fault_kind} block changes fields other than topology"
+            )
+        schedule = canonical_request_schedule(
+            block[0].requests_per_window,
+            block[0].load_pattern_offsets,
+        )
+        schedules.add(schedule)
+        blocks[fault_kind] = {
+            "case_ids_by_topology": {
+                manifest.topology_id: manifest.case_id
+                for manifest in block
+            },
+            "canonical_request_schedule": list(schedule),
+            "structural_interval": list(
+                block[0].structural_interval
+            ),
+        }
+    if len(schedules) != len(FAULT_KINDS):
+        raise ValueError(
+            "matched topology fault blocks require distinct schedules"
+        )
+    return {
+        "kind": MATCHED_TOPOLOGY_DESIGN_KIND,
+        "blocking_field": "fault_kind",
+        "treatment_field": "worker_replicas",
+        "reference_topology_id": reference_topology_id,
+        "controlled_fields": list(
+            MATCHED_TOPOLOGY_CONTROLLED_FIELDS
+        ),
+        "blocks": blocks,
+    }
 
 
 @dataclass(frozen=True)
@@ -554,6 +690,7 @@ def _validate_confirmation_protocol(
         raise ValueError(
             "confirmation protocol evaluation manifests do not match"
         )
+    matched_design_validation: Optional[Mapping[str, Any]] = None
     expanded_runs = [
         run for run in evaluation_runs if run.manifest.schema_version == 2
     ]
@@ -586,6 +723,48 @@ def _validate_confirmation_protocol(
             raise ValueError(
                 "each topology_id must have one worker replica count"
             )
+        diagnostic_design = protocol.get("diagnostic_design")
+        if diagnostic_design is not None:
+            if not isinstance(diagnostic_design, Mapping):
+                raise ValueError(
+                    "confirmation protocol diagnostic_design must be an object"
+                )
+            if (
+                diagnostic_design.get("kind")
+                != MATCHED_TOPOLOGY_DESIGN_KIND
+                or diagnostic_design.get("primary_outcome")
+                != "pre_noise_alert_rate"
+            ):
+                raise ValueError(
+                    "unsupported confirmation diagnostic design"
+                )
+            material_difference = diagnostic_design.get(
+                "minimum_material_risk_difference"
+            )
+            if (
+                not isinstance(material_difference, (int, float))
+                or not 0.0 < material_difference <= 1.0
+            ):
+                raise ValueError(
+                    "matched topology material risk difference is invalid"
+                )
+            reference_topology_id = diagnostic_design.get(
+                "reference_topology_id"
+            )
+            if not isinstance(reference_topology_id, str):
+                raise ValueError(
+                    "matched topology reference must be a string"
+                )
+            assert isinstance(required_topologies, Mapping)
+            matched_design_validation = validate_matched_topology_design(
+                [run.manifest for run in evaluation_runs],
+                {
+                    str(topology_id): int(replica_count)
+                    for topology_id, replica_count
+                    in required_topologies.items()
+                },
+                reference_topology_id,
+            )
     frozen_files = protocol.get("frozen_files")
     if not isinstance(frozen_files, dict) or not frozen_files:
         raise ValueError("confirmation protocol must list frozen files")
@@ -602,6 +781,21 @@ def _validate_confirmation_protocol(
         ).hexdigest(),
         "preregistered_git_commit": preregistered_git_commit,
         "confirmation_protocol": dict(protocol),
+        **(
+            {
+                "matched_topology_design": {
+                    **dict(matched_design_validation),
+                    "minimum_material_risk_difference": (
+                        protocol["diagnostic_design"][
+                            "minimum_material_risk_difference"
+                        ]
+                    ),
+                    "primary_outcome": "pre_noise_alert_rate",
+                }
+            }
+            if matched_design_validation is not None
+            else {}
+        ),
     }
 
 
@@ -730,6 +924,16 @@ def _evaluate_restored_fault_matrix(
             for topology_id in sorted(topology_ids)
         }
         aggregate["topology_strata"] = topology_strata
+    matched_topology_design = protocol_extension.get(
+        "matched_topology_design"
+    )
+    if isinstance(matched_topology_design, Mapping):
+        aggregate["matched_topology_diagnostic"] = (
+            _matched_topology_diagnostic(
+                ordered_cases,
+                matched_topology_design,
+            )
+        )
     observed_kinds = {
         str(case["manifest"]["fault_kind"]) for case in ordered_cases
     }
@@ -831,6 +1035,8 @@ def _evaluate_restored_fault_matrix(
             )
             for stratum in topology_strata.values()
         )
+    if isinstance(matched_topology_design, Mapping):
+        gates["matched_topology_design_complete"] = True
     return FaultMatrixReport(
         protocol={
             "evaluation_kind": evaluation_kind,
@@ -915,6 +1121,116 @@ def _stratum_metrics(
             else 0.0
         ),
     }
+
+
+def _matched_topology_diagnostic(
+    cases: Sequence[Mapping[str, Any]],
+    design: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    reference_topology_id = str(design["reference_topology_id"])
+    material_difference = float(
+        design["minimum_material_risk_difference"]
+    )
+    topologies = sorted(
+        {
+            str(case["manifest"]["topology_id"])
+            for case in cases
+        },
+        key=lambda topology_id: int(
+            next(
+                case["manifest"]["worker_replicas"]
+                for case in cases
+                if case["manifest"]["topology_id"] == topology_id
+            )
+        ),
+    )
+    block_metrics: Dict[str, Mapping[str, Any]] = {}
+    differences_by_topology: Dict[str, list[float]] = {
+        topology_id: []
+        for topology_id in topologies
+        if topology_id != reference_topology_id
+    }
+    for fault_kind in sorted(FAULT_KINDS):
+        block_cases = {
+            str(case["manifest"]["topology_id"]): case
+            for case in cases
+            if case["manifest"]["fault_kind"] == fault_kind
+        }
+        reference_detection = block_cases[reference_topology_id][
+            "detection"
+        ]
+        reference_rate = _alert_rate(
+            reference_detection,
+            "pre_noise",
+        )
+        topology_metrics: Dict[str, Mapping[str, Any]] = {}
+        for topology_id in topologies:
+            detection = block_cases[topology_id]["detection"]
+            pre_noise_rate = _alert_rate(detection, "pre_noise")
+            difference = pre_noise_rate - reference_rate
+            topology_metrics[topology_id] = {
+                "pre_noise_alerts": int(
+                    detection["pre_noise_alerts"]
+                ),
+                "pre_noise_points": int(
+                    detection["pre_noise_points"]
+                ),
+                "pre_noise_alert_rate": pre_noise_rate,
+                "risk_difference_vs_reference": difference,
+            }
+            if topology_id != reference_topology_id:
+                differences_by_topology[topology_id].append(difference)
+        block_metrics[fault_kind] = {
+            "reference_topology_id": reference_topology_id,
+            "topologies": topology_metrics,
+        }
+
+    paired_effects = {
+        topology_id: {
+            "risk_differences": differences,
+            "mean_risk_difference": sum(differences) / len(differences),
+            "all_blocks_material": all(
+                difference >= material_difference
+                for difference in differences
+            ),
+        }
+        for topology_id, differences
+        in differences_by_topology.items()
+    }
+    material_topologies = [
+        topology_id
+        for topology_id, effect in paired_effects.items()
+        if effect["all_blocks_material"]
+    ]
+    if len(material_topologies) == len(paired_effects):
+        classification = "topology_effect_reproduced"
+    elif not material_topologies and all(
+        all(
+            abs(difference) < material_difference
+            for difference in differences
+        )
+        for differences in differences_by_topology.values()
+    ):
+        classification = "no_material_topology_effect"
+    else:
+        classification = "mixed_topology_effect"
+    return {
+        "primary_outcome": "pre_noise_alert_rate",
+        "reference_topology_id": reference_topology_id,
+        "minimum_material_risk_difference": material_difference,
+        "classification": classification,
+        "blocks": block_metrics,
+        "paired_effects": paired_effects,
+    }
+
+
+def _alert_rate(
+    detection: Mapping[str, Any],
+    prefix: str,
+) -> float:
+    alerts = int(detection[f"{prefix}_alerts"])
+    points = int(detection[f"{prefix}_points"])
+    return alerts / points if points else 0.0
 
 
 def write_fault_matrix_artifacts(
@@ -1274,7 +1590,10 @@ def _markdown_report(report: FaultMatrixReport) -> str:
     aggregate = report.aggregate
     status = "PASS" if report.acceptance["all_passed"] else "FAIL"
     confirmation_status = report.protocol.get("confirmation_status")
-    if confirmation_status == "preregistered_held_out_confirmation":
+    if "matched_topology_design" in report.protocol:
+        title = "Quantis matched-topology v2 diagnostic"
+        pre_noise_label = "Pre-noise diagnostic alerts"
+    elif confirmation_status == "preregistered_held_out_confirmation":
         title = "Quantis demand-conditioned v2 confirmation"
         pre_noise_label = "Pre-noise confirmation alerts"
     elif confirmation_status == "out_of_sample_validation":
@@ -1323,6 +1642,32 @@ def _markdown_report(report: FaultMatrixReport) -> str:
                     f"{stratum['routine_noise_alerts']}/"
                     f"{stratum['routine_noise_points']}",
                 ]
+            )
+        lines.append("")
+    matched_diagnostic = aggregate.get("matched_topology_diagnostic")
+    if isinstance(matched_diagnostic, Mapping):
+        lines.extend(
+            [
+                "## Matched topology diagnostic",
+                "",
+                f"- Classification: "
+                f"`{matched_diagnostic['classification']}`",
+                f"- Reference topology: "
+                f"`{matched_diagnostic['reference_topology_id']}`",
+                f"- Material paired risk difference: "
+                f"{matched_diagnostic['minimum_material_risk_difference']:.1%}",
+            ]
+        )
+        paired_effects = matched_diagnostic["paired_effects"]
+        assert isinstance(paired_effects, Mapping)
+        for topology_id, effect in paired_effects.items():
+            assert isinstance(effect, Mapping)
+            differences = effect["risk_differences"]
+            assert isinstance(differences, list)
+            lines.append(
+                f"- `{topology_id}` paired pre-noise risk differences: "
+                f"{', '.join(f'{float(value):+.1%}' for value in differences)} "
+                f"(mean {float(effect['mean_risk_difference']):+.1%})"
             )
         lines.append("")
     lines.extend(["## Cases", ""])
@@ -1376,6 +1721,33 @@ def _markdown_report(report: FaultMatrixReport) -> str:
 
 
 def _failure_interpretation(report: FaultMatrixReport) -> str:
+    matched_diagnostic = report.aggregate.get(
+        "matched_topology_diagnostic"
+    )
+    if isinstance(matched_diagnostic, Mapping):
+        classification = matched_diagnostic.get("classification")
+        if classification == "topology_effect_reproduced":
+            return (
+                "Holding request schedule, phase timing, fault kind, images, "
+                "and evaluation bytes fixed within each block reproduces a "
+                "material normal-alert increase for every multi-worker "
+                "topology. This isolates worker count as a proximate cause "
+                "in this controlled lab; it does not establish production "
+                "effect size or rule out topology-by-schedule interaction."
+            )
+        if classification == "no_material_topology_effect":
+            return (
+                "Holding the request schedule fixed removes the material "
+                "normal-alert difference between worker-count treatments. "
+                "The earlier expanded result is therefore better explained "
+                "by its schedule confound than by worker count alone."
+            )
+        return (
+            "Matched blocks show an inconsistent worker-count effect. The "
+            "next model should treat workload schedule and topology as an "
+            "interaction rather than assigning the earlier failure to one "
+            "factor."
+        )
     gates = report.acceptance.get("gates")
     false_positive_gates = (
         "aggregate_routine_noise_alert_rate_within_limit",
