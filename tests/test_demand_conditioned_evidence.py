@@ -1,8 +1,10 @@
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 from quantis_core.demand_conditioning import (
+    canonical_request_schedule,
     train_demand_conditioned_model,
 )
 from quantis_core.fault_matrix import (
@@ -14,7 +16,7 @@ from quantis_core.otlp import read_otlp_capture
 from quantis_core.otlp_windowing import OtlpFeatureSpec
 
 
-def test_v2_model_and_regression_recompute_from_raw_captures():
+def test_v2_model_and_regression_recompute_from_raw_captures() -> None:
     repository = Path(__file__).resolve().parents[1]
     lab = repository / "lab" / "fault_matrix"
     artifacts = repository / "artifacts"
@@ -71,6 +73,132 @@ def test_v2_model_and_regression_recompute_from_raw_captures():
     assert regression.aggregate["routine_noise_alerts"] == 0
     assert regression.aggregate["routine_noise_points"] == 21
 
+    confirmation_runs = _runs(
+        lab / "experiments_v2_confirmation",
+        artifacts
+        / "demand-conditioned-v2"
+        / "confirmation"
+        / "cases",
+    )
+    protocol_path = lab / "v2-confirmation-protocol.json"
+    protocol_bytes = protocol_path.read_bytes()
+    checked_confirmation = json.loads(
+        (
+            artifacts
+            / "demand-conditioned-v2"
+            / "confirmation"
+            / "verification.json"
+        ).read_text()
+    )
+    preregistered_commit = checked_confirmation["protocol"][
+        "preregistered_git_commit"
+    ]
+    confirmation = evaluate_demand_conditioned_fault_matrix(
+        confirmation_runs,
+        feature_spec,
+        checked_model_bytes,
+        protocol_bytes,
+        preregistered_commit,
+    )
+
+    assert confirmation.to_dict() == checked_confirmation
+    assert confirmation.acceptance["all_passed"] is True
+    assert confirmation.protocol["confirmation_status"] == (
+        "preregistered_held_out_confirmation"
+    )
+    assert confirmation.protocol["training_case_overlap"] == []
+    assert confirmation.protocol["training_schedule_overlap"] == []
+    assert confirmation.protocol["training_fault_timing_overlap"] == []
+    assert confirmation.protocol["artifact_file_sha256"]["model"] == (
+        model_sha256
+    )
+    assert confirmation.aggregate["structural_events_detected"] == 3
+    assert confirmation.aggregate["attribution_hits_at_3"] == 3
+    assert confirmation.aggregate["maximum_detection_delay_windows"] == 0
+    assert confirmation.aggregate["pre_noise_alerts"] == 22
+    assert confirmation.aggregate["pre_noise_points"] == 148
+    assert confirmation.aggregate["routine_noise_alerts"] == 3
+    assert confirmation.aggregate["routine_noise_points"] == 21
+
+    protocol = json.loads(protocol_bytes)
+    assert _git_bytes(
+        repository,
+        preregistered_commit,
+        "lab/fault_matrix/v2-confirmation-protocol.json",
+    ) == protocol_bytes
+    for relative_path, expected_sha256 in protocol[
+        "frozen_files"
+    ].items():
+        committed_bytes = _git_bytes(
+            repository, preregistered_commit, relative_path
+        )
+        assert hashlib.sha256(committed_bytes).hexdigest() == (
+            expected_sha256
+        )
+        assert committed_bytes == (repository / relative_path).read_bytes()
+    subprocess.run(
+        [
+            "git",
+            "merge-base",
+            "--is-ancestor",
+            preregistered_commit,
+            "HEAD",
+        ],
+        cwd=repository,
+        check=True,
+    )
+
+    training_schedules = {
+        canonical_request_schedule(
+            run.manifest.requests_per_window,
+            run.manifest.load_pattern_offsets,
+        )
+        for run in development_runs
+    }
+    confirmation_schedules = {
+        canonical_request_schedule(
+            run.manifest.requests_per_window,
+            run.manifest.load_pattern_offsets,
+        )
+        for run in confirmation_runs
+    }
+    assert training_schedules.isdisjoint(confirmation_schedules)
+    training_fault_timings = {
+        (
+            run.manifest.fault_kind,
+            run.manifest.structural_interval,
+        )
+        for run in development_runs
+    }
+    confirmation_fault_timings = {
+        (
+            run.manifest.fault_kind,
+            run.manifest.structural_interval,
+        )
+        for run in confirmation_runs
+    }
+    assert training_fault_timings.isdisjoint(
+        confirmation_fault_timings
+    )
+
+    build_context_hash = hashlib.sha256()
+    for name in (
+        "Dockerfile",
+        "requirements.txt",
+        "run_experiment.py",
+        "service.py",
+    ):
+        build_context_hash.update(name.encode("utf-8"))
+        build_context_hash.update(b"\0")
+        build_context_hash.update((lab / name).read_bytes())
+        build_context_hash.update(b"\0")
+    expected_build_hash = build_context_hash.hexdigest()
+    assert all(
+        case["capture"]["application_build_context_sha256"]
+        == expected_build_hash
+        for case in confirmation.cases.values()
+    )
+
 
 def _runs(
     manifests_directory: Path,
@@ -92,3 +220,12 @@ def _runs(
             )
         )
     return runs
+
+
+def _git_bytes(repository: Path, commit: str, path: str) -> bytes:
+    return subprocess.run(
+        ["git", "show", f"{commit}:{path}"],
+        cwd=repository,
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout

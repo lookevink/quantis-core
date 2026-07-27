@@ -79,5 +79,15 @@ v1 captures:
 ```
 
 The [v2 regression report](artifacts/demand-conditioned-v2/regression/report.md)
-is development evidence. A separate, Git-preregistered confirmation is required
-before this model can be described as held out.
+is development evidence. The separate confirmation protocol was committed as
+`908e91d` before any `-04` capture existed. Run it with:
+
+```bash
+./lab/fault_matrix/run-v2-confirmation.sh
+```
+
+The [v2 confirmation report](artifacts/demand-conditioned-v2/confirmation/report.md)
+records 3/3 recall, 3/3 attribution hit@3, zero-window maximum delay, 22/148
+pre-noise alerts, and 3/21 noise-response alerts. Its machine-readable evidence
+records the preregistration commit and hashes the full 27-file evaluation
+dependency closure.
