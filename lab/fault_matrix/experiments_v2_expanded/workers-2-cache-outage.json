@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "case_id": "expanded-workers-2-cache-outage-01",
+  "case_id": "expanded-workers-2-cache-outage-02",
   "fault_kind": "cache_outage",
   "topology_id": "workers-2",
   "worker_replicas": 2,
@@ -9,10 +9,10 @@
   "logical_window_period_nano": 1000000000,
   "baseline_interval": [0, 36],
   "routine_noise_interval": [45, 46],
-  "structural_interval": [62, 76],
+  "structural_interval": [63, 77],
   "affected_features": ["request_latency_ms", "error_rate", "worker_rate", "db_write_rate"],
-  "requests_per_window": 12,
-  "load_pattern_offsets": [-4, 1, 0, 3, -2, 2, -1, 0],
+  "requests_per_window": 10,
+  "load_pattern_offsets": [3, -2, 1, 0, -3, 4, -1, 2],
   "routine_noise_delay_ms": 150,
   "images": {
     "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
