@@ -54,7 +54,9 @@ Application events are assigned by their emission timestamps against the
 observed metric-window close times recorded by the runner. The request's
 originating logical-window index remains provenance only. An event outside the
 recorded run boundaries fails compilation; it is never moved back into its
-origin window.
+origin window. Work completed after the final fixed-duration model window is
+assigned to a separately recorded drain interval and excluded from model
+windows and metrics.
 
 ## Models and controls
 

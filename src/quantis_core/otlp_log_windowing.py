@@ -204,6 +204,7 @@ class OtlpLogWindowCompiler:
         window_end_unix_nano: Optional[
             NDArray[np.int64]
         ] = None,
+        drain_end_unix_nano: Optional[int] = None,
     ) -> CompiledLogTelemetry:
         if window_count < 1:
             raise ValueError("window_count must be positive")
@@ -211,18 +212,23 @@ class OtlpLogWindowCompiler:
             window_count,
             run_start_unix_nano,
             window_end_unix_nano,
+            drain_end_unix_nano,
         )
         values = np.zeros(
             (window_count, len(self.feature_spec.features)),
             dtype=np.float64,
         )
         matched_record_count = 0
+        excluded_drain_records = 0
         for record in capture.records:
             window_index = self._window_index(
                 record,
                 window_count,
                 event_time_boundaries,
             )
+            if window_index is None:
+                excluded_drain_records += 1
+                continue
             matched = False
             for feature_index, definition in enumerate(
                 self.feature_spec.features
@@ -232,6 +238,19 @@ class OtlpLogWindowCompiler:
                     matched = True
             if matched:
                 matched_record_count += 1
+        data_quality = {
+            "record_count": len(capture.records),
+            "matched_records": matched_record_count,
+            "unmatched_records": (
+                len(capture.records)
+                - matched_record_count
+                - excluded_drain_records
+            ),
+        }
+        if event_time_boundaries is not None:
+            data_quality["excluded_drain_records"] = (
+                excluded_drain_records
+            )
         return CompiledLogTelemetry(
             window_indices=np.arange(
                 window_count,
@@ -244,13 +263,7 @@ class OtlpLogWindowCompiler:
             values=values,
             feature_schema_id=self.feature_spec.schema_id,
             capture_sha256=capture.sha256,
-            data_quality={
-                "record_count": len(capture.records),
-                "matched_records": matched_record_count,
-                "unmatched_records": (
-                    len(capture.records) - matched_record_count
-                ),
-            },
+            data_quality=data_quality,
         )
 
     def _window_index(
@@ -258,20 +271,28 @@ class OtlpLogWindowCompiler:
         record: LogRecord,
         window_count: int,
         event_time_boundaries: Optional[
-            Tuple[int, NDArray[np.int64]]
+            Tuple[int, NDArray[np.int64], Optional[int]]
         ],
-    ) -> int:
+    ) -> Optional[int]:
         if event_time_boundaries is not None:
-            run_start, window_ends = event_time_boundaries
+            run_start, window_ends, drain_end = (
+                event_time_boundaries
+            )
             if not (
                 run_start
                 <= record.time_unix_nano
-                <= int(window_ends[-1])
+                <= (
+                    drain_end
+                    if drain_end is not None
+                    else int(window_ends[-1])
+                )
             ):
                 raise OtlpLogWindowError(
                     f"log event time {record.time_unix_nano} is "
                     "outside metric boundaries"
                 )
+            if record.time_unix_nano > int(window_ends[-1]):
+                return None
             return int(
                 np.searchsorted(
                     window_ends,
@@ -299,10 +320,14 @@ def _event_time_boundaries(
     window_count: int,
     run_start_unix_nano: Optional[int],
     window_end_unix_nano: Optional[NDArray[np.int64]],
-) -> Optional[Tuple[int, NDArray[np.int64]]]:
+    drain_end_unix_nano: Optional[int],
+) -> Optional[
+    Tuple[int, NDArray[np.int64], Optional[int]]
+]:
     if (
         run_start_unix_nano is None
         and window_end_unix_nano is None
+        and drain_end_unix_nano is None
     ):
         return None
     if (
@@ -325,7 +350,18 @@ def _event_time_boundaries(
         raise ValueError(
             "metric event-time boundaries must be complete and increasing"
         )
-    return int(run_start_unix_nano), window_ends
+    if (
+        drain_end_unix_nano is not None
+        and drain_end_unix_nano <= int(window_ends[-1])
+    ):
+        raise ValueError(
+            "drain boundary must follow modeled metric boundaries"
+        )
+    return (
+        int(run_start_unix_nano),
+        window_ends,
+        drain_end_unix_nano,
+    )
 
 
 def _matches(

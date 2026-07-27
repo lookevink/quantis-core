@@ -161,6 +161,43 @@ def test_log_window_compiler_rejects_events_after_final_boundary() -> None:
         )
 
 
+def test_log_window_compiler_excludes_declared_drain_interval() -> None:
+    capture = read_otlp_log_capture(
+        "tests/fixtures/otlp/application-logs.jsonl"
+    )
+    feature_spec = OtlpLogFeatureSpec(
+        window_index_attribute="unused.legacy.index",
+        features=(
+            LogFeatureDefinition(
+                name="checkout_event_count",
+                minimum_severity_number=9,
+            ),
+        ),
+    )
+
+    compiled = OtlpLogWindowCompiler(feature_spec).compile(
+        capture,
+        window_count=1,
+        run_start_unix_nano=1_000_000_000,
+        window_end_unix_nano=np.asarray(
+            [1_000_000_200],
+            dtype=np.int64,
+        ),
+        drain_end_unix_nano=1_000_000_400,
+    )
+
+    np.testing.assert_array_equal(
+        compiled.values,
+        np.asarray([[1.0]]),
+    )
+    assert compiled.data_quality == {
+        "excluded_drain_records": 1,
+        "matched_records": 1,
+        "record_count": 2,
+        "unmatched_records": 0,
+    }
+
+
 def test_log_feature_spec_rejects_high_cardinality_filters() -> None:
     with pytest.raises(
         ValueError,

@@ -171,11 +171,6 @@ def main() -> None:
                 )
                 if remaining > 0.0:
                     time.sleep(remaining)
-                if (
-                    fault_kind == NORMAL_TELEMETRY_KIND
-                    and point_index == point_count - 1
-                ):
-                    _wait_for_normal_completion(redis_client)
                 current_counters = _counters(redis_client)
                 db_rows, _ = _database_row_count(database)
                 window_closed_unix_nano = time.time_ns()
@@ -210,6 +205,16 @@ def main() -> None:
                 )
         if fault_kind == NORMAL_TELEMETRY_KIND:
             _wait_for_normal_completion(redis_client)
+            _emit_drain_boundary(
+                point_count,
+                case_id,
+                fault_kind,
+                manifest_sha256,
+                topology_id,
+                observed_worker_replicas,
+                run_started_unix_nano,
+                time.time_ns(),
+            )
         log_emit_errors = _counters(redis_client)[
             "application_log_emit_errors"
         ]
@@ -463,6 +468,65 @@ def _emit(
             },
         }
     )
+    _post_metrics(
+        metrics,
+        case_id,
+        fault_kind,
+        manifest_sha256,
+        topology_id,
+        worker_replicas,
+        run_started_unix_nano,
+    )
+
+
+def _emit_drain_boundary(
+    point_count: int,
+    case_id: str,
+    fault_kind: str,
+    manifest_sha256: str,
+    topology_id: str,
+    worker_replicas: int,
+    run_started_unix_nano: int,
+    drain_closed_unix_nano: int,
+) -> None:
+    _post_metrics(
+        [
+            {
+                "name": (
+                    "quantis.experiment.drain.closed_unix_nano"
+                ),
+                "unit": "ns",
+                "gauge": {
+                    "dataPoints": [
+                        {
+                            "timeUnixNano": str(
+                                (point_count + 1)
+                                * 1_000_000_000
+                            ),
+                            "asInt": str(drain_closed_unix_nano),
+                        }
+                    ]
+                },
+            }
+        ],
+        case_id,
+        fault_kind,
+        manifest_sha256,
+        topology_id,
+        worker_replicas,
+        run_started_unix_nano,
+    )
+
+
+def _post_metrics(
+    metrics: object,
+    case_id: str,
+    fault_kind: str,
+    manifest_sha256: str,
+    topology_id: str,
+    worker_replicas: int,
+    run_started_unix_nano: int,
+) -> None:
     body = json.dumps(
         {
             "resourceMetrics": [

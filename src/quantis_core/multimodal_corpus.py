@@ -131,12 +131,15 @@ def compile_multimodal_telemetry_corpus(
             )
             log_window_assignment = "declared_logical_window"
         else:
-            run_start, window_ends = event_time_boundaries
+            run_start, window_ends, drain_end = (
+                event_time_boundaries
+            )
             compiled = log_compiler.compile(
                 capture,
                 run.manifest.point_count,
                 run_start_unix_nano=run_start,
                 window_end_unix_nano=window_ends,
+                drain_end_unix_nano=drain_end,
             )
             log_window_assignment = (
                 "event_time_metric_boundaries"
@@ -226,13 +229,16 @@ def compile_multimodal_telemetry_corpus(
 
 def _metric_event_time_boundaries(
     run: FaultMatrixRun,
-) -> Optional[Tuple[int, NDArray[np.int64]]]:
+) -> Optional[
+    Tuple[int, NDArray[np.int64], Optional[int]]
+]:
     start_attribute = (
         "quantis.experiment.run.started_unix_nano"
     )
     boundary_metric = (
         "quantis.experiment.window.closed_unix_nano"
     )
+    drain_metric = "quantis.experiment.drain.closed_unix_nano"
     has_start = [
         start_attribute in point.resource_attributes
         for point in run.capture.points
@@ -242,7 +248,16 @@ def _metric_event_time_boundaries(
         for point in run.capture.points
         if point.metric_name == boundary_metric
     ]
-    if not any(has_start) and not boundary_points:
+    drain_points = [
+        point
+        for point in run.capture.points
+        if point.metric_name == drain_metric
+    ]
+    if (
+        not any(has_start)
+        and not boundary_points
+        and not drain_points
+    ):
         return None
     if not all(has_start) or not boundary_points:
         raise ValueError(
@@ -291,7 +306,22 @@ def _metric_event_time_boundaries(
         ],
         dtype=np.int64,
     )
-    return raw_start, window_ends
+    if len(drain_points) > 1:
+        raise ValueError(
+            f"{run.manifest.case_id} has multiple drain boundaries"
+        )
+    drain_end: Optional[int] = None
+    if drain_points:
+        raw_drain_end = drain_points[0].number_value
+        if (
+            isinstance(raw_drain_end, bool)
+            or not isinstance(raw_drain_end, int)
+        ):
+            raise ValueError(
+                f"{run.manifest.case_id} drain boundary is invalid"
+            )
+        drain_end = raw_drain_end
+    return raw_start, window_ends, drain_end
 
 
 def _validate_log_capture_identity(

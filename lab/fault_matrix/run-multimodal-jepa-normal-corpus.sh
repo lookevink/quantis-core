@@ -15,6 +15,7 @@ compose=(
   --file "${lab_directory}/compose.yaml"
 )
 
+preregistered_commit="$(git -C "${repository}" rev-parse HEAD)"
 if [[ -n "$(git -C "${repository}" status --porcelain)" ]]; then
   echo "Refusing to collect with a dirty worktree" >&2
   exit 1
@@ -27,7 +28,7 @@ mkdir -p "${output}"
 "${repository}/.venv/bin/python" \
   "${lab_directory}/prepare_multimodal_normal_corpus.py" \
   --output "${inputs}"
-git -C "${repository}" rev-parse HEAD >"${inputs}/git-commit.txt"
+echo "${preregistered_commit}" >"${inputs}/git-commit.txt"
 echo "true" >"${inputs}/worktree-clean.txt"
 "${repository}/.venv/bin/python" -c \
   'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
@@ -72,6 +73,16 @@ for case_path in "${case_files[@]}"; do
   cleanup
 done
 
+if [[ -n "$(git -C "${repository}" status --porcelain)" ]]; then
+  echo "Refusing to train with a dirty worktree" >&2
+  exit 1
+fi
+if [[ "$(
+  git -C "${repository}" rev-parse HEAD
+)" != "${preregistered_commit}" ]]; then
+  echo "Refusing to train after the preregistered commit changed" >&2
+  exit 1
+fi
 cd "${repository}"
 .venv/bin/python -m quantis_core \
   train-multimodal-jepa-world-model \
