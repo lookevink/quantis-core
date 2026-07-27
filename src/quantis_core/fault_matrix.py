@@ -27,6 +27,7 @@ Interval = Tuple[int, int]
 FAULT_KINDS = frozenset(
     {"worker_crash", "database_lock", "cache_outage"}
 )
+NORMAL_TELEMETRY_KIND = "none"
 MATCHED_TOPOLOGY_DESIGN_KIND = "matched_topology_diagnostic"
 MATCHED_TOPOLOGY_CONTROLLED_FIELDS = (
     "schema_version",
@@ -47,7 +48,7 @@ MATCHED_TOPOLOGY_CONTROLLED_FIELDS = (
 
 @dataclass(frozen=True)
 class FaultMatrixCaseManifest:
-    """Predeclared schedule, mechanism, and attribution truth for one case."""
+    """Predeclared workload, topology, and optional fault truth for one case."""
 
     case_id: str
     fault_kind: str
@@ -80,7 +81,9 @@ class FaultMatrixCaseManifest:
             raise ValueError("worker_replicas must be positive")
         if not self.case_id:
             raise ValueError("case_id cannot be empty")
-        if self.fault_kind not in FAULT_KINDS:
+        if self.fault_kind not in (
+            FAULT_KINDS | {NORMAL_TELEMETRY_KIND}
+        ):
             raise ValueError(f"unsupported fault kind: {self.fault_kind}")
         if self.point_count < 1:
             raise ValueError("point_count must be positive")
@@ -88,22 +91,53 @@ class FaultMatrixCaseManifest:
             raise ValueError("sample_period_seconds must be positive")
         if self.logical_window_period_nano <= 0:
             raise ValueError("logical_window_period_nano must be positive")
-        for name, interval in (
-            ("baseline", self.baseline_interval),
-            ("routine noise", self.routine_noise_interval),
-            ("structural", self.structural_interval),
-        ):
-            start, stop = interval
-            if not 0 <= start < stop <= self.point_count:
-                raise ValueError(f"{name} interval is outside the experiment")
-        if self.baseline_interval[0] != 0:
-            raise ValueError("baseline interval must begin at zero")
-        if self.baseline_interval[1] > self.routine_noise_interval[0]:
-            raise ValueError("baseline interval must precede routine noise")
-        if self.routine_noise_interval[1] > self.structural_interval[0]:
-            raise ValueError("routine noise must precede structural fault")
-        if not self.affected_features:
-            raise ValueError("affected_features cannot be empty")
+        if self.fault_kind == NORMAL_TELEMETRY_KIND:
+            end = (self.point_count, self.point_count)
+            if (
+                self.baseline_interval != (0, self.point_count)
+                or self.routine_noise_interval != end
+                or self.structural_interval != end
+            ):
+                raise ValueError(
+                    "normal telemetry baseline must cover the entire run"
+                )
+            if self.affected_features:
+                raise ValueError(
+                    "normal telemetry cannot declare affected features"
+                )
+        else:
+            for name, interval in (
+                ("baseline", self.baseline_interval),
+                ("routine noise", self.routine_noise_interval),
+                ("structural", self.structural_interval),
+            ):
+                start, stop = interval
+                if not 0 <= start < stop <= self.point_count:
+                    raise ValueError(
+                        f"{name} interval is outside the experiment"
+                    )
+            if self.baseline_interval[0] != 0:
+                raise ValueError(
+                    "baseline interval must begin at zero"
+                )
+            if (
+                self.baseline_interval[1]
+                > self.routine_noise_interval[0]
+            ):
+                raise ValueError(
+                    "baseline interval must precede routine noise"
+                )
+            if (
+                self.routine_noise_interval[1]
+                > self.structural_interval[0]
+            ):
+                raise ValueError(
+                    "routine noise must precede structural fault"
+                )
+            if not self.affected_features:
+                raise ValueError(
+                    "affected_features cannot be empty"
+                )
         if len(set(self.affected_features)) != len(self.affected_features):
             raise ValueError("affected_features must be unique")
         if self.requests_per_window < 1:

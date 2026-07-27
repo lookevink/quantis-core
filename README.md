@@ -168,3 +168,14 @@ then trains only on each capture's first 60 fault-free points. Each capture
 injects a fault afterward to reuse the current lab runner, so these runs do not
 count toward the normal-only corpus target. Development-only model and corpus
 artifacts are written under `artifacts/jepa-world-model-v0/pilot`.
+
+Collect the first target-sized normal-only corpus and train without fault
+injection:
+
+```bash
+./lab/fault_matrix/run-jepa-normal-corpus.sh
+```
+
+This expands ten schedule families across one-, two-, and three-worker
+topologies. Eight complete families train the model and two complete families
+remain validation-only, yielding 30 runs and 10,020 run-isolated windows.

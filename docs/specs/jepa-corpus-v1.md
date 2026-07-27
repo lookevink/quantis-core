@@ -77,6 +77,11 @@ Entire schedule families, not individual windows, are held out for validation.
 All existing v1, v2, expanded, and matched result-bearing cases remain reserved
 evidence and cannot be used for fitting or model selection.
 
+The first target-sized development collection uses ten schedule families across
+one-, two-, and three-worker topologies. Eight families are training-only and
+two are validation-only. Each of the 30 normal-only runs contains 340 points,
+which yields 10,020 windows at lookback six.
+
 ## Required limitations
 
 - The v0 target is one future telemetry point rather than a future block.

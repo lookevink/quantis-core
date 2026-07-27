@@ -52,6 +52,7 @@ FEATURE_NAMES = (
     "worker_heartbeat_age_s",
     "db_write_rate",
 )
+NORMAL_TELEMETRY_KIND = "none"
 
 
 def main() -> None:
@@ -219,6 +220,8 @@ def _stop_fault(
     redis_client: redis.Redis,
     lock_connection: Optional[psycopg.Connection],
 ) -> None:
+    if fault_kind == NORMAL_TELEMETRY_KIND:
+        return
     redis_client.delete(WORKER_CRASH, CACHE_OUTAGE)
     if fault_kind == "database_lock" and lock_connection is not None:
         lock_connection.execute(
@@ -456,6 +459,8 @@ def _emit(
 
 
 def _phase(point_index: int, experiment: Mapping[str, object]) -> str:
+    if experiment["fault_kind"] == NORMAL_TELEMETRY_KIND:
+        return "normal"
     noise_start, noise_stop = (
         int(value) for value in experiment["routine_noise_interval"]
     )
