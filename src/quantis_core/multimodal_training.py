@@ -110,6 +110,22 @@ def train_multimodal_jepa_world_model(
         seed=config.seed,
     ).fit(corpus.training.windows.metric)
     model_artifact = multimodal.to_dict()
+    model_artifact["preprocessing"] = {
+        "metric": {
+            "conditioner": corpus.metric_corpus_metadata[
+                "conditioner"
+            ],
+            "window_compiler": corpus.metric_corpus_metadata[
+                "window_compiler"
+            ],
+        },
+        "logs": {
+            "feature_spec": corpus.log_feature_spec_artifact,
+            "window_compiler": (
+                corpus.log_window_compiler_artifact
+            ),
+        },
+    }
     metrics_only_artifact = metrics_only.to_dict()
     corpus_metadata = corpus.metadata_dict()
     return MultimodalJepaDevelopmentResult(

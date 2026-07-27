@@ -173,10 +173,6 @@ def run_worker() -> NoReturn:
                 (int(item["created_unix_nano"]),),
             )
         latency_us = max(1, (time.perf_counter_ns() - started) // 1_000)
-        pipeline = redis_client.pipeline()
-        pipeline.hincrby(COUNTERS, "worker_processed", 1)
-        pipeline.hincrby(COUNTERS, "worker_db_latency_us", latency_us)
-        pipeline.execute()
         _emit_checkout_event(
             redis_client=redis_client,
             service_name="quantis-fault-matrix-worker",
@@ -188,6 +184,10 @@ def run_worker() -> NoReturn:
             },
             window_index=int(item["window_index"]),
         )
+        pipeline = redis_client.pipeline()
+        pipeline.hincrby(COUNTERS, "worker_processed", 1)
+        pipeline.hincrby(COUNTERS, "worker_db_latency_us", latency_us)
+        pipeline.execute()
 
 
 def _experiment_identity(

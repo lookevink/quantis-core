@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Mapping, Optional, Tuple, Union
 
@@ -26,6 +26,13 @@ class LogRecord:
     span_id: str
     flags: int
     dropped_attributes_count: int
+    resource_schema_url: str = ""
+    resource_dropped_attributes_count: int = 0
+    scope_attributes: Mapping[
+        str, AttributeValue
+    ] = field(default_factory=dict)
+    scope_dropped_attributes_count: int = 0
+    scope_schema_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -96,10 +103,25 @@ def _request_records(
         resource_attributes = _attributes(
             resource.get("attributes", [])
         )
+        resource_dropped_attributes_count = int(
+            resource.get("droppedAttributesCount", 0)
+        )
+        resource_schema_url = str(
+            resource_logs.get("schemaUrl", "")
+        )
         for scope_logs in resource_logs.get("scopeLogs", []):
             scope = scope_logs.get("scope", {})
             scope_name = str(scope.get("name", ""))
             scope_version = str(scope.get("version", ""))
+            scope_attributes = _attributes(
+                scope.get("attributes", [])
+            )
+            scope_dropped_attributes_count = int(
+                scope.get("droppedAttributesCount", 0)
+            )
+            scope_schema_url = str(
+                scope_logs.get("schemaUrl", "")
+            )
             for record in scope_logs.get("logRecords", []):
                 records.append(
                     _log_record(
@@ -107,6 +129,11 @@ def _request_records(
                         resource_attributes,
                         scope_name,
                         scope_version,
+                        resource_schema_url,
+                        resource_dropped_attributes_count,
+                        scope_attributes,
+                        scope_dropped_attributes_count,
+                        scope_schema_url,
                     )
                 )
     return records
@@ -117,6 +144,11 @@ def _log_record(
     resource_attributes: Mapping[str, AttributeValue],
     scope_name: str,
     scope_version: str,
+    resource_schema_url: str,
+    resource_dropped_attributes_count: int,
+    scope_attributes: Mapping[str, AttributeValue],
+    scope_dropped_attributes_count: int,
+    scope_schema_url: str,
 ) -> LogRecord:
     body = (
         _any_value(record["body"])
@@ -143,6 +175,15 @@ def _log_record(
         dropped_attributes_count=int(
             record.get("droppedAttributesCount", 0)
         ),
+        resource_schema_url=resource_schema_url,
+        resource_dropped_attributes_count=(
+            resource_dropped_attributes_count
+        ),
+        scope_attributes=scope_attributes,
+        scope_dropped_attributes_count=(
+            scope_dropped_attributes_count
+        ),
+        scope_schema_url=scope_schema_url,
     )
 
 
@@ -159,6 +200,13 @@ def _record_sort_key(record: LogRecord) -> Tuple[Any, ...]:
             sort_keys=True,
             default=str,
         ),
+        record.resource_schema_url,
+        json.dumps(
+            record.scope_attributes,
+            sort_keys=True,
+            default=str,
+        ),
+        record.scope_schema_url,
         record.severity_number,
         str(record.body),
     )

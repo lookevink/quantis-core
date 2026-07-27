@@ -12,6 +12,17 @@ from .otlp import AttributeValue
 from .otlp_logs import LogRecord, OtlpLogCapture
 
 
+SAFE_LOG_RESOURCE_FILTER_ATTRIBUTES = frozenset(
+    {
+        "deployment.environment.name",
+        "service.name",
+        "service.namespace",
+        "service.version",
+    }
+)
+SAFE_LOG_RECORD_FILTER_ATTRIBUTES = frozenset({"event.name"})
+
+
 @dataclass(frozen=True)
 class LogFeatureDefinition:
     """One stable event-count feature; unrestricted bodies are not filters."""
@@ -28,6 +39,31 @@ class LogFeatureDefinition:
     def __post_init__(self) -> None:
         if not self.name:
             raise ValueError("log feature name cannot be empty")
+        unsafe_resource_filters = (
+            set(self.resource_attributes)
+            - SAFE_LOG_RESOURCE_FILTER_ATTRIBUTES
+        )
+        if unsafe_resource_filters:
+            raise ValueError(
+                "unsafe log resource filter attributes: "
+                f"{sorted(unsafe_resource_filters)}"
+            )
+        unsafe_record_filters = (
+            set(self.record_attributes)
+            - SAFE_LOG_RECORD_FILTER_ATTRIBUTES
+        )
+        if unsafe_record_filters:
+            raise ValueError(
+                "unsafe log record filter attributes: "
+                f"{sorted(unsafe_record_filters)}"
+            )
+        event_name = self.record_attributes.get("event.name")
+        if event_name is not None and (
+            not isinstance(event_name, str) or not event_name
+        ):
+            raise ValueError(
+                "event.name log filter must be a non-empty string"
+            )
         if (
             not self.resource_attributes
             and not self.record_attributes

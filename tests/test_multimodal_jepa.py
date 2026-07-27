@@ -45,11 +45,18 @@ def test_multimodal_jepa_is_deterministic_and_roundtrips() -> None:
     ).encode("utf-8")
     assert first_bytes == second_bytes
     assert first.training_losses[-1] < first.training_losses[0]
-    assert first.to_dict()["metric_encoder_weights"] != (
-        first.to_dict()["log_encoder_weights"]
-    )
 
     expected = first.score(validation)
+    log_shifted = MultimodalModelWindows(
+        metric=validation.metric,
+        logs=type(validation.logs)(
+            contexts=validation.logs.contexts + 2.0,
+            targets=validation.logs.targets + 2.0,
+            point_indices=validation.logs.point_indices,
+            feature_names=validation.logs.feature_names,
+        ),
+    )
+    shifted = first.score(log_shifted)
     restored = MultimodalJepaWorldModelDetector.from_dict(
         first.to_dict()
     )
@@ -68,6 +75,7 @@ def test_multimodal_jepa_is_deterministic_and_roundtrips() -> None:
         len(validation.metric.targets),
         5,
     )
+    assert np.max(np.abs(shifted.scores - expected.scores)) > 1e-6
     assert actual.threshold == expected.threshold
 
 

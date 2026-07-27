@@ -55,6 +55,22 @@ def test_multimodal_training_reports_metrics_only_baseline(tmp_path) -> None:
     assert result.metrics_only_model_artifact["kind"] == (
         "jepa_world_model_v0"
     )
+    assert result.model_artifact["preprocessing"] == {
+        "metric": {
+            "conditioner": corpus.metric_corpus_metadata[
+                "conditioner"
+            ],
+            "window_compiler": corpus.metric_corpus_metadata[
+                "window_compiler"
+            ],
+        },
+        "logs": {
+            "feature_spec": corpus.log_feature_spec_artifact,
+            "window_compiler": (
+                corpus.log_window_compiler_artifact
+            ),
+        },
+    }
     assert result.metrics["multimodal"]["training"][
         "window_count"
     ] == 60

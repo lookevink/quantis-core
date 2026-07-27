@@ -199,6 +199,8 @@ def main() -> None:
                     f"worker_rate={values['worker_rate']:.1f}",
                     flush=True,
                 )
+        if fault_kind == NORMAL_TELEMETRY_KIND:
+            _wait_for_normal_completion(redis_client)
         log_emit_errors = _counters(redis_client)[
             "application_log_emit_errors"
         ]
@@ -281,6 +283,25 @@ def _active_worker_count(redis_client: redis.Redis) -> int:
         WORKER_INSTANCES, "-inf", now - 2.0
     )
     return int(redis_client.zcard(WORKER_INSTANCES))
+
+
+def _wait_for_normal_completion(
+    redis_client: redis.Redis,
+) -> None:
+    for _ in range(600):
+        counters = _counters(redis_client)
+        expected_completions = (
+            counters["api_requests"] - counters["api_errors"]
+        )
+        if (
+            counters["worker_processed"] >= expected_completions
+            and redis_client.llen(QUEUE) == 0
+        ):
+            return
+        time.sleep(0.05)
+    raise RuntimeError(
+        "normal run did not drain application work and logs"
+    )
 
 
 def _checkout(

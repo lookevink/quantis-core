@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from quantis_core.otlp_log_windowing import (
     LogFeatureDefinition,
@@ -16,7 +17,7 @@ def test_log_capture_reader_preserves_structured_otlp_semantics() -> None:
     assert len(capture.records) == 2
     assert capture.json_message_count == 1
     assert capture.sha256 == (
-        "e0dd02dbbe20cbe5986f27871c5d63cb0284d98dd7a686de5e60c696ba4ed114"
+        "752d0c7e97342e5910313aa28f2e22e89d2b034909ed8cad8e4a24470ea84caf"
     )
 
     accepted = capture.records[0]
@@ -41,6 +42,15 @@ def test_log_capture_reader_preserves_structured_otlp_semantics() -> None:
     }
     assert accepted.scope_name == "quantis.application"
     assert accepted.scope_version == "1.0.0"
+    assert accepted.scope_attributes == {"scope.mode": "fixture"}
+    assert accepted.scope_dropped_attributes_count == 0
+    assert accepted.scope_schema_url == (
+        "https://opentelemetry.io/schemas/1.30.0"
+    )
+    assert accepted.resource_dropped_attributes_count == 0
+    assert accepted.resource_schema_url == (
+        "https://opentelemetry.io/schemas/1.30.0"
+    )
     assert accepted.trace_id == "00112233445566778899aabbccddeeff"
     assert accepted.span_id == "0011223344556677"
 
@@ -93,3 +103,23 @@ def test_log_window_compiler_counts_only_declared_structured_events() -> None:
         "record_count": 2,
         "unmatched_records": 0,
     }
+
+
+def test_log_feature_spec_rejects_high_cardinality_filters() -> None:
+    with pytest.raises(
+        ValueError,
+        match="unsafe log record filter",
+    ):
+        LogFeatureDefinition(
+            name="request_specific",
+            record_attributes={"request.id": "secret-123"},
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="unsafe log resource filter",
+    ):
+        LogFeatureDefinition(
+            name="tenant_specific",
+            resource_attributes={"tenant.id": "customer-7"},
+        )
