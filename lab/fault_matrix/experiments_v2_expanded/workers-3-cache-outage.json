@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "case_id": "expanded-workers-3-cache-outage-06",
+  "case_id": "expanded-workers-3-cache-outage-07",
   "fault_kind": "cache_outage",
   "topology_id": "workers-3",
   "worker_replicas": 3,
@@ -11,8 +11,8 @@
   "routine_noise_interval": [50, 51],
   "structural_interval": [60, 73],
   "affected_features": ["request_latency_ms", "error_rate", "worker_rate", "db_write_rate"],
-  "requests_per_window": 15,
-  "load_pattern_offsets": [0, -2, 1, 3, -3, -1, 4, 2],
+  "requests_per_window": 12,
+  "load_pattern_offsets": [-1, 2, 0, -3, 1, 3, -2, 0],
   "routine_noise_delay_ms": 150,
   "images": {
     "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",

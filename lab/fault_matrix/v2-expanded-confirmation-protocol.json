@@ -21,7 +21,7 @@
     "expanded-workers-2-cache-outage-05": "5cd6d2b58f8e558a06d91eaf4fd8472a68eb762d2cdb72a5b9b140f54a3f3d2c",
     "expanded-workers-2-database-lock-05": "183045a09d14969eafa59e29382fe805b609032e692dcff7b26a331aa2757f7f",
     "expanded-workers-2-worker-crash-05": "5f7b5234beb248b98b31d6b2849c33acdf65738e89bb7b21d5cf9e8c6119e904",
-    "expanded-workers-3-cache-outage-06": "76066cc8875090f5ae0363a816f98f7a37b76b44c9f2ac768bae33e810d52229",
+    "expanded-workers-3-cache-outage-07": "a7b2d4dd7612fc138624fd5dd35c5ddcc32c6e8980620e6b05e2f66d06ece21c",
     "expanded-workers-3-database-lock-08": "fd5e2ae37abbb6a85247ba5ce6272f59755c94def4099bae6f32c09c0388c681",
     "expanded-workers-3-worker-crash-06": "75cb5c0dab6f83d66f128d64390c0dc17aac88de3dfc20b6ed522d17b138e5af"
   },
@@ -36,7 +36,7 @@
     "lab/fault_matrix/experiments_v2_expanded/workers-2-cache-outage.json": "b7785c417f448f13579aa30672815dcc15e8e8336318aca05704339ef3f7cd2a",
     "lab/fault_matrix/experiments_v2_expanded/workers-2-database-lock.json": "37dbb390d5c3605c10d59a466e6df32defb75e4a192234f538f8e939179811f5",
     "lab/fault_matrix/experiments_v2_expanded/workers-2-worker-crash.json": "1a9978972a3479ee58cfd486b9c05049dd2e89818a72a0227d58d02a666f6f07",
-    "lab/fault_matrix/experiments_v2_expanded/workers-3-cache-outage.json": "8d40439395e28f381eb9274454addb11f9508455b9a5a6c412c0c652047b34c7",
+    "lab/fault_matrix/experiments_v2_expanded/workers-3-cache-outage.json": "cbce58d18b00a7705199e78bc4493b31d843132f4f2b61a8483530c60a960a28",
     "lab/fault_matrix/experiments_v2_expanded/workers-3-database-lock.json": "90e43c602ab05acb28bf87527967e5ea9bbc47f4423cca7f0dd008110ab62e68",
     "lab/fault_matrix/experiments_v2_expanded/workers-3-worker-crash.json": "9deb95afd85355ee70f2d254cd939b35b7e9ba55e91d67c2031ed292665cf0bf",
     "lab/fault_matrix/feature-spec.json": "43dcab91504e01738df33e9b61248a7aefa4ee32acf36940a5fcee62760b329e",
