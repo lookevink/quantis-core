@@ -21,6 +21,16 @@ LOG_FEATURE_NAMES = (
     "checkout_rejection_rate",
     "application_error_event_rate",
 )
+RICH_LOG_FEATURE_NAMES = (
+    "queue_backlog_low_transition_rate",
+    "queue_backlog_elevated_transition_rate",
+    "queue_backlog_high_transition_rate",
+    "database_latency_fast_ratio",
+    "database_latency_normal_ratio",
+    "database_latency_slow_ratio",
+    "worker_busy_transition_rate",
+    "worker_idle_transition_rate",
+)
 CONTROL_FEATURE_NAMES = (
     "request_demand",
     "worker_replicas",
@@ -30,6 +40,16 @@ REQUIRED_LOG_FEATURE_NAMES = (
     "checkout_rejected_count",
     "checkout_completed_count",
     "error_event_count",
+)
+RICH_REQUIRED_LOG_FEATURE_NAMES = (
+    "queue_backlog_low_transition_count",
+    "queue_backlog_elevated_transition_count",
+    "queue_backlog_high_transition_count",
+    "database_latency_fast_count",
+    "database_latency_normal_count",
+    "database_latency_slow_count",
+    "worker_busy_transition_count",
+    "worker_idle_transition_count",
 )
 
 
@@ -92,24 +112,107 @@ class DemandResidualLogTransformer:
         ]
         errors = logs[:, positions["error_event_count"]]
         accepted_denominator = np.maximum(accepted, 1.0)
-        transformed = np.column_stack(
-            (
-                completed / accepted_denominator,
-                (accepted - completed) / demand,
-                rejected / demand,
-                errors / demand,
-            )
+        columns = [
+            completed / accepted_denominator,
+            (accepted - completed) / demand,
+            rejected / demand,
+            errors / demand,
+        ]
+        output_names: Tuple[str, ...] = LOG_FEATURE_NAMES
+        present_rich = set(RICH_REQUIRED_LOG_FEATURE_NAMES) & set(
+            names
         )
+        if present_rich and present_rich != set(
+            RICH_REQUIRED_LOG_FEATURE_NAMES
+        ):
+            missing_rich = (
+                set(RICH_REQUIRED_LOG_FEATURE_NAMES) - set(names)
+            )
+            raise ValueError(
+                "bounded application-state features are incomplete: "
+                f"{sorted(missing_rich)}"
+            )
+        if present_rich:
+            rich_positions = {
+                name: names.index(name)
+                for name in RICH_REQUIRED_LOG_FEATURE_NAMES
+            }
+            completion_denominator = np.maximum(completed, 1.0)
+            columns.extend(
+                (
+                    logs[
+                        :,
+                        rich_positions[
+                            "queue_backlog_low_transition_count"
+                        ],
+                    ]
+                    / demand,
+                    logs[
+                        :,
+                        rich_positions[
+                            "queue_backlog_elevated_transition_count"
+                        ],
+                    ]
+                    / demand,
+                    logs[
+                        :,
+                        rich_positions[
+                            "queue_backlog_high_transition_count"
+                        ],
+                    ]
+                    / demand,
+                    logs[
+                        :,
+                        rich_positions["database_latency_fast_count"],
+                    ]
+                    / completion_denominator,
+                    logs[
+                        :,
+                        rich_positions[
+                            "database_latency_normal_count"
+                        ],
+                    ]
+                    / completion_denominator,
+                    logs[
+                        :,
+                        rich_positions["database_latency_slow_count"],
+                    ]
+                    / completion_denominator,
+                    logs[
+                        :,
+                        rich_positions["worker_busy_transition_count"],
+                    ]
+                    / demand,
+                    logs[
+                        :,
+                        rich_positions["worker_idle_transition_count"],
+                    ]
+                    / demand,
+                )
+            )
+            output_names = LOG_FEATURE_NAMES + RICH_LOG_FEATURE_NAMES
+        transformed = np.column_stack(columns)
         return SemanticLogTelemetry(
             values=transformed.astype(np.float64),
-            feature_names=LOG_FEATURE_NAMES,
+            feature_names=output_names,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(
+        self,
+        feature_names: Sequence[str] = LOG_FEATURE_NAMES,
+    ) -> Dict[str, Any]:
+        names = tuple(feature_names)
+        if names not in (
+            LOG_FEATURE_NAMES,
+            LOG_FEATURE_NAMES + RICH_LOG_FEATURE_NAMES,
+        ):
+            raise ValueError(
+                "unsupported semantic application-log features"
+            )
         return {
             "schema_version": 1,
             "kind": self.kind,
-            "features": list(LOG_FEATURE_NAMES),
+            "features": list(names),
         }
 
 
@@ -215,7 +318,7 @@ class ContextualMultimodalTelemetryCorpus:
 
     def metadata_dict(self) -> Dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "kind": "contextual_multimodal_telemetry_corpus",
             "base_corpus": dict(self.base_corpus_metadata),
             "preprocessing": dict(self.preprocessing),
@@ -255,6 +358,7 @@ def compile_contextual_multimodal_telemetry_corpus(
     )
     reconstructed: Dict[str, _RunValues] = {}
     transformer = DemandResidualLogTransformer()
+    semantic_log_feature_names: Tuple[str, ...] = ()
     for split in (base.training, base.validation):
         for case_id in split.case_ids:
             run = runs_by_case_id[case_id]
@@ -266,6 +370,17 @@ def compile_contextual_multimodal_telemetry_corpus(
                 split.windows.logs.feature_names,
                 demand,
             )
+            if not semantic_log_feature_names:
+                semantic_log_feature_names = (
+                    semantic_logs.feature_names
+                )
+            elif (
+                semantic_logs.feature_names
+                != semantic_log_feature_names
+            ):
+                raise ValueError(
+                    "semantic log features differ across corpus runs"
+                )
             controls = np.column_stack(
                 (
                     demand,
@@ -312,6 +427,7 @@ def compile_contextual_multimodal_telemetry_corpus(
         base.training.case_ids,
         normalized,
         base.training.windows.metric.feature_names,
+        semantic_log_feature_names,
         base.training.windows.metric.contexts.shape[1],
         horizons,
         target_block_size,
@@ -320,6 +436,7 @@ def compile_contextual_multimodal_telemetry_corpus(
         base.validation.case_ids,
         normalized,
         base.validation.windows.metric.feature_names,
+        semantic_log_feature_names,
         base.validation.windows.metric.contexts.shape[1],
         horizons,
         target_block_size,
@@ -340,7 +457,9 @@ def compile_contextual_multimodal_telemetry_corpus(
             },
             "logs": {
                 "source": "bounded_otlp_application_event_counts",
-                "transformer": transformer.to_dict(),
+                "transformer": transformer.to_dict(
+                    semantic_log_feature_names
+                ),
                 "normalizer": log_normalizer,
             },
             "controls": {
@@ -353,7 +472,7 @@ def compile_contextual_multimodal_telemetry_corpus(
             },
         },
         protocol={
-            "model_selection_status": "development_only",
+            "evidence_assignment": "deferred_to_training_protocol",
             "training_case_ids": list(base.training.case_ids),
             "validation_case_ids": list(base.validation.case_ids),
             "target_horizons": list(horizons),
@@ -361,7 +480,6 @@ def compile_contextual_multimodal_telemetry_corpus(
             "context_crosses_run_boundary": False,
             "target_crosses_run_boundary": False,
             "preprocessing_fitted_on_training_only": True,
-            "validation_status": "previously_exposed_diagnostic_only",
         },
     )
 
@@ -474,6 +592,7 @@ def _compile_split(
     case_ids: Tuple[str, ...],
     values_by_case_id: Mapping[str, _RunValues],
     metric_feature_names: Tuple[str, ...],
+    log_feature_names: Tuple[str, ...],
     lookback: int,
     horizons: Tuple[int, ...],
     target_block_size: int,
@@ -482,6 +601,7 @@ def _compile_split(
         _compile_run_windows(
             values_by_case_id[case_id],
             metric_feature_names,
+            log_feature_names,
             lookback,
             horizons,
             target_block_size,
@@ -504,6 +624,7 @@ def _compile_split(
 def _compile_run_windows(
     values: _RunValues,
     metric_feature_names: Tuple[str, ...],
+    log_feature_names: Tuple[str, ...],
     lookback: int,
     horizons: Tuple[int, ...],
     target_block_size: int,
@@ -560,7 +681,7 @@ def _compile_run_windows(
             dtype=np.int64,
         ),
         metric_feature_names=metric_feature_names,
-        log_feature_names=LOG_FEATURE_NAMES,
+        log_feature_names=log_feature_names,
         control_feature_names=CONTROL_FEATURE_NAMES,
         horizons=horizons,
         target_block_size=target_block_size,

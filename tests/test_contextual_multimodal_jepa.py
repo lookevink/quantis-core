@@ -1,6 +1,7 @@
 import json
 
 import numpy as np
+import pytest
 
 from quantis_core.contextual_multimodal_corpus import (
     ContextualMultimodalModelWindows,
@@ -130,6 +131,13 @@ def test_contextual_jepa_is_conditioned_staged_and_roundtrips() -> None:
         np.abs(without_logs.scores - expected.scores)
     ) > 1e-6
     assert actual.threshold == expected.threshold
+
+    truncated = first.to_dict()
+    truncated["metric_encoder_weights"].pop()
+    with pytest.raises(ValueError, match="metric_encoder_weights"):
+        ContextualMultimodalJepaWorldModelDetector.from_dict(
+            truncated
+        )
 
 
 def _contextual_windows() -> tuple[

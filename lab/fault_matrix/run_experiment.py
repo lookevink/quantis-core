@@ -46,6 +46,7 @@ WORKER_HEARTBEAT = "quantis:worker:heartbeat"
 WORKER_INSTANCES = "quantis:worker:instances"
 WORKER_CRASH = "quantis:fault:worker_crash"
 CACHE_OUTAGE = "quantis:fault:cache_outage"
+QUEUE_BACKLOG_STATE = "quantis:queue:backlog:state"
 DATABASE_ADVISORY_LOCK = 424242
 FEATURE_NAMES = (
     "request_rate",
@@ -95,13 +96,17 @@ def main() -> None:
     observed_worker_replicas = _wait_until_ready(
         redis_client, database, declared_worker_replicas
     )
-    redis_client.delete(
+    reset = redis_client.pipeline(transaction=True)
+    reset.delete(
         QUEUE,
         COUNTERS,
         WORKER_CRASH,
         CACHE_OUTAGE,
         WORKER_HEARTBEAT,
+        QUEUE_BACKLOG_STATE,
     )
+    reset.set(QUEUE_BACKLOG_STATE, "queue.backlog.low")
+    reset.execute()
     database.execute("TRUNCATE completed_checkout RESTART IDENTITY")
     time.sleep(0.25)
     previous_counters = _counters(redis_client)
@@ -314,6 +319,9 @@ def _wait_for_normal_completion(
             counters["worker_processed"] >= expected_completions
             and redis_client.llen(QUEUE) == 0
         ):
+            time.sleep(0.05)
+            if redis_client.llen(QUEUE) != 0:
+                continue
             return
         time.sleep(0.05)
     raise RuntimeError(

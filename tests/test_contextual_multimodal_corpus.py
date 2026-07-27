@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import numpy as np
@@ -10,6 +11,7 @@ from quantis_core.multimodal_corpus import (
     compile_multimodal_telemetry_corpus,
 )
 from quantis_core.otlp_log_windowing import OtlpLogFeatureSpec
+from quantis_core.otlp_logs import LogRecord, OtlpLogCapture
 from quantis_core.telemetry_corpus import TelemetryCorpusSplitSpec
 from tests.corpus_test_support import (
     FRESH_CASE_IDS,
@@ -52,6 +54,80 @@ def test_log_transformer_expresses_application_state_against_demand() -> None:
     )
 
 
+def test_log_transformer_retains_bounded_endogenous_state() -> None:
+    transformed = DemandResidualLogTransformer().transform(
+        np.asarray(
+            [
+                [
+                    10.0,
+                    0.0,
+                    8.0,
+                    0.0,
+                    1.0,
+                    2.0,
+                    1.0,
+                    5.0,
+                    2.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                ]
+            ]
+        ),
+        (
+            "checkout_accepted_count",
+            "checkout_rejected_count",
+            "checkout_completed_count",
+            "error_event_count",
+            "queue_backlog_low_transition_count",
+            "queue_backlog_elevated_transition_count",
+            "queue_backlog_high_transition_count",
+            "database_latency_fast_count",
+            "database_latency_normal_count",
+            "database_latency_slow_count",
+            "worker_busy_transition_count",
+            "worker_idle_transition_count",
+        ),
+        np.asarray([10.0]),
+    )
+
+    assert transformed.feature_names == (
+        "checkout_completion_ratio",
+        "checkout_backlog_delta_ratio",
+        "checkout_rejection_rate",
+        "application_error_event_rate",
+        "queue_backlog_low_transition_rate",
+        "queue_backlog_elevated_transition_rate",
+        "queue_backlog_high_transition_rate",
+        "database_latency_fast_ratio",
+        "database_latency_normal_ratio",
+        "database_latency_slow_ratio",
+        "worker_busy_transition_rate",
+        "worker_idle_transition_rate",
+    )
+    np.testing.assert_allclose(
+        transformed.values,
+        np.asarray(
+            [
+                [
+                    0.8,
+                    0.2,
+                    0.0,
+                    0.0,
+                    0.1,
+                    0.2,
+                    0.1,
+                    0.625,
+                    0.25,
+                    0.125,
+                    0.1,
+                    0.1,
+                ]
+            ]
+        ),
+    )
+
+
 def test_contextual_corpus_builds_conditioned_multihorizon_blocks() -> None:
     runs, metric_spec = fresh_development_runs()
     log_spec = OtlpLogFeatureSpec.from_dict(
@@ -82,6 +158,7 @@ def test_contextual_corpus_builds_conditioned_multihorizon_blocks() -> None:
         target_block_size=2,
     )
 
+    assert corpus.metadata_dict()["schema_version"] == 2
     windows = corpus.training.windows
     assert windows.metric_contexts.shape == (48, 6, 6)
     assert windows.log_contexts.shape == (48, 6, 4)
@@ -112,3 +189,101 @@ def test_contextual_corpus_builds_conditioned_multihorizon_blocks() -> None:
         "kind": "demand_residual_application_logs",
         "features": list(windows.log_feature_names),
     }
+
+
+def test_contextual_corpus_compiles_rich_promotion_log_vocabulary() -> None:
+    runs, metric_spec = fresh_development_runs()
+    log_spec = OtlpLogFeatureSpec.from_dict(
+        json.loads(
+            open(
+                "lab/fault_matrix/"
+                "contextual-promotion-log-feature-spec.json"
+            ).read()
+        )
+    )
+    base = compile_multimodal_telemetry_corpus(
+        runs,
+        _rich_normal_log_captures(runs),
+        metric_spec,
+        log_spec,
+        TelemetryCorpusSplitSpec(
+            training_case_ids=FRESH_CASE_IDS[:2],
+            validation_case_ids=(FRESH_CASE_IDS[2],),
+            reserved_case_ids=(),
+            lookback=6,
+        ),
+    )
+
+    corpus = compile_contextual_multimodal_telemetry_corpus(
+        base,
+        runs,
+    )
+
+    assert corpus.training.windows.log_contexts.shape == (
+        48,
+        6,
+        12,
+    )
+    assert corpus.training.windows.log_feature_names == (
+        "checkout_completion_ratio",
+        "checkout_backlog_delta_ratio",
+        "checkout_rejection_rate",
+        "application_error_event_rate",
+        "queue_backlog_low_transition_rate",
+        "queue_backlog_elevated_transition_rate",
+        "queue_backlog_high_transition_rate",
+        "database_latency_fast_ratio",
+        "database_latency_normal_ratio",
+        "database_latency_slow_ratio",
+        "worker_busy_transition_rate",
+        "worker_idle_transition_rate",
+    )
+    assert corpus.preprocessing["logs"]["transformer"][
+        "features"
+    ] == list(corpus.training.windows.log_feature_names)
+
+
+def _rich_normal_log_captures(runs):
+    captures = normal_log_captures(runs)
+    enriched = {}
+    for run in runs:
+        capture = captures[run.manifest.case_id]
+        resource = capture.records[0].resource_attributes
+        extra_records = tuple(
+            LogRecord(
+                time_unix_nano=point_index * 100 + event_index + 50,
+                observed_time_unix_nano=None,
+                severity_number=9,
+                severity_text="INFO",
+                body=event_name,
+                resource_attributes=resource,
+                record_attributes={
+                    "event.name": event_name,
+                    "quantis.experiment.window.index": point_index,
+                },
+                scope_name="quantis.application",
+                scope_version="1.0.0",
+                trace_id="",
+                span_id="",
+                flags=0,
+                dropped_attributes_count=0,
+            )
+            for point_index in range(run.manifest.point_count)
+            for event_index, event_name in enumerate(
+                (
+                    "queue.backlog.low",
+                    "database.write.latency.fast",
+                    "worker.state.busy",
+                    "worker.state.idle",
+                )
+            )
+        )
+        enriched[run.manifest.case_id] = OtlpLogCapture(
+            records=capture.records + extra_records,
+            sha256=hashlib.sha256(
+                f"rich:{run.manifest.case_id}".encode()
+            ).hexdigest(),
+            source_path=f"memory://rich/{run.manifest.case_id}",
+            json_message_count=1,
+        )
+    return enriched

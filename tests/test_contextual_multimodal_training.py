@@ -2,6 +2,7 @@ import json
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from quantis_core.contextual_multimodal_corpus import (
     compile_contextual_multimodal_telemetry_corpus,
@@ -68,6 +69,7 @@ def test_contextual_training_reports_controls_and_diagnostics(
     assert result.model_artifact["kind"] == (
         "contextual_multimodal_jepa_world_model_v1"
     )
+    assert result.evidence_mode == "development"
     assert result.metrics_only_model_artifact["kind"] == (
         "contextual_multimodal_jepa_world_model_v1"
     )
@@ -101,7 +103,20 @@ def test_contextual_training_reports_controls_and_diagnostics(
         "metric_context_only",
         "log_context_only",
     }
-    assert result.protocol["exposed_validation_use"] == (
+    assert len(
+        result.schedule_transfer["validation_families"]
+    ) == 1
+    assert set(
+        result.schedule_transfer["validation_families"][0]
+    ) == {
+        "schedule_sha256",
+        "case_ids",
+        "contextual_multimodal",
+        "metrics_only",
+        "capacity_matched_metrics_only",
+        "shuffled_logs",
+    }
+    assert result.protocol["validation_use"] == (
         "diagnostic_only"
     )
     assert result.protocol["cross_validation"]["status"] == (
@@ -159,3 +174,23 @@ def test_contextual_training_reports_controls_and_diagnostics(
     assert "Contextual conditioned JEPA" in report
     assert "Previously exposed validation" in report
     assert "Primary JEPA references" in report
+
+    with pytest.raises(
+        ValueError,
+        match="inner contextual training cases",
+    ):
+        train_contextual_multimodal_jepa_world_model(
+            corpus,
+            ContextualMultimodalJepaTrainingConfig(
+                cross_validation_epochs=0,
+                loss="l1",
+                seed=73,
+            ),
+            evidence_mode="promotion_confirmation",
+            promotion_protocol=json.loads(
+                open(
+                    "lab/fault_matrix/"
+                    "contextual-jepa-promotion-v1.json"
+                ).read()
+            ),
+        )

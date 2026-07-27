@@ -47,6 +47,10 @@ from .contextual_multimodal_training import (
     train_contextual_multimodal_jepa_world_model,
     write_contextual_multimodal_jepa_artifacts,
 )
+from .contextual_multimodal_promotion import (
+    assess_contextual_multimodal_promotion,
+    write_contextual_multimodal_promotion_assessment,
+)
 from .telemetry_corpus import (
     TelemetryCorpusSplitSpec,
     compile_telemetry_corpus,
@@ -371,6 +375,61 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     )
     train_contextual.add_argument("--seed", type=int, default=0)
     train_contextual.add_argument(
+        "--evidence-mode",
+        choices=("development", "promotion_confirmation"),
+        default="development",
+    )
+    train_contextual.add_argument(
+        "--promotion-protocol",
+        type=Path,
+    )
+    train_contextual.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+    )
+    assess_contextual = commands.add_parser(
+        "assess-contextual-multimodal-jepa-promotion",
+        help=(
+            "apply frozen promotion gates to untouched contextual "
+            "JEPA evidence"
+        ),
+    )
+    assess_contextual.add_argument(
+        "--training-result",
+        type=Path,
+        required=True,
+    )
+    assess_contextual.add_argument(
+        "--promotion-protocol",
+        type=Path,
+        required=True,
+    )
+    assess_contextual.add_argument(
+        "--repository",
+        type=Path,
+        required=True,
+    )
+    assess_contextual.add_argument(
+        "--preregistered-git-commit",
+        required=True,
+    )
+    assess_contextual.add_argument(
+        "--repeat-training-result",
+        type=Path,
+        required=True,
+    )
+    assess_contextual.add_argument(
+        "--training-attestation",
+        type=Path,
+        required=True,
+    )
+    assess_contextual.add_argument(
+        "--repeat-training-attestation",
+        type=Path,
+        required=True,
+    )
+    assess_contextual.add_argument(
         "--output",
         type=Path,
         required=True,
@@ -697,6 +756,14 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
                     ),
                     seed=parsed.seed,
                 ),
+                evidence_mode=parsed.evidence_mode,
+                promotion_protocol=(
+                    json.loads(
+                        parsed.promotion_protocol.read_text()
+                    )
+                    if parsed.promotion_protocol is not None
+                    else None
+                ),
             )
         )
         contextual_paths = (
@@ -713,6 +780,45 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         print(f"Model: {contextual_paths['model']}")
         print(f"Report: {contextual_paths['report']}")
         return 0
+    if (
+        parsed.command
+        == "assess-contextual-multimodal-jepa-promotion"
+    ):
+        promotion_assessment = (
+            assess_contextual_multimodal_promotion(
+                parsed.training_result,
+                parsed.promotion_protocol,
+                repeat_training_result_path=(
+                    parsed.repeat_training_result
+                ),
+                training_attestation_path=(
+                    parsed.training_attestation
+                ),
+                repeat_training_attestation_path=(
+                    parsed.repeat_training_attestation
+                ),
+                repository=parsed.repository,
+                preregistered_git_commit=(
+                    parsed.preregistered_git_commit
+                ),
+            )
+        )
+        promotion_paths = (
+            write_contextual_multimodal_promotion_assessment(
+                promotion_assessment,
+                parsed.output,
+            )
+        )
+        print(
+            "Contextual multimodal JEPA promotion: "
+            f"{promotion_assessment['status'].upper()}"
+        )
+        print(f"Report: {promotion_paths['report']}")
+        return (
+            0
+            if promotion_assessment["status"] == "passed"
+            else 1
+        )
     return 2
 
 

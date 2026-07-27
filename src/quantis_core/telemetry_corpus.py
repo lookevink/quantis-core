@@ -276,6 +276,8 @@ def compile_telemetry_corpus(
             "application_api_request_queue_size": (
                 application_queue_size
             ),
+            "topology_id": run.manifest.topology_id,
+            "worker_replicas": run.manifest.worker_replicas,
             "normal_interval": list(
                 run.manifest.baseline_interval
             ),

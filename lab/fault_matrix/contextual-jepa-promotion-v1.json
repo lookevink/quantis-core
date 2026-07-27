@@ -1,0 +1,334 @@
+{
+  "schema_version": 1,
+  "kind": "contextual_multimodal_jepa_promotion_v1",
+  "claim": "bounded endogenous application-state logs improve untouched-schedule normal transfer beyond architecture-matched metric and shuffled-log controls",
+  "corpus": {
+    "case_prefix": "contextual-promotion-v1",
+    "seed_label": 73,
+    "point_count": 340,
+    "sample_period_seconds": 0.1,
+    "lookback": 6,
+    "target_horizons": [
+      1,
+      3,
+      6
+    ],
+    "target_block_size": 2,
+    "worker_replicas": [
+      1,
+      2,
+      3
+    ],
+    "training_family_count": 8,
+    "validation_family_count": 2,
+    "expected_application_api_request_queue_size": 128,
+    "application_build_context_sha256": "72303f582a307bf4052955651e47a82287e5775f121817bfca5f8f72d13bc070",
+    "schedule_families": [
+      {
+        "requests_per_window": 6,
+        "load_pattern_offsets": [
+          2,
+          -3,
+          1,
+          0,
+          3,
+          -2,
+          -1
+        ]
+      },
+      {
+        "requests_per_window": 8,
+        "load_pattern_offsets": [
+          -3,
+          2,
+          1,
+          -2,
+          4,
+          0,
+          -1
+        ]
+      },
+      {
+        "requests_per_window": 10,
+        "load_pattern_offsets": [
+          3,
+          -5,
+          2,
+          -1,
+          0,
+          4,
+          -2,
+          1
+        ]
+      },
+      {
+        "requests_per_window": 12,
+        "load_pattern_offsets": [
+          -4,
+          3,
+          -2,
+          5,
+          0,
+          -1,
+          2,
+          -3
+        ]
+      },
+      {
+        "requests_per_window": 7,
+        "load_pattern_offsets": [
+          1,
+          4,
+          -3,
+          0,
+          -2,
+          2,
+          -1,
+          3
+        ]
+      },
+      {
+        "requests_per_window": 9,
+        "load_pattern_offsets": [
+          -2,
+          5,
+          -4,
+          1,
+          3,
+          -1,
+          0,
+          2
+        ]
+      },
+      {
+        "requests_per_window": 11,
+        "load_pattern_offsets": [
+          4,
+          -6,
+          1,
+          3,
+          -2,
+          0,
+          2,
+          -1
+        ]
+      },
+      {
+        "requests_per_window": 13,
+        "load_pattern_offsets": [
+          -5,
+          4,
+          -1,
+          2,
+          -3,
+          6,
+          0,
+          -2,
+          1
+        ]
+      },
+      {
+        "requests_per_window": 10,
+        "load_pattern_offsets": [
+          5,
+          -4,
+          0,
+          2,
+          -5,
+          3,
+          -1,
+          4,
+          -2
+        ]
+      },
+      {
+        "requests_per_window": 14,
+        "load_pattern_offsets": [
+          -7,
+          3,
+          5,
+          -2,
+          1,
+          -4,
+          6,
+          0,
+          -1,
+          2
+        ]
+      }
+    ]
+  },
+  "metric_vocabulary": {
+    "feature_schema_id": "e737796d34e83d2441ac3c5681da2652e36f3f5307e92e03250ec34344008bf6",
+    "feature_spec_sha256": "e737796d34e83d2441ac3c5681da2652e36f3f5307e92e03250ec34344008bf6",
+    "raw_feature_names": [
+      "request_rate",
+      "request_latency_ms",
+      "error_rate",
+      "queue_depth",
+      "worker_rate",
+      "worker_heartbeat_age_s",
+      "db_write_rate"
+    ],
+    "semantic_feature_names": [
+      "request_latency_ms",
+      "error_rate",
+      "queue_depth",
+      "worker_completion_ratio",
+      "worker_heartbeat_age_s",
+      "db_write_completion_ratio"
+    ]
+  },
+  "log_vocabulary": {
+    "feature_schema_id": "5d500a79c4917469a1c7ead83c18ca8ef811cd7ea458c316131cf3862feb88f0",
+    "raw_feature_names": [
+      "checkout_accepted_count",
+      "checkout_rejected_count",
+      "checkout_completed_count",
+      "error_event_count",
+      "queue_backlog_low_transition_count",
+      "queue_backlog_elevated_transition_count",
+      "queue_backlog_high_transition_count",
+      "database_latency_fast_count",
+      "database_latency_normal_count",
+      "database_latency_slow_count",
+      "worker_busy_transition_count",
+      "worker_idle_transition_count"
+    ],
+    "semantic_feature_names": [
+      "checkout_completion_ratio",
+      "checkout_backlog_delta_ratio",
+      "checkout_rejection_rate",
+      "application_error_event_rate",
+      "queue_backlog_low_transition_rate",
+      "queue_backlog_elevated_transition_rate",
+      "queue_backlog_high_transition_rate",
+      "database_latency_fast_ratio",
+      "database_latency_normal_ratio",
+      "database_latency_slow_ratio",
+      "worker_busy_transition_rate",
+      "worker_idle_transition_rate"
+    ]
+  },
+  "training_case_ids": [
+    "contextual-promotion-v1-f01-w1-73",
+    "contextual-promotion-v1-f01-w2-73",
+    "contextual-promotion-v1-f01-w3-73",
+    "contextual-promotion-v1-f02-w1-73",
+    "contextual-promotion-v1-f02-w2-73",
+    "contextual-promotion-v1-f02-w3-73",
+    "contextual-promotion-v1-f03-w1-73",
+    "contextual-promotion-v1-f03-w2-73",
+    "contextual-promotion-v1-f03-w3-73",
+    "contextual-promotion-v1-f04-w1-73",
+    "contextual-promotion-v1-f04-w2-73",
+    "contextual-promotion-v1-f04-w3-73",
+    "contextual-promotion-v1-f05-w1-73",
+    "contextual-promotion-v1-f05-w2-73",
+    "contextual-promotion-v1-f05-w3-73",
+    "contextual-promotion-v1-f06-w1-73",
+    "contextual-promotion-v1-f06-w2-73",
+    "contextual-promotion-v1-f06-w3-73",
+    "contextual-promotion-v1-f07-w1-73",
+    "contextual-promotion-v1-f07-w2-73",
+    "contextual-promotion-v1-f07-w3-73",
+    "contextual-promotion-v1-f08-w1-73",
+    "contextual-promotion-v1-f08-w2-73",
+    "contextual-promotion-v1-f08-w3-73"
+  ],
+  "validation_case_ids": [
+    "contextual-promotion-v1-f09-w1-73",
+    "contextual-promotion-v1-f09-w2-73",
+    "contextual-promotion-v1-f09-w3-73",
+    "contextual-promotion-v1-f10-w1-73",
+    "contextual-promotion-v1-f10-w2-73",
+    "contextual-promotion-v1-f10-w3-73"
+  ],
+  "training_config": {
+    "metric_latent_dimension": 3,
+    "log_latent_dimension": 1,
+    "pretraining_epochs": 200,
+    "predictor_refinement_epochs": 100,
+    "cross_validation_epochs": 0,
+    "learning_rate": 0.02,
+    "ema_decay": 0.98,
+    "weight_decay": 0.0001,
+    "loss": "l1",
+    "huber_delta": 1.0,
+    "auxiliary_loss_weight": 0.2,
+    "rollout_loss_weight": 0.2,
+    "calibration_quantile": 0.98,
+    "seed": 73
+  },
+  "training_runtime": {
+    "python_implementation": "CPython",
+    "python_version": "3.9.6",
+    "numpy_version": "2.0.2",
+    "platform": "macOS-26.5.2-arm64-arm-64bit"
+  },
+  "controls": [
+    "metrics_only",
+    "capacity_matched_metrics_only",
+    "shuffled_logs",
+    "log_only",
+    "metric_context_only",
+    "log_context_only"
+  ],
+  "shuffled_log_control": {
+    "kind": "shuffled_demand_residual_log_alignment",
+    "training_seed": 1074,
+    "validation_seed": 2074,
+    "preserves_log_context_target_blocks": true,
+    "breaks_metric_log_alignment": true,
+    "keeps_exogenous_controls_metric_aligned": true
+  },
+  "gates": {
+    "maximum_validation_alert_rate": 0.03,
+    "maximum_schedule_family_alert_rate": 0.05,
+    "minimum_no_worse_schedule_family_fraction": 0.8,
+    "minimum_metric_effective_rank": 1.5,
+    "minimum_log_effective_rank": 0.5
+  },
+  "frozen_files": {
+    "pyproject.toml": "cfc9eec60fac4d51ebfaf0b7ed44cd0b8c163db7056d927ce9b41124d1476d2d",
+    "docs/specs/contextual-multimodal-jepa-promotion-v1.md": "d42eb8bad45eeba6efceb6e4f87e807cdffd9c8f45756f77946b5c7bb8834ba3",
+    "lab/fault_matrix/Dockerfile": "c3d1ec3dd8f9bc349920f01ae288ade6c4e3719616a26ef33930c2c0028ba766",
+    "lab/fault_matrix/application_logging.py": "2fa30468b3b2c1ed8f6ba84016958c48185b8804f1537f3e612c6cf5016f94fe",
+    "lab/fault_matrix/collector.yaml": "900ec63d754e6753d0dd7b0e0b2cbdd9eaec8372742e58add1f12d1d4ee33ab8",
+    "lab/fault_matrix/compose.yaml": "9ca1cd4fe9453d70363d80d97cc7298d48f1055595aeeb5d703612bfdf070fd5",
+    "lab/fault_matrix/contextual-promotion-log-feature-spec.json": "a34961e7e2d4294b5bd85acfbf46e188db5358f18e79e54da10844cc82ff730c",
+    "lab/fault_matrix/feature-spec.json": "43dcab91504e01738df33e9b61248a7aefa4ee32acf36940a5fcee62760b329e",
+    "lab/fault_matrix/hash_build_context.py": "456abe2df162988168d6e414333a008f1d413395952c700dac76531d966b6070",
+    "lab/fault_matrix/prepare_contextual_promotion_corpus.py": "14c2f3bd19c81ef26d3423244e0b73326a61d02c293501fda9e838c2afa9e488",
+    "lab/fault_matrix/prepare_jepa_normal_corpus.py": "4dec5a27da0149a39379cf918b7a648120ab312aa6faa9757c9d0c38f77ebffa",
+    "lab/fault_matrix/requirements.txt": "8f8bf648bd8431e4d7c9129a75491f23507334010d1fa8eadb215e443d1847d5",
+    "lab/fault_matrix/run-contextual-multimodal-jepa-promotion.sh": "77ed4eba89267a6ab0920f78041611af2d5dfbbf41747b55242b7de0a35099a9",
+    "lab/fault_matrix/run_experiment.py": "e931e66abcac3cbf495ab57fba78df038bcca7c2ba813076a4f0376889a300cc",
+    "lab/fault_matrix/service.py": "6e1072d5ced1b7e5b3f7f796c8316bc02546d8e8393baae773c2f343d2fe1f9a",
+    "lab/fault_matrix/verify_contextual_jepa_promotion.py": "f842f0e530a225a5723cdca2187e788c065fa7219831cda8e4ff3c1544f94c2e",
+    "src/quantis_core/__init__.py": "e9f3f683d101cd91f581ca3210df4da24a3830845993ffbf754922f04f267bd0",
+    "src/quantis_core/__main__.py": "e74d146bb4d866d3a29db134925014eff4fabb13a9389fe77b755f6a90724854",
+    "src/quantis_core/contextual_multimodal_corpus.py": "924f6de8c7144882bd3dc31e74fae798d1869e7bf0e7e7652f4050d9c8259b03",
+    "src/quantis_core/contextual_multimodal_promotion.py": "f8a18ae8ceab4b789a596967a8c9dcb7efc05c69125651633350e8f7101bb397",
+    "src/quantis_core/contextual_multimodal_training.py": "a3ee4b254b644abc1c37603a6e07e6bb6bb1f748f0d3515c4e3486e7823019f9",
+    "src/quantis_core/contextual_multimodal_world_model.py": "de58b4fae2334d38fd695e6938d5dce59f61049dcfdd1ddfa5b655c8fcbfd578",
+    "src/quantis_core/contracts.py": "182e2d8b9a91961c79dcb291313c3233e44f9d63127a5ec3b2b84169def0650d",
+    "src/quantis_core/demand_conditioning.py": "10bf7ebae27612f0319507f3fa315889b70569b9398cfe440fb68a5153016fef",
+    "src/quantis_core/detectors.py": "8418f077b31ed4c9f2463702f68c8c3b91a23651fb5aa9f32150eb1d0a059026",
+    "src/quantis_core/evaluation.py": "b470978d95cf2fa3b2e34877203a24765c82c758ec19299a5b9b75b4a645620a",
+    "src/quantis_core/fault_lab.py": "f7f2a86946d4879f41b5494266a596a9eb87433afef1d3d0187457f64a2d66b8",
+    "src/quantis_core/fault_matrix.py": "2ee36f3d05cb3cb9bbe0c173f31da66c71ba3c2ab0e0361700a7256ca32c3aa6",
+    "src/quantis_core/multimodal_corpus.py": "b7d22b250bd1bd74c319b7ae8a50b578f321b0b9c91694e77f9bd95244bc7231",
+    "src/quantis_core/multimodal_training.py": "0eae87e88af9ef1120e2a5af7bf45d8732d7fdaae3acdc56562436df23ee147a",
+    "src/quantis_core/multimodal_world_model.py": "d0fcb49cd3d84c3001ffb5b899bdf72c125cd36e23113211f1925e0ec098b454",
+    "src/quantis_core/otlp.py": "e9fb5c06d0c79ad3830a053ceb97ad32fe316bfcf43c53258c5a8e86c822e86a",
+    "src/quantis_core/otlp_log_windowing.py": "7b3c05a49defd440ad583b1c5eb5c71308d88e68eb95c8bd3c121dfc4b7b7c82",
+    "src/quantis_core/otlp_logs.py": "a2e802a5fa9589dee7a6534e76f35babf51ffeb4338ae62322ba11e8413f5526",
+    "src/quantis_core/otlp_windowing.py": "5a364d3d6d350713d60dd7c2a9c17960d171f117afd54d586e04a16f76f4f83e",
+    "src/quantis_core/py.typed": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "src/quantis_core/scenarios.py": "3de63d02fb07b175a51481f8a6e8c2ce6961276dd846b4d29d07bc42b58870ba",
+    "src/quantis_core/telemetry_corpus.py": "b140015c4a2745fe9f00225425141fcced6b0d4449b64e92a5843b02eafab82d",
+    "src/quantis_core/windowing.py": "f98131b7c90a23844c561b3764d337cfd858f7fc5026e5a5eb1e7f18efd33c00",
+    "src/quantis_core/world_model.py": "2a202635a1ddb3dcb51e93c3e4008f525cb09f15a4d1ae48bf3c05a8bb1809d5"
+  }
+}

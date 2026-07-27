@@ -4,7 +4,8 @@ import json
 import os
 import time
 import urllib.request
-from typing import Mapping, Union
+from dataclasses import dataclass
+from typing import Mapping, Optional, Protocol, Sequence, Tuple, Union
 
 
 OTLP_LOGS_ENDPOINT = os.environ.get(
@@ -12,6 +13,144 @@ OTLP_LOGS_ENDPOINT = os.environ.get(
     "http://collector:4318/v1/logs",
 )
 Attribute = Union[str, int, float, bool]
+QUEUE_ENQUEUE_TRANSITION_SCRIPT = """
+redis.call('RPUSH', KEYS[1], ARGV[1])
+local depth = redis.call('LLEN', KEYS[1])
+local state
+if depth <= 2 then
+  state = 'queue.backlog.low'
+elseif depth <= 8 then
+  state = 'queue.backlog.elevated'
+else
+  state = 'queue.backlog.high'
+end
+local previous = redis.call('GET', KEYS[2])
+if previous == state then
+  return {false, false, false}
+end
+redis.call('SET', KEYS[2], state)
+local timestamp = redis.call('TIME')
+return {state, timestamp[1], timestamp[2]}
+""".strip()
+QUEUE_DEQUEUE_TRANSITION_SCRIPT = """
+local payload = redis.call('LPOP', KEYS[1])
+if not payload then
+  return {false, false, false, false}
+end
+local depth = redis.call('LLEN', KEYS[1])
+local state
+if depth <= 2 then
+  state = 'queue.backlog.low'
+elseif depth <= 8 then
+  state = 'queue.backlog.elevated'
+else
+  state = 'queue.backlog.high'
+end
+local previous = redis.call('GET', KEYS[2])
+if previous == state then
+  return {payload, false, false, false}
+end
+redis.call('SET', KEYS[2], state)
+local timestamp = redis.call('TIME')
+return {payload, state, timestamp[1], timestamp[2]}
+""".strip()
+
+
+class RedisScriptClient(Protocol):
+    """Minimal atomic-script interface used by backlog transitions."""
+
+    def eval(
+        self,
+        script: str,
+        numkeys: int,
+        *keys_and_arguments: str,
+    ) -> object:
+        ...
+
+
+@dataclass(frozen=True)
+class ApplicationEvent:
+    """One event from the lab's finite application-state vocabulary."""
+
+    event_name: str
+    severity_number: int
+    severity_text: str
+    body: str
+    attributes: Mapping[str, Attribute]
+    timestamp_unix_nano: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class QueueTransition:
+    """One transition observed atomically with a queue mutation."""
+
+    event_name: str
+    timestamp_unix_nano: int
+
+
+def queue_backlog_event_name(queue_depth: int) -> str:
+    """Map queue depth to one preregistered, bounded state."""
+
+    if queue_depth < 0:
+        raise ValueError("queue_depth cannot be negative")
+    if queue_depth <= 2:
+        return "queue.backlog.low"
+    if queue_depth <= 8:
+        return "queue.backlog.elevated"
+    return "queue.backlog.high"
+
+
+def enqueue_with_queue_transition(
+    redis_client: RedisScriptClient,
+    *,
+    queue_key: str,
+    state_key: str,
+    payload: str,
+) -> Optional[QueueTransition]:
+    """Atomically enqueue and advance the bounded backlog state."""
+
+    raw = redis_client.eval(
+        QUEUE_ENQUEUE_TRANSITION_SCRIPT,
+        2,
+        queue_key,
+        state_key,
+        payload,
+    )
+    return _parse_queue_transition(raw)
+
+
+def dequeue_with_queue_transition(
+    redis_client: RedisScriptClient,
+    *,
+    queue_key: str,
+    state_key: str,
+) -> Tuple[Optional[str], Optional[QueueTransition]]:
+    """Atomically dequeue and advance the bounded backlog state."""
+
+    raw = redis_client.eval(
+        QUEUE_DEQUEUE_TRANSITION_SCRIPT,
+        2,
+        queue_key,
+        state_key,
+    )
+    if not isinstance(raw, (list, tuple)) or len(raw) != 4:
+        raise TypeError("queue dequeue script returned invalid result")
+    payload = _optional_text(raw[0])
+    if payload is None:
+        return None, None
+    return payload, _parse_queue_transition(raw[1:])
+
+
+def database_latency_event_name(latency_us: int) -> str:
+    """Map database-write latency to one preregistered bucket."""
+
+    if latency_us < 0:
+        raise ValueError("latency_us cannot be negative")
+    if latency_us < 2_000:
+        return "database.write.latency.fast"
+    if latency_us < 10_000:
+        return "database.write.latency.normal"
+    return "database.write.latency.slow"
 
 
 def emit_application_event(
@@ -27,6 +166,33 @@ def emit_application_event(
 ) -> None:
     """Emit one bounded-vocabulary event without arbitrary payload fields."""
 
+    emit_application_events(
+        service_name=service_name,
+        service_instance_id=service_instance_id,
+        experiment=experiment,
+        events=(
+            ApplicationEvent(
+                event_name=event_name,
+                severity_number=severity_number,
+                severity_text=severity_text,
+                body=body,
+                attributes=attributes,
+            ),
+        ),
+    )
+
+
+def emit_application_events(
+    *,
+    service_name: str,
+    service_instance_id: str,
+    experiment: Mapping[str, str],
+    events: Sequence[ApplicationEvent],
+) -> None:
+    """Emit several related bounded events in one OTLP request."""
+
+    if not events:
+        raise ValueError("application event batch cannot be empty")
     resource_attributes: dict[str, Attribute] = {
         "service.name": service_name,
         "service.instance.id": service_instance_id,
@@ -37,11 +203,7 @@ def emit_application_event(
         ),
         "quantis.experiment.topology.id": experiment["topology_id"],
     }
-    record_attributes: dict[str, Attribute] = {
-        "event.name": event_name,
-        **attributes,
-    }
-    timestamp = str(time.time_ns())
+    batch_timestamp = time.time_ns()
     payload = {
         "resourceLogs": [
             {
@@ -56,15 +218,32 @@ def emit_application_event(
                         },
                         "logRecords": [
                             {
-                                "timeUnixNano": timestamp,
-                                "observedTimeUnixNano": timestamp,
-                                "severityNumber": severity_number,
-                                "severityText": severity_text,
-                                "body": {"stringValue": body},
+                                "timeUnixNano": str(
+                                    event.timestamp_unix_nano
+                                    if event.timestamp_unix_nano
+                                    is not None
+                                    else batch_timestamp + event_index
+                                ),
+                                "observedTimeUnixNano": str(
+                                    batch_timestamp + event_index
+                                ),
+                                "severityNumber": (
+                                    event.severity_number
+                                ),
+                                "severityText": event.severity_text,
+                                "body": {
+                                    "stringValue": event.body
+                                },
                                 "attributes": _attributes(
-                                    record_attributes
+                                    {
+                                        "event.name": (
+                                            event.event_name
+                                        ),
+                                        **event.attributes,
+                                    }
                                 ),
                             }
+                            for event_index, event in enumerate(events)
                         ],
                     }
                 ],
@@ -107,3 +286,41 @@ def _any_value(value: Attribute) -> dict[str, object]:
     if isinstance(value, float):
         return {"doubleValue": value}
     return {"stringValue": value}
+
+
+def _parse_queue_transition(
+    raw: object,
+) -> Optional[QueueTransition]:
+    if not isinstance(raw, (list, tuple)) or len(raw) != 3:
+        raise TypeError("queue transition script returned invalid result")
+    event_name = _optional_text(raw[0])
+    if event_name is None:
+        return None
+    seconds = _required_int(raw[1])
+    microseconds = _required_int(raw[2])
+    return QueueTransition(
+        event_name=event_name,
+        timestamp_unix_nano=(
+            seconds * 1_000_000_000 + microseconds * 1_000
+        ),
+    )
+
+
+def _optional_text(value: object) -> Optional[str]:
+    if value is None or value is False:
+        return None
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    if isinstance(value, str):
+        return value
+    raise TypeError("queue script returned invalid text")
+
+
+def _required_int(value: object) -> int:
+    if isinstance(value, bytes):
+        value = value.decode("ascii")
+    if isinstance(value, str):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    raise TypeError("queue script returned invalid timestamp")

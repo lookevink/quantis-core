@@ -248,3 +248,88 @@ def test_multimodal_corpus_uses_fresh_schedules_and_case_ids(
         manifest.point_count - split.lookback
         for manifest in manifests
     ) == 10_020
+
+
+def test_contextual_promotion_corpus_is_fresh_and_frozen(
+    tmp_path,
+):
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "lab/fault_matrix/prepare_contextual_promotion_corpus.py",
+            "--output",
+            str(tmp_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    manifests = [
+        FaultMatrixCaseManifest.from_dict(
+            json.loads(path.read_text())
+        )
+        for path in sorted((tmp_path / "manifests").glob("*.json"))
+    ]
+    split = TelemetryCorpusSplitSpec.from_dict(
+        json.loads((tmp_path / "split.json").read_text())
+    )
+    schedules = {
+        manifest.case_id: canonical_request_schedule(
+            manifest.requests_per_window,
+            manifest.load_pattern_offsets,
+        )
+        for manifest in manifests
+    }
+    earlier_schedule_inputs = (
+        (5, (0, 1, -1)),
+        (6, (0, 2, -1, 1)),
+        (7, (-2, 0, 1, 0, -1)),
+        (8, (0, 1, 2, -1)),
+        (9, (-3, 0, 2, -1, 1)),
+        (10, (0, -2, 1, 3, -1)),
+        (6, (1, -1, 2, 0, -2)),
+        (8, (-1, 2, 0, -2, 1, 0)),
+        (11, (-3, -1, 2, 0, 1)),
+        (12, (-4, 0, 3, -2, 1, 0, 2)),
+        (5, (1, -1, 0, 2, -2)),
+        (7, (2, -2, 1, -1, 0, 3)),
+        (9, (-4, 1, -1, 3, 0, -2)),
+        (11, (2, 0, -3, 1, -1, 3, -2)),
+        (6, (-1, 3, 0, -2, 2, 1)),
+        (8, (3, -1, -3, 2, 0, -2, 1)),
+        (10, (-2, 4, -1, 0, 2, -3)),
+        (12, (-5, 1, 4, -2, 0, 2, -1)),
+        (9, (1, -3, 3, -1, 2, -2, 0)),
+        (13, (-6, 2, -1, 5, -3, 1, 0, 3)),
+    )
+    earlier_schedules = {
+        canonical_request_schedule(base, offsets)
+        for base, offsets in earlier_schedule_inputs
+    }
+
+    assert len(manifests) == 30
+    assert len(split.training_case_ids) == 24
+    assert len(split.validation_case_ids) == 6
+    assert (
+        split.expected_application_api_request_queue_size
+        == 128
+    )
+    assert len(set(schedules.values())) == 10
+    assert set(schedules.values()).isdisjoint(earlier_schedules)
+    assert {
+        schedules[case_id] for case_id in split.training_case_ids
+    }.isdisjoint(
+        {
+            schedules[case_id]
+            for case_id in split.validation_case_ids
+        }
+    )
+    assert all(
+        manifest.case_id.startswith("contextual-promotion-v1-")
+        and manifest.case_id.endswith("-73")
+        and manifest.sample_period_seconds == 0.1
+        and manifest.fault_kind == "none"
+        for manifest in manifests
+    )

@@ -50,6 +50,13 @@ def test_corpus_compiles_normal_windows_without_crossing_runs():
     assert len(
         corpus.protocol["application_build_context_sha256"]
     ) == 64
+    first_run = corpus.protocol["runs"][FRESH_CASE_IDS[0]]
+    assert first_run["topology_id"] == (
+        runs[0].manifest.topology_id
+    )
+    assert first_run["worker_replicas"] == (
+        runs[0].manifest.worker_replicas
+    )
     assert set(
         corpus.protocol["split_spec"]["reserved_case_ids"]
     ) == RESERVED_EVIDENCE_CASE_IDS

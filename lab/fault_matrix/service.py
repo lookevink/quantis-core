@@ -5,13 +5,20 @@ import os
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Mapping, NoReturn
+from typing import Mapping, NoReturn, Optional, Sequence
 from urllib.parse import parse_qs, urlparse
 
 import psycopg
 import redis
 
-from application_logging import emit_application_event
+from application_logging import (
+    ApplicationEvent,
+    QueueTransition,
+    database_latency_event_name,
+    dequeue_with_queue_transition,
+    emit_application_events,
+    enqueue_with_queue_transition,
+)
 
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
@@ -25,8 +32,10 @@ WORKER_HEARTBEAT = "quantis:worker:heartbeat"
 WORKER_INSTANCES = "quantis:worker:instances"
 WORKER_CRASH = "quantis:fault:worker_crash"
 CACHE_OUTAGE = "quantis:fault:cache_outage"
+QUEUE_BACKLOG_STATE = "quantis:queue:backlog:state"
 DATABASE_ADVISORY_LOCK = 424242
 APPLICATION_LOG_EMIT_ERRORS = "application_log_emit_errors"
+WORKER_IDLE_TRANSITION_SECONDS = 0.02
 API_REQUEST_QUEUE_SIZE = int(
     os.environ.get("QUANTIS_API_REQUEST_QUEUE_SIZE", "5")
 )
@@ -79,6 +88,7 @@ class CheckoutHandler(BaseHTTPRequestHandler):
         window_index = int(query["window_index"][0])
         started = time.perf_counter_ns()
         status = 202
+        queue_transition: Optional[QueueTransition] = None
         try:
             delay_ms = float(
                 query.get("delay_ms", ["0"])[0]
@@ -98,7 +108,12 @@ class CheckoutHandler(BaseHTTPRequestHandler):
                     },
                     separators=(",", ":"),
                 )
-                self.redis_client.rpush(QUEUE, payload)
+                queue_transition = enqueue_with_queue_transition(
+                    self.redis_client,
+                    queue_key=QUEUE,
+                    state_key=QUEUE_BACKLOG_STATE,
+                    payload=payload,
+                )
         except Exception:
             status = 500
             self.redis_client.hincrby(COUNTERS, "api_errors", 1)
@@ -110,14 +125,18 @@ class CheckoutHandler(BaseHTTPRequestHandler):
             pipeline.hincrby(COUNTERS, "api_requests", 1)
             pipeline.hincrby(COUNTERS, "api_latency_us", latency_us)
             pipeline.execute()
-        _emit_checkout_event(
-            redis_client=self.redis_client,
-            service_name="quantis-fault-matrix-api",
-            event_name=(
+        event_names = (
+            (
                 "checkout.accepted"
                 if status == 202
                 else "checkout.rejected"
-            ),
+            )
+        ,)
+        _emit_checkout_events(
+            redis_client=self.redis_client,
+            service_name="quantis-fault-matrix-api",
+            event_names=event_names,
+            queue_transition=queue_transition,
             status=status,
             experiment=experiment,
             window_index=window_index,
@@ -159,6 +178,10 @@ def run_worker() -> NoReturn:
         """
     )
     worker_id = os.environ.get("HOSTNAME", f"pid-{os.getpid()}")
+    worker_busy = False
+    last_activity = 0.0
+    last_experiment: Mapping[str, str] = {}
+    last_window_index = 0
     print("worker ready", flush=True)
     while True:
         if redis_client.get(WORKER_CRASH) == "1":
@@ -170,12 +193,35 @@ def run_worker() -> NoReturn:
         redis_client.zremrangebyscore(
             WORKER_INSTANCES, "-inf", now - 2.0
         )
-        payload = redis_client.lpop(QUEUE)
+        payload, queue_transition = dequeue_with_queue_transition(
+            redis_client,
+            queue_key=QUEUE,
+            state_key=QUEUE_BACKLOG_STATE,
+        )
         if payload is None:
+            if (
+                worker_busy
+                and time.monotonic() - last_activity
+                >= WORKER_IDLE_TRANSITION_SECONDS
+            ):
+                _emit_checkout_events(
+                    redis_client=redis_client,
+                    service_name="quantis-fault-matrix-worker",
+                    event_names=("worker.state.idle",),
+                    status=200,
+                    experiment=last_experiment,
+                    window_index=last_window_index,
+                )
+                worker_busy = False
             time.sleep(0.005)
             continue
         started = time.perf_counter_ns()
         item = json.loads(payload)
+        experiment = {
+            str(key): str(value)
+            for key, value in item["experiment"].items()
+        }
+        window_index = int(item["window_index"])
         with database.transaction():
             database.execute(
                 "SELECT pg_advisory_xact_lock(%s)",
@@ -187,17 +233,25 @@ def run_worker() -> NoReturn:
                 (int(item["created_unix_nano"]),),
             )
         latency_us = max(1, (time.perf_counter_ns() - started) // 1_000)
-        _emit_checkout_event(
+        event_names = [
+            "checkout.completed",
+            database_latency_event_name(latency_us),
+        ]
+        if not worker_busy:
+            event_names.append("worker.state.busy")
+        _emit_checkout_events(
             redis_client=redis_client,
             service_name="quantis-fault-matrix-worker",
-            event_name="checkout.completed",
+            event_names=event_names,
+            queue_transition=queue_transition,
             status=200,
-            experiment={
-                str(key): str(value)
-                for key, value in item["experiment"].items()
-            },
-            window_index=int(item["window_index"]),
+            experiment=experiment,
+            window_index=window_index,
         )
+        worker_busy = True
+        last_activity = time.monotonic()
+        last_experiment = experiment
+        last_window_index = window_index
         pipeline = redis_client.pipeline()
         pipeline.hincrby(COUNTERS, "worker_processed", 1)
         pipeline.hincrby(COUNTERS, "worker_db_latency_us", latency_us)
@@ -221,33 +275,62 @@ def _experiment_identity(
         ) from error
 
 
-def _emit_checkout_event(
+def _emit_checkout_events(
     *,
     redis_client: redis.Redis,
     service_name: str,
-    event_name: str,
+    event_names: Sequence[str],
+    queue_transition: Optional[QueueTransition] = None,
     status: int,
     experiment: Mapping[str, str],
     window_index: int,
 ) -> None:
     try:
-        emit_application_event(
+        events = [
+            ApplicationEvent(
+                event_name=event_name,
+                severity_number=(
+                    9 if status < 500 else 17
+                ),
+                severity_text=(
+                    "INFO" if status < 500 else "ERROR"
+                ),
+                body=event_name.replace(".", " "),
+                attributes={
+                    "quantis.experiment.origin.window.index": (
+                        window_index
+                    ),
+                    "http.response.status_code": status,
+                },
+            )
+            for event_name in event_names
+        ]
+        if queue_transition is not None:
+            events.append(
+                ApplicationEvent(
+                    event_name=queue_transition.event_name,
+                    severity_number=9,
+                    severity_text="INFO",
+                    body=queue_transition.event_name.replace(".", " "),
+                    attributes={
+                        "quantis.experiment.origin.window.index": (
+                            window_index
+                        ),
+                        "http.response.status_code": status,
+                    },
+                    timestamp_unix_nano=(
+                        queue_transition.timestamp_unix_nano
+                    ),
+                )
+            )
+        emit_application_events(
             service_name=service_name,
             service_instance_id=os.environ.get(
                 "HOSTNAME",
                 f"pid-{os.getpid()}",
             ),
-            event_name=event_name,
-            severity_number=9 if status < 500 else 17,
-            severity_text="INFO" if status < 500 else "ERROR",
-            body=event_name.replace(".", " "),
             experiment=experiment,
-            attributes={
-                "quantis.experiment.origin.window.index": (
-                    window_index
-                ),
-                "http.response.status_code": status,
-            },
+            events=tuple(events),
         )
     except Exception:
         redis_client.hincrby(

@@ -2,6 +2,10 @@
 
 import hashlib
 import json
+import os
+import platform
+import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -16,6 +20,9 @@ from .contextual_multimodal_corpus import (
 )
 from .contextual_multimodal_world_model import (
     ContextualMultimodalJepaWorldModelDetector,
+)
+from .contextual_multimodal_promotion import (
+    validate_contextual_multimodal_promotion_corpus,
 )
 from .windowing import MAD_NORMAL_SCALE
 
@@ -102,8 +109,11 @@ class ContextualMultimodalJepaTrainingConfig:
 
 @dataclass(frozen=True)
 class ContextualMultimodalJepaDevelopmentResult:
-    """A v1 candidate, same-corpus controls, and development evidence."""
+    """A v1 candidate, same-corpus controls, and bounded evidence."""
 
+    execution_id: str
+    execution_started_unix_nano: int
+    evidence_mode: str
     config: ContextualMultimodalJepaTrainingConfig
     corpus_metadata: Mapping[str, Any]
     model_artifact: Mapping[str, Any]
@@ -112,6 +122,7 @@ class ContextualMultimodalJepaDevelopmentResult:
     shuffled_log_model_artifact: Mapping[str, Any]
     log_only_model_artifact: Mapping[str, Any]
     metrics: Mapping[str, Mapping[str, Mapping[str, Any]]]
+    schedule_transfer: Mapping[str, Any]
     cross_validation: Mapping[str, Any]
     protocol: Mapping[str, Any]
     selection: Mapping[str, Any]
@@ -122,7 +133,13 @@ class ContextualMultimodalJepaDevelopmentResult:
             "schema_version": 1,
             "kind": (
                 "contextual_multimodal_jepa_world_model_development"
+                if self.evidence_mode == "development"
+                else (
+                    "contextual_multimodal_jepa_world_model_"
+                    "promotion_confirmation"
+                )
             ),
+            "evidence_mode": self.evidence_mode,
             "config": self.config.to_dict(),
             "corpus": dict(self.corpus_metadata),
             "model": dict(self.model_artifact),
@@ -143,6 +160,7 @@ class ContextualMultimodalJepaDevelopmentResult:
                 }
                 for model_name, splits in self.metrics.items()
             },
+            "schedule_transfer": dict(self.schedule_transfer),
             "cross_validation": dict(self.cross_validation),
             "protocol": dict(self.protocol),
             "selection": dict(self.selection),
@@ -156,9 +174,44 @@ def train_contextual_multimodal_jepa_world_model(
     config: ContextualMultimodalJepaTrainingConfig = (
         ContextualMultimodalJepaTrainingConfig()
     ),
+    *,
+    evidence_mode: str = "development",
+    promotion_protocol: Optional[Mapping[str, Any]] = None,
 ) -> ContextualMultimodalJepaDevelopmentResult:
     """Fit the v1 candidate and controls without tuning on exposed data."""
 
+    execution_id = str(uuid.uuid4())
+    execution_started_unix_nano = time.time_ns()
+    if evidence_mode not in ("development", "promotion_confirmation"):
+        raise ValueError("unsupported contextual JEPA evidence mode")
+    if (
+        evidence_mode == "promotion_confirmation"
+        and config.cross_validation_epochs != 0
+    ):
+        raise ValueError(
+            "promotion confirmation cannot run cross-validation"
+        )
+    if evidence_mode == "promotion_confirmation":
+        if promotion_protocol is None:
+            raise ValueError(
+                "promotion confirmation requires a frozen protocol"
+            )
+        if config.to_dict() != dict(
+            promotion_protocol["training_config"]
+        ):
+            raise ValueError(
+                "training configuration differs from promotion protocol"
+            )
+        if _runtime_fingerprint() != dict(
+            promotion_protocol["training_runtime"]
+        ):
+            raise ValueError(
+                "training runtime differs from promotion protocol"
+            )
+        validate_contextual_multimodal_promotion_corpus(
+            corpus.metadata_dict(),
+            promotion_protocol,
+        )
     training = corpus.training.windows
     validation = corpus.validation.windows
     detector = _new_detector(config).fit(training)
@@ -285,6 +338,14 @@ def train_contextual_multimodal_jepa_world_model(
             ),
         },
     }
+    schedule_transfer = _schedule_transfer_metrics(
+        corpus,
+        detector,
+        metrics_only,
+        capacity_matched,
+        shuffled_detector,
+        shuffled_validation,
+    )
     cross_validation = _cross_validate(corpus, config)
     selection = _selection_assessment(
         detector,
@@ -292,11 +353,19 @@ def train_contextual_multimodal_jepa_world_model(
     )
     corpus_metadata = corpus.metadata_dict()
     protocol = {
-        "model_selection_status": "development_only",
+        "model_selection_status": (
+            "development_only"
+            if evidence_mode == "development"
+            else "fixed_promotion_confirmation"
+        ),
         "training_case_ids": list(corpus.training.case_ids),
         "validation_case_ids": list(corpus.validation.case_ids),
         "training_uses_validation_windows": False,
-        "exposed_validation_use": "diagnostic_only",
+        "validation_use": (
+            "diagnostic_only"
+            if evidence_mode == "development"
+            else "fixed_confirmation_no_adaptive_reuse"
+        ),
         "cross_validation": {
             "status": cross_validation["status"],
             "grouping": (
@@ -319,15 +388,58 @@ def train_contextual_multimodal_jepa_world_model(
             "metric_context_only",
             "log_context_only",
         ],
+        "training_runtime": _runtime_fingerprint(),
         "corpus_metadata_sha256": _canonical_sha256(
             corpus_metadata
         ),
         "model_artifact_sha256": _canonical_sha256(
             model_artifact
         ),
+        "control_artifact_sha256s": {
+            "metrics_only_model": _canonical_sha256(
+                metrics_only_artifact
+            ),
+            "capacity_matched_metrics_only_model": (
+                _canonical_sha256(capacity_matched_artifact)
+            ),
+            "shuffled_log_model": _canonical_sha256(
+                shuffled_artifact
+            ),
+            "log_only_model": _canonical_sha256(
+                log_only_artifact
+            ),
+        },
         "design_references": list(JEPA_REFERENCES),
     }
+    if evidence_mode == "development":
+        protocol["exposed_validation_use"] = "diagnostic_only"
+    if promotion_protocol is not None:
+        protocol["promotion_protocol_sha256"] = (
+            _canonical_sha256(promotion_protocol)
+        )
+    limitations = (
+        (
+            "This is development evidence, not confirmation evidence.",
+            "The original families 9 and 10 validation runs have already "
+            "been inspected and are diagnostic only.",
+            "Cross-validation uses only original training families.",
+            "A new untouched corpus is required for publication evidence.",
+        )
+        if evidence_mode == "development"
+        else (
+            "This confirmation assesses normal schedule transfer only.",
+            "Fault detection and production rollout require separate "
+            "evidence.",
+            "Validation is scored only by fixed deterministic replicas; "
+            "it is never reused for adaptive selection.",
+            "Eligibility requires the separate promotion assessor and "
+            "its byte-identical repeat gate.",
+        )
+    )
     return ContextualMultimodalJepaDevelopmentResult(
+        execution_id=execution_id,
+        execution_started_unix_nano=execution_started_unix_nano,
+        evidence_mode=evidence_mode,
         config=config,
         corpus_metadata=corpus_metadata,
         model_artifact=model_artifact,
@@ -338,14 +450,12 @@ def train_contextual_multimodal_jepa_world_model(
         shuffled_log_model_artifact=shuffled_artifact,
         log_only_model_artifact=log_only_artifact,
         metrics=metrics,
+        schedule_transfer=schedule_transfer,
         cross_validation=cross_validation,
         protocol=protocol,
         selection=selection,
-        limitations=(
-            "This is development evidence, not confirmation evidence.",
-            "The original families 9 and 10 validation runs have already "
-            "been inspected and are diagnostic only.",
-            "Cross-validation uses only original training families.",
+        limitations=limitations
+        + (
             "Future-block scoring has one-window latency because each "
             "target contains two contiguous points.",
             "Request demand and worker topology must be observable at "
@@ -354,9 +464,17 @@ def train_contextual_multimodal_jepa_world_model(
             "structured events.",
             "The NumPy architecture is a small-data experiment, not a "
             "claim that video-scale JEPA recipes transfer unchanged.",
-            "A new untouched corpus is required for publication evidence.",
         ),
     )
+
+
+def _runtime_fingerprint() -> Dict[str, str]:
+    return {
+        "python_implementation": platform.python_implementation(),
+        "python_version": platform.python_version(),
+        "numpy_version": np.__version__,
+        "platform": platform.platform(),
+    }
 
 
 def write_contextual_multimodal_jepa_artifacts(
@@ -367,7 +485,7 @@ def write_contextual_multimodal_jepa_artifacts(
 
     output = Path(output_directory)
     output.mkdir(parents=True, exist_ok=True)
-    paths = {
+    paths: Dict[str, Path] = {
         "corpus": output / "corpus.json",
         "model": output / "model.json",
         "metrics_only_model": output / "metrics-only-model.json",
@@ -376,7 +494,12 @@ def write_contextual_multimodal_jepa_artifacts(
         ),
         "shuffled_log_model": output / "shuffled-log-model.json",
         "log_only_model": output / "log-only-model.json",
-        "development": output / "development.json",
+        "development": output
+        / (
+            "development.json"
+            if result.evidence_mode == "development"
+            else "promotion-training.json"
+        ),
         "report": output / "report.md",
     }
     _write_json(paths["corpus"], result.corpus_metadata)
@@ -399,6 +522,42 @@ def write_contextual_multimodal_jepa_artifacts(
     )
     _write_json(paths["development"], result.to_dict())
     paths["report"].write_text(_markdown_report(result))
+    if result.evidence_mode == "promotion_confirmation":
+        attestation_path = output / "execution-attestation.json"
+        completed_unix_nano = max(
+            time.time_ns(),
+            result.execution_started_unix_nano + 1,
+        )
+        _write_json(
+            attestation_path,
+            {
+                "schema_version": 1,
+                "kind": (
+                    "contextual_multimodal_jepa_"
+                    "training_execution_attestation"
+                ),
+                "execution_id": result.execution_id,
+                "process_id": os.getpid(),
+                "started_unix_nano": (
+                    result.execution_started_unix_nano
+                ),
+                "completed_unix_nano": completed_unix_nano,
+                "output_directory": str(output.resolve()),
+                "training_result_sha256": hashlib.sha256(
+                    paths["development"].read_bytes()
+                ).hexdigest(),
+                "corpus_metadata_sha256": dict(result.protocol)[
+                    "corpus_metadata_sha256"
+                ],
+                "model_artifact_sha256": dict(result.protocol)[
+                    "model_artifact_sha256"
+                ],
+                "promotion_protocol_sha256": dict(
+                    result.protocol
+                )["promotion_protocol_sha256"],
+            },
+        )
+        paths["execution_attestation"] = attestation_path
     return paths
 
 
@@ -478,6 +637,70 @@ def _contextual_metrics(
         include_log_context=include_log_context,
     )
     return _score_metrics(scores.scores, scores.alerts)
+
+
+def _schedule_transfer_metrics(
+    corpus: ContextualMultimodalTelemetryCorpus,
+    detector: ContextualMultimodalJepaWorldModelDetector,
+    metrics_only: ContextualMultimodalJepaWorldModelDetector,
+    capacity_matched: ContextualMultimodalJepaWorldModelDetector,
+    shuffled_detector: ContextualMultimodalJepaWorldModelDetector,
+    shuffled_validation: ContextualMultimodalModelWindows,
+) -> Mapping[str, Any]:
+    window_case_ids = np.asarray(
+        corpus.validation.window_case_ids,
+        dtype=object,
+    )
+    families: List[Dict[str, Any]] = []
+    for schedule, case_ids in _schedule_groups(
+        corpus,
+        corpus.validation.case_ids,
+    ):
+        selected = np.isin(
+            window_case_ids,
+            np.asarray(case_ids, dtype=object),
+        )
+        windows = subset_contextual_windows(
+            corpus.validation.windows,
+            selected,
+        )
+        shuffled_windows = subset_contextual_windows(
+            shuffled_validation,
+            selected,
+        )
+        families.append(
+            {
+                "schedule_sha256": hashlib.sha256(
+                    json.dumps(
+                        list(schedule),
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                ).hexdigest(),
+                "case_ids": list(case_ids),
+                "contextual_multimodal": _contextual_metrics(
+                    detector,
+                    windows,
+                ),
+                "metrics_only": _contextual_metrics(
+                    metrics_only,
+                    windows,
+                ),
+                "capacity_matched_metrics_only": (
+                    _contextual_metrics(
+                        capacity_matched,
+                        windows,
+                    )
+                ),
+                "shuffled_logs": _contextual_metrics(
+                    shuffled_detector,
+                    shuffled_windows,
+                ),
+            }
+        )
+    return {
+        "grouping": "canonical_request_schedule_family",
+        "validation_families": families,
+    }
 
 
 def _score_metrics(
@@ -801,12 +1024,25 @@ def _cross_validate(
 def _training_schedule_groups(
     corpus: ContextualMultimodalTelemetryCorpus,
 ) -> Tuple[Tuple[str, ...], ...]:
+    return tuple(
+        case_ids
+        for _, case_ids in _schedule_groups(
+            corpus,
+            corpus.training.case_ids,
+        )
+    )
+
+
+def _schedule_groups(
+    corpus: ContextualMultimodalTelemetryCorpus,
+    selected_case_ids: Sequence[str],
+) -> Tuple[Tuple[Tuple[int, ...], Tuple[str, ...]], ...]:
     base = corpus.base_corpus_metadata
     metric_corpus = dict(base["metric_corpus"])
     protocol = dict(metric_corpus["protocol"])
     runs = dict(protocol["runs"])
     grouped: Dict[Tuple[int, ...], list[str]] = {}
-    for case_id in corpus.training.case_ids:
+    for case_id in selected_case_ids:
         run = dict(runs[case_id])
         schedule = tuple(
             int(value)
@@ -814,7 +1050,7 @@ def _training_schedule_groups(
         )
         grouped.setdefault(schedule, []).append(case_id)
     return tuple(
-        tuple(sorted(grouped[schedule]))
+        (schedule, tuple(sorted(grouped[schedule])))
         for schedule in sorted(grouped)
     )
 
@@ -887,20 +1123,44 @@ def _markdown_report(
     contextual = result.metrics["contextual_multimodal"]
     metrics_only = result.metrics["metrics_only"]
     shuffled = result.metrics["shuffled_logs"]
+    promotion = result.evidence_mode == "promotion_confirmation"
     lines = [
-        "# Quantis contextual metrics + logs JEPA development",
+        (
+            "# Quantis contextual metrics + logs JEPA "
+            + (
+                "promotion confirmation training"
+                if promotion
+                else "development"
+            )
+        ),
         "",
-        "Status: **development only**",
+        (
+            "Status: **awaiting frozen promotion assessment**"
+            if promotion
+            else "Status: **development only**"
+        ),
         "",
-        "The original validation families were previously inspected; "
-        "their results below are diagnostic and cannot support "
-        "publication.",
+        (
+            "The validation families are untouched confirmation data "
+            "scored by fixed deterministic replicas without adaptive "
+            "selection under the frozen promotion protocol."
+            if promotion
+            else (
+                "The original validation families were previously "
+                "inspected; their results below are diagnostic and "
+                "cannot support publication."
+            )
+        ),
         "",
         "## Contextual conditioned JEPA",
         "",
         _metric_line("Training", contextual["training"]),
         _metric_line(
-            "Previously exposed validation",
+            (
+                "Untouched validation"
+                if promotion
+                else "Previously exposed validation"
+            ),
             contextual["validation"],
         ),
         "",
@@ -919,11 +1179,23 @@ def _markdown_report(
             result.metrics["log_only"]["validation"],
         ),
         "",
-        "## Family-held-out development selection",
+        (
+            "## Frozen confirmation status"
+            if promotion
+            else "## Family-held-out development selection"
+        ),
         "",
         f"- Cross-validation: {result.cross_validation['status']}",
         f"- Selection: {result.selection['status']}",
-        "- Publication eligible: no; a new untouched corpus is required",
+        (
+            "- Publication eligibility: decided only by the separate "
+            "promotion assessor"
+            if promotion
+            else (
+                "- Publication eligible: no; a new untouched corpus "
+                "is required"
+            )
+        ),
         "",
         "## Primary JEPA references",
         "",

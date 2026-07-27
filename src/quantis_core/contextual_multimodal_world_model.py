@@ -1221,6 +1221,22 @@ class ContextualMultimodalJepaWorldModelDetector:
                 )
             ),
         }
+        for log_feature_name in (
+            "queue_backlog_low_transition_rate",
+            "queue_backlog_elevated_transition_rate",
+            "queue_backlog_high_transition_rate",
+            "database_latency_fast_ratio",
+            "database_latency_normal_ratio",
+            "database_latency_slow_ratio",
+            "worker_busy_transition_rate",
+            "worker_idle_transition_rate",
+        ):
+            if log_feature_name in windows.log_feature_names:
+                probes[log_feature_name] = _feature_probe_values(
+                    log_blocks,
+                    windows.log_feature_names,
+                    log_feature_name,
+                )
         results = {}
         for name, values in probes.items():
             results[name] = (
@@ -1479,7 +1495,195 @@ class ContextualMultimodalJepaWorldModelDetector:
             str(name): float(value)
             for name, value in dict(auxiliary).items()
         }
+        detector._validate_serialized_state()
+        if dict(payload["training_protocol"]) != (
+            detector._training_protocol()
+        ):
+            raise ValueError(
+                "serialized training protocol is inconsistent"
+            )
         return detector
+
+    def _validate_serialized_state(self) -> None:
+        lookback, metric_features, log_features = (
+            self._context_shape
+        )
+        block_size = self._target_block_size
+        if (
+            lookback <= 0
+            or metric_features != len(self._metric_feature_names)
+            or log_features != len(self._log_feature_names)
+            or block_size <= 0
+            or lookback % block_size != 0
+            or not self._horizons
+            or 1 not in self._horizons
+            or len(set(self._horizons)) != len(self._horizons)
+            or any(horizon <= 0 for horizon in self._horizons)
+        ):
+            raise ValueError(
+                "serialized contextual model schema is inconsistent"
+            )
+        metric_block_features = block_size * metric_features
+        log_block_features = block_size * log_features
+        joint_dimension = (
+            self.metric_latent_dimension
+            + self.log_latent_dimension
+        )
+        patch_count = lookback // block_size
+        condition_dimension = (
+            block_size * len(self._control_feature_names)
+            + len(self._horizons)
+        )
+        hidden_dimension = max(8, 2 * joint_dimension)
+        expected_shapes = {
+            "metric_encoder_weights": (
+                self._metric_encoder_weights,
+                (
+                    metric_block_features,
+                    self.metric_latent_dimension,
+                ),
+            ),
+            "metric_encoder_bias": (
+                self._metric_encoder_bias,
+                (self.metric_latent_dimension,),
+            ),
+            "metric_target_weights": (
+                self._metric_target_weights,
+                (
+                    metric_block_features,
+                    self.metric_latent_dimension,
+                ),
+            ),
+            "metric_target_bias": (
+                self._metric_target_bias,
+                (self.metric_latent_dimension,),
+            ),
+            "log_encoder_weights": (
+                self._log_encoder_weights,
+                (
+                    log_block_features,
+                    self.log_latent_dimension,
+                ),
+            ),
+            "log_encoder_bias": (
+                self._log_encoder_bias,
+                (self.log_latent_dimension,),
+            ),
+            "log_target_weights": (
+                self._log_target_weights,
+                (
+                    log_block_features,
+                    self.log_latent_dimension,
+                ),
+            ),
+            "log_target_bias": (
+                self._log_target_bias,
+                (self.log_latent_dimension,),
+            ),
+            "predictor_input_weights": (
+                self._predictor_input_weights,
+                (
+                    patch_count * joint_dimension
+                    + condition_dimension,
+                    hidden_dimension,
+                ),
+            ),
+            "predictor_hidden_bias": (
+                self._predictor_hidden_bias,
+                (hidden_dimension,),
+            ),
+            "predictor_output_weights": (
+                self._predictor_output_weights,
+                (hidden_dimension, joint_dimension),
+            ),
+            "predictor_output_bias": (
+                self._predictor_output_bias,
+                (joint_dimension,),
+            ),
+            "metric_feature_scale": (
+                self._metric_feature_scale,
+                (metric_features,),
+            ),
+            "log_feature_scale": (
+                self._log_feature_scale,
+                (log_features,),
+            ),
+        }
+        for name, (values, expected_shape) in expected_shapes.items():
+            if (
+                values.shape != expected_shape
+                or not np.all(np.isfinite(values))
+            ):
+                raise ValueError(
+                    f"serialized {name} is inconsistent"
+                )
+        metric_input_dimension = (
+            patch_count * self.metric_latent_dimension
+            + condition_dimension
+        )
+        log_input_dimension = (
+            patch_count * self.log_latent_dimension
+            + condition_dimension
+        )
+        expected_head_shapes: Dict[str, Tuple[int, int]] = {}
+        if self.metric_latent_dimension > 0:
+            expected_head_shapes["metric_to_metric"] = (
+                metric_input_dimension,
+                self.metric_latent_dimension,
+            )
+        if self.log_latent_dimension > 0:
+            expected_head_shapes["log_to_log"] = (
+                log_input_dimension,
+                self.log_latent_dimension,
+            )
+        if (
+            self.metric_latent_dimension > 0
+            and self.log_latent_dimension > 0
+        ):
+            expected_head_shapes["metric_to_log"] = (
+                metric_input_dimension,
+                self.log_latent_dimension,
+            )
+            expected_head_shapes["log_to_metric"] = (
+                log_input_dimension,
+                self.metric_latent_dimension,
+            )
+        if (
+            set(self._head_weights) != set(expected_head_shapes)
+            or set(self._head_biases) != set(expected_head_shapes)
+        ):
+            raise ValueError(
+                "serialized auxiliary heads are incomplete"
+            )
+        for name, expected_shape in expected_head_shapes.items():
+            weights = self._head_weights[name]
+            biases = self._head_biases[name]
+            if (
+                weights.shape != expected_shape
+                or biases.shape != (expected_shape[1],)
+                or not np.all(np.isfinite(weights))
+                or not np.all(np.isfinite(biases))
+            ):
+                raise ValueError(
+                    f"serialized {name} head is inconsistent"
+                )
+        if (
+            not np.isfinite(self.threshold)
+            or self.threshold < 0.0
+            or not np.isfinite(self._metric_energy_scale)
+            or self._metric_energy_scale <= 0.0
+            or not np.isfinite(self._log_energy_scale)
+            or self._log_energy_scale <= 0.0
+            or len(self.training_losses)
+            != (
+                self.pretraining_epochs
+                + self.predictor_refinement_epochs
+            )
+            or not np.all(np.isfinite(self.training_losses))
+        ):
+            raise ValueError(
+                "serialized contextual model calibration is invalid"
+            )
 
     def _training_protocol(self) -> Dict[str, Any]:
         rollout_indices = self._rollout_indices()
