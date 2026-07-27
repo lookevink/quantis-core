@@ -112,6 +112,43 @@ class WindowCompiler:
         return self._location, self._scale
 
 
+def repair_isolated_context_outliers(
+    windows: ModelWindows,
+    z_threshold: float,
+    consensus_rank: int,
+) -> Tuple[ModelWindows, int]:
+    """Repair isolated context corruption while retaining correlated drift."""
+
+    if z_threshold <= 0.0:
+        raise ValueError("isolated context z threshold must be positive")
+    contexts = windows.contexts.copy()
+    outliers = np.abs(contexts) > z_threshold
+    isolated_rows = (
+        np.count_nonzero(outliers, axis=2, keepdims=True)
+        < consensus_rank
+    )
+    repaired = outliers & isolated_rows
+    for sample_index, time_index in np.argwhere(
+        np.any(repaired, axis=2)
+    ):
+        row_outliers = repaired[sample_index, time_index]
+        consensus_values = contexts[
+            sample_index, time_index, ~row_outliers
+        ]
+        contexts[sample_index, time_index, row_outliers] = float(
+            np.median(consensus_values)
+        )
+    return (
+        ModelWindows(
+            contexts=contexts,
+            targets=windows.targets,
+            point_indices=windows.point_indices,
+            feature_names=windows.feature_names,
+        ),
+        int(np.count_nonzero(repaired)),
+    )
+
+
 def _validated_telemetry(telemetry: NDArray[np.float64]) -> NDArray[np.float64]:
     values = np.asarray(telemetry, dtype=np.float64)
     if values.ndim != 2 or values.shape[1] == 0:

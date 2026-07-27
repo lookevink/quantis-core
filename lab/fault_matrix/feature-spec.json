@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "window_period_nano": 1000000000,
+  "features": [
+    {"name": "request_rate", "metric_name": "request_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "request_latency_ms", "metric_name": "request_latency_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "error_rate", "metric_name": "error_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "queue_depth", "metric_name": "queue_depth", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_rate", "metric_name": "worker_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_heartbeat_age_s", "metric_name": "worker_heartbeat_age_s", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "db_write_rate", "metric_name": "db_write_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}}
+  ]
+}

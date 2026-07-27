@@ -12,7 +12,10 @@ from numpy.typing import NDArray
 from .detectors import CoherentLatentPredictiveDetector
 from .otlp import TelemetryCapture
 from .otlp_windowing import OtlpFeatureSpec, OtlpWindowCompiler
-from .windowing import ModelWindows, WindowCompiler
+from .windowing import (
+    WindowCompiler,
+    repair_isolated_context_outliers,
+)
 
 
 Interval = Tuple[int, int]
@@ -275,7 +278,7 @@ def evaluate_fault_lab(
     ).fit(training_windows)
     detector.threshold *= config.threshold_safety_multiplier
     robust_windows, repaired_context_cells = (
-        _repair_isolated_context_outliers(
+        repair_isolated_context_outliers(
             all_windows,
             z_threshold=config.isolated_context_z_threshold,
             consensus_rank=config.consensus_rank,
@@ -485,41 +488,6 @@ def evaluate_fault_lab(
             "Feature evidence is associative attribution, not causal proof.",
             "The target encoder is linear PCA, not a learned JEPA encoder.",
         ),
-    )
-
-
-def _repair_isolated_context_outliers(
-    windows: ModelWindows,
-    z_threshold: float,
-    consensus_rank: int,
-) -> Tuple[ModelWindows, int]:
-    if z_threshold <= 0.0:
-        raise ValueError("isolated context z threshold must be positive")
-    contexts = windows.contexts.copy()
-    outliers = np.abs(contexts) > z_threshold
-    isolated_rows = (
-        np.count_nonzero(outliers, axis=2, keepdims=True)
-        < consensus_rank
-    )
-    repaired = outliers & isolated_rows
-    for sample_index, time_index in np.argwhere(
-        np.any(repaired, axis=2)
-    ):
-        row_outliers = repaired[sample_index, time_index]
-        consensus_values = contexts[
-            sample_index, time_index, ~row_outliers
-        ]
-        contexts[sample_index, time_index, row_outliers] = float(
-            np.median(consensus_values)
-        )
-    return (
-        ModelWindows(
-            contexts=contexts,
-            targets=windows.targets,
-            point_indices=windows.point_indices,
-            feature_names=windows.feature_names,
-        ),
-        int(np.count_nonzero(repaired)),
     )
 
 

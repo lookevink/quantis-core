@@ -16,6 +16,12 @@ from .fault_lab import (
     evaluate_fault_lab,
     write_fault_lab_artifacts,
 )
+from .fault_matrix import (
+    FaultMatrixCaseManifest,
+    FaultMatrixRun,
+    evaluate_fault_matrix,
+    write_fault_matrix_artifacts,
+)
 from .otlp import read_otlp_capture
 from .otlp_windowing import OtlpFeatureSpec, OtlpWindowCompiler
 
@@ -49,6 +55,26 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     fault_lab.add_argument("--feature-spec", type=Path, required=True)
     fault_lab.add_argument("--manifest", type=Path, required=True)
     fault_lab.add_argument("--output", type=Path, required=True)
+    fault_matrix = commands.add_parser(
+        "evaluate-fault-matrix",
+        help="score held-out fault captures with frozen model artifacts",
+    )
+    fault_matrix.add_argument(
+        "--captures-directory", type=Path, required=True
+    )
+    fault_matrix.add_argument(
+        "--manifests-directory", type=Path, required=True
+    )
+    fault_matrix.add_argument("--feature-spec", type=Path, required=True)
+    fault_matrix.add_argument(
+        "--window-compiler", type=Path, required=True
+    )
+    fault_matrix.add_argument("--detector", type=Path, required=True)
+    fault_matrix.add_argument(
+        "--window-compiler-file-sha256", required=True
+    )
+    fault_matrix.add_argument("--detector-file-sha256", required=True)
+    fault_matrix.add_argument("--output", type=Path, required=True)
     parsed = parser.parse_args(arguments)
 
     if parsed.command == "evaluate":
@@ -115,6 +141,59 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         print(f"Fault-lab acceptance: {status}")
         print(f"Report: {fault_paths['report']}")
         return 0 if fault_report.acceptance["all_passed"] else 1
+    if parsed.command == "evaluate-fault-matrix":
+        compiler_bytes = parsed.window_compiler.read_bytes()
+        detector_bytes = parsed.detector.read_bytes()
+        compiler_file_sha256 = hashlib.sha256(
+            compiler_bytes
+        ).hexdigest()
+        detector_file_sha256 = hashlib.sha256(
+            detector_bytes
+        ).hexdigest()
+        if (
+            compiler_file_sha256
+            != parsed.window_compiler_file_sha256
+            or detector_file_sha256 != parsed.detector_file_sha256
+        ):
+            raise ValueError(
+                "frozen artifact file changed after capture began"
+            )
+        matrix_feature_spec = OtlpFeatureSpec.from_dict(
+            json.loads(parsed.feature_spec.read_text())
+        )
+        matrix_runs = []
+        for manifest_path in sorted(
+            parsed.manifests_directory.glob("*.json")
+        ):
+            matrix_manifest = FaultMatrixCaseManifest.from_dict(
+                json.loads(manifest_path.read_text())
+            )
+            capture_path = (
+                parsed.captures_directory
+                / matrix_manifest.case_id
+                / "collector-output.jsonl"
+            )
+            matrix_runs.append(
+                FaultMatrixRun(
+                    manifest=matrix_manifest,
+                    capture=read_otlp_capture(capture_path),
+                )
+            )
+        matrix_report = evaluate_fault_matrix(
+            matrix_runs,
+            matrix_feature_spec,
+            compiler_bytes,
+            detector_bytes,
+        )
+        matrix_paths = write_fault_matrix_artifacts(
+            matrix_report, parsed.output
+        )
+        matrix_status = (
+            "PASS" if matrix_report.acceptance["all_passed"] else "FAIL"
+        )
+        print(f"Fault-matrix acceptance: {matrix_status}")
+        print(f"Report: {matrix_paths['report']}")
+        return 0 if matrix_report.acceptance["all_passed"] else 1
     return 2
 
 

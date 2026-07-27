@@ -1,0 +1,29 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    send_batch_size: 8192
+    timeout: 200ms
+
+exporters:
+  file:
+    path: /captures/collector-output.jsonl
+    format: json
+    append: false
+    flush_interval: 100ms
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]

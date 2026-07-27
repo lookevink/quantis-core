@@ -12,3 +12,5 @@ artifacts/*
 !artifacts/otlp-replay/**
 !artifacts/fault-lab/
 !artifacts/fault-lab/**
+!artifacts/fault-matrix/
+!artifacts/fault-matrix/**

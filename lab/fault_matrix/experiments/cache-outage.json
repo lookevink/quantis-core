@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "case_id": "cache-outage-held-out-01",
+  "fault_kind": "cache_outage",
+  "point_count": 84,
+  "sample_period_seconds": 0.25,
+  "logical_window_period_nano": 1000000000,
+  "baseline_interval": [0, 36],
+  "routine_noise_interval": [41, 42],
+  "structural_interval": [57, 71],
+  "affected_features": [
+    "request_latency_ms",
+    "error_rate",
+    "worker_rate",
+    "db_write_rate"
+  ],
+  "requests_per_window": 7,
+  "load_pattern_offsets": [0, -1, 1, 1, 0, -1],
+  "routine_noise_delay_ms": 150,
+  "images": {
+    "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "redis": "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2",
+    "postgres": "postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193",
+    "collector": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa"
+  }
+}
