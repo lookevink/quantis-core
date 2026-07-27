@@ -207,3 +207,15 @@ the same training and validation runs under
 `artifacts/jepa-world-model-v0/multimodal-pilot`. See the
 [multimodal JEPA specification](docs/specs/multimodal-jepa-v0.md) for the
 interfaces, safety constraints, and development gates.
+
+Collect and train the separate target-sized metrics-plus-logs model with:
+
+```bash
+./lab/fault_matrix/run-multimodal-jepa-normal-corpus.sh
+```
+
+This creates 30 fresh fault-free runs across ten new schedule families and
+trains the aligned model, two metrics-only baselines, and a shuffled-log
+ablation as separate artifacts. Publication is allowed only if every frozen
+promotion gate passes. The complete protocol is in the
+[multimodal corpus v1 specification](docs/specs/multimodal-jepa-corpus-v1.md).

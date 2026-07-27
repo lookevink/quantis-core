@@ -165,3 +165,81 @@ def test_normal_corpus_preparation_holds_out_entire_schedule_families(
         manifest.point_count - split.lookback
         for manifest in manifests
     ) == 10_020
+
+
+def test_multimodal_corpus_uses_fresh_schedules_and_case_ids(
+    tmp_path,
+):
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "lab/fault_matrix/prepare_multimodal_normal_corpus.py",
+            "--output",
+            str(tmp_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    manifests = [
+        FaultMatrixCaseManifest.from_dict(
+            json.loads(path.read_text())
+        )
+        for path in sorted((tmp_path / "manifests").glob("*.json"))
+    ]
+    split = TelemetryCorpusSplitSpec.from_dict(
+        json.loads((tmp_path / "split.json").read_text())
+    )
+    schedules = {
+        manifest.case_id: canonical_request_schedule(
+            manifest.requests_per_window,
+            manifest.load_pattern_offsets,
+        )
+        for manifest in manifests
+    }
+    prior_schedules = {
+        canonical_request_schedule(base, offsets)
+        for base, offsets in (
+            (5, (0, 1, -1)),
+            (6, (0, 2, -1, 1)),
+            (7, (-2, 0, 1, 0, -1)),
+            (8, (0, 1, 2, -1)),
+            (9, (-3, 0, 2, -1, 1)),
+            (10, (0, -2, 1, 3, -1)),
+            (6, (1, -1, 2, 0, -2)),
+            (8, (-1, 2, 0, -2, 1, 0)),
+            (11, (-3, -1, 2, 0, 1)),
+            (12, (-4, 0, 3, -2, 1, 0, 2)),
+        )
+    }
+
+    assert len(manifests) == 30
+    assert len(split.training_case_ids) == 24
+    assert len(split.validation_case_ids) == 6
+    assert len(set(schedules.values())) == 10
+    assert set(schedules.values()).isdisjoint(prior_schedules)
+    assert {
+        schedules[case_id] for case_id in split.training_case_ids
+    }.isdisjoint(
+        {
+            schedules[case_id]
+            for case_id in split.validation_case_ids
+        }
+    )
+    assert all(
+        manifest.case_id.startswith("multimodal-normal-")
+        and manifest.sample_period_seconds == 0.1
+        and manifest.fault_kind == "none"
+        and manifest.baseline_interval
+        == (0, manifest.point_count)
+        for manifest in manifests
+    )
+    assert {
+        manifest.worker_replicas for manifest in manifests
+    } == {1, 2, 3}
+    assert sum(
+        manifest.point_count - split.lookback
+        for manifest in manifests
+    ) == 10_020

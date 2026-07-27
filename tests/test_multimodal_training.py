@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from quantis_core.multimodal_corpus import (
     compile_multimodal_telemetry_corpus,
 )
@@ -17,7 +19,19 @@ from tests.corpus_test_support import (
 from tests.multimodal_test_support import normal_log_captures
 
 
-def test_multimodal_training_reports_metrics_only_baseline(tmp_path) -> None:
+def test_multimodal_training_rejects_invalid_promotion_rate() -> None:
+    with pytest.raises(
+        ValueError,
+        match="maximum_validation_alert_rate",
+    ):
+        MultimodalJepaTrainingConfig(
+            maximum_validation_alert_rate=1.01
+        )
+
+
+def test_multimodal_training_reports_preregistered_ablations(
+    tmp_path,
+) -> None:
     runs, metric_spec = fresh_development_runs()
     log_spec = OtlpLogFeatureSpec.from_dict(
         json.loads(
@@ -55,6 +69,15 @@ def test_multimodal_training_reports_metrics_only_baseline(tmp_path) -> None:
     assert result.metrics_only_model_artifact["kind"] == (
         "jepa_world_model_v0"
     )
+    assert result.capacity_matched_model_artifact["kind"] == (
+        "jepa_world_model_v0"
+    )
+    assert result.capacity_matched_model_artifact[
+        "latent_dimension"
+    ] == 5
+    assert result.shuffled_log_model_artifact["kind"] == (
+        "multimodal_jepa_world_model_v0"
+    )
     assert result.model_artifact["preprocessing"] == {
         "metric": {
             "conditioner": corpus.metric_corpus_metadata[
@@ -80,7 +103,27 @@ def test_multimodal_training_reports_metrics_only_baseline(tmp_path) -> None:
     assert result.metrics["metrics_only"]["validation"][
         "window_count"
     ] == 30
+    assert result.metrics["capacity_matched_metrics_only"][
+        "validation"
+    ]["window_count"] == 30
+    assert result.metrics["shuffled_logs"]["validation"][
+        "window_count"
+    ] == 30
     assert result.protocol["training_uses_validation_windows"] is False
+    assert result.protocol["log_ablation"] == {
+        "method": "deterministic_window_pair_permutation",
+        "training_seed": 1044,
+        "validation_seed": 2044,
+        "preserves_log_context_target_pairs": True,
+        "breaks_metric_log_alignment": True,
+    }
+    assert set(result.promotion["gates"]) == {
+        "validation_alert_rate_at_most_maximum",
+        "no_worse_than_capacity_matched_metrics_only_alert_rate",
+        "no_worse_than_shuffled_logs_alert_rate",
+        "no_worse_than_shuffled_logs_latent_loss",
+    }
+    assert result.promotion["status"] in {"passed", "failed"}
 
     paths = write_multimodal_jepa_development_artifacts(
         result,
@@ -91,8 +134,15 @@ def test_multimodal_training_reports_metrics_only_baseline(tmp_path) -> None:
         "corpus",
         "model",
         "metrics_only_model",
+        "capacity_matched_model",
+        "shuffled_log_model",
         "development",
         "report",
     }
     assert "Application-log JEPA" in paths["report"].read_text()
     assert "Metrics-only baseline" in paths["report"].read_text()
+    assert "Capacity-matched metrics-only baseline" in (
+        paths["report"].read_text()
+    )
+    assert "Shuffled-log ablation" in paths["report"].read_text()
+    assert "Promotion gates" in paths["report"].read_text()

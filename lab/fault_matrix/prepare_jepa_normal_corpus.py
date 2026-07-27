@@ -3,7 +3,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from quantis_core.fault_matrix import FaultMatrixCaseManifest
 from quantis_core.telemetry_corpus import TelemetryCorpusSplitSpec
@@ -12,6 +12,7 @@ from quantis_core.telemetry_corpus import TelemetryCorpusSplitSpec
 POINT_COUNT = 340
 LOOKBACK = 6
 TRAINING_FAMILY_COUNT = 8
+ScheduleFamilies = Tuple[Tuple[int, Tuple[int, ...]], ...]
 SCHEDULE_FAMILIES: Tuple[Tuple[int, Tuple[int, ...]], ...] = (
     (5, (0, 1, -1)),
     (6, (0, 2, -1, 1)),
@@ -51,7 +52,28 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     )
     parser.add_argument("--output", type=Path, required=True)
     parsed = parser.parse_args(arguments)
-    output = parsed.output
+    prepare_normal_corpus(
+        parsed.output,
+        case_prefix="jepa-normal",
+        seed_label=13,
+        schedule_families=SCHEDULE_FAMILIES,
+        sample_period_seconds=0.05,
+    )
+    return 0
+
+
+def prepare_normal_corpus(
+    output: Path,
+    *,
+    case_prefix: str,
+    seed_label: int,
+    schedule_families: ScheduleFamilies,
+    sample_period_seconds: float,
+) -> None:
+    """Write a fresh normal-only corpus from explicit schedule families."""
+
+    if len(schedule_families) != 10:
+        raise ValueError("normal corpus requires ten schedule families")
     manifests_directory = output / "manifests"
     split_path = output / "split.json"
     if manifests_directory.exists() or split_path.exists():
@@ -61,22 +83,22 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     output.mkdir(parents=True, exist_ok=True)
     manifests_directory.mkdir()
 
-    training_case_ids = []
-    validation_case_ids = []
+    training_case_ids: List[str] = []
+    validation_case_ids: List[str] = []
     for family_index, (
         requests_per_window,
         load_pattern_offsets,
-    ) in enumerate(SCHEDULE_FAMILIES, start=1):
+    ) in enumerate(schedule_families, start=1):
         for worker_replicas in (1, 2, 3):
             case_id = (
-                f"jepa-normal-f{family_index:02d}"
-                f"-w{worker_replicas}-13"
+                f"{case_prefix}-f{family_index:02d}"
+                f"-w{worker_replicas}-{seed_label}"
             )
             manifest = FaultMatrixCaseManifest(
                 case_id=case_id,
                 fault_kind="none",
                 point_count=POINT_COUNT,
-                sample_period_seconds=0.05,
+                sample_period_seconds=sample_period_seconds,
                 logical_window_period_nano=1_000_000_000,
                 baseline_interval=(0, POINT_COUNT),
                 routine_noise_interval=(POINT_COUNT, POINT_COUNT),
@@ -112,7 +134,6 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         f"Prepared {len(training_case_ids)} training runs and "
         f"{len(validation_case_ids)} validation runs"
     )
-    return 0
 
 
 def _write_json(path: Path, payload: object) -> None:

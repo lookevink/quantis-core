@@ -165,6 +165,8 @@ def test_train_multimodal_jepa_command_uses_application_logs(tmp_path):
             "3",
             "--log-latent-dimension",
             "2",
+            "--maximum-validation-alert-rate",
+            "0.10",
             "--output",
             str(output_path),
         ],
@@ -180,5 +182,10 @@ def test_train_multimodal_jepa_command_uses_application_logs(tmp_path):
     assert (output_path / "corpus.json").exists()
     assert (output_path / "model.json").exists()
     assert (output_path / "metrics-only-model.json").exists()
+    assert (
+        output_path
+        / "capacity-matched-metrics-only-model.json"
+    ).exists()
+    assert (output_path / "shuffled-log-model.json").exists()
     assert (output_path / "development.json").exists()
     assert (output_path / "report.md").exists()

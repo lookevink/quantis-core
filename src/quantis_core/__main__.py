@@ -243,6 +243,11 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         type=float,
         default=0.98,
     )
+    train_multimodal.add_argument(
+        "--maximum-validation-alert-rate",
+        type=float,
+        default=0.10,
+    )
     train_multimodal.add_argument("--seed", type=int, default=0)
     train_multimodal.add_argument(
         "--output",
@@ -479,6 +484,9 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
                 calibration_quantile=(
                     parsed.calibration_quantile
                 ),
+                maximum_validation_alert_rate=(
+                    parsed.maximum_validation_alert_rate
+                ),
                 seed=parsed.seed,
             ),
         )
@@ -489,6 +497,10 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
             )
         )
         print("Multimodal JEPA development training: PASS")
+        print(
+            "Promotion gates: "
+            f"{multimodal_result.promotion['status'].upper()}"
+        )
         print(f"Model: {multimodal_paths['model']}")
         print(f"Report: {multimodal_paths['report']}")
         return 0
