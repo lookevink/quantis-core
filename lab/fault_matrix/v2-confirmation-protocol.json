@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "kind": "demand_conditioned_v2_confirmation_protocol",
+  "model_file_sha256": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
+  "evaluation_config_sha256": "e73ba367cf255f6c05e2d81508282d2cf4b70634dc94e92552a1c7660da60188",
+  "feature_spec_sha256": "e737796d34e83d2441ac3c5681da2652e36f3f5307e92e03250ec34344008bf6",
+  "training_manifest_sha256": [
+    "37fc1687a56625b170a98fcd20bc747f3f08571a01f2cdcfb93d85f62fdce649",
+    "473d257411a53c628161a956f52ef5c94453fef9d1943fa3013eb7d8f269f401",
+    "debdfc8ef8d45b95980f8e684fdcf3eafde364949854a4bb0b371ed4d5eedc74"
+  ],
+  "confirmation_manifest_sha256": {
+    "cache-outage-confirmation-02": "eb572c47f1f04c900c9a74f3bf3bc055a524ef7049e37522c527782a1162133b",
+    "database-lock-confirmation-02": "10e492b7030ac4ee4b88b0640c356fd0524ccfc23af86fea796e6b9228fc5def",
+    "worker-crash-confirmation-02": "5d82cd590d50416c0277c24bbb7dbc031c0b6266966642fc65d4bef222a38df2"
+  },
+  "frozen_files": {
+    "artifacts/demand-conditioned-v2/model.json": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
+    "lab/fault_matrix/Dockerfile": "9659bb2bc85df9e31cbfca487c54f216fe029cc05ef76361f018f1aeb4b91078",
+    "lab/fault_matrix/collector.yaml": "cd978836855e72f77d52821a0b4966ba73906ed78c3f0b89a4a1670521c7477d",
+    "lab/fault_matrix/compose.yaml": "b606bf3f46242c71697125086c40bee9de34b293a353721114a55b6a81a0b60b",
+    "lab/fault_matrix/experiments_v2_confirmation/cache-outage.json": "3a5134481643aeb9fcd9dcde9f0372eae2b1dff2ed9d076eb444506f06c6c7ac",
+    "lab/fault_matrix/experiments_v2_confirmation/database-lock.json": "2450c9aba4d82cb1aef0260d3c8d8f7c4e34a62852c151e33868b2e5e0acb859",
+    "lab/fault_matrix/experiments_v2_confirmation/worker-crash.json": "950c1eafc1247034652fd766120a1668765364b615a12177f30582c6232368f2",
+    "lab/fault_matrix/feature-spec.json": "43dcab91504e01738df33e9b61248a7aefa4ee32acf36940a5fcee62760b329e",
+    "lab/fault_matrix/requirements.txt": "8f8bf648bd8431e4d7c9129a75491f23507334010d1fa8eadb215e443d1847d5",
+    "lab/fault_matrix/run-v2-confirmation.sh": "bce471122920b2fa561aee6f02a02b29ab0f235cbeae31daf37211cc4425fd62",
+    "lab/fault_matrix/run_experiment.py": "b4fddc1d7fc8141bb47a84bba113b7f35cd97a78694dd5ec82f044a9ea028b32",
+    "lab/fault_matrix/service.py": "960772f670d49a6ca42597f30716f98eb2f7dfe7812ca54f747b255509f792d9",
+    "lab/fault_matrix/verify_v2_protocol.py": "bc5d9fe7475da7b49ee6ae27f5fd2c102cd0a67423e2dc856b62647443e3530c",
+    "src/quantis_core/demand_conditioning.py": "7c2ee0bd3e036c75429af4c5c5215abea9d659902e5c75001a4600a4d5f2c034",
+    "src/quantis_core/detectors.py": "dc43ca7127fcf818bf8300f061b99cf33ccd405acaa79b86fa0bf86b68dcbef6",
+    "src/quantis_core/fault_matrix.py": "6a882ecbf9e6f227df16bf41f7cf1efe79516f6ff7c0b8b3efe00f4cb99c58f3"
+  }
+}
