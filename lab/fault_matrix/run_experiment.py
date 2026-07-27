@@ -205,16 +205,16 @@ def main() -> None:
                 )
         if fault_kind == NORMAL_TELEMETRY_KIND:
             _wait_for_normal_completion(redis_client)
-            _emit_drain_boundary(
-                point_count,
-                case_id,
-                fault_kind,
-                manifest_sha256,
-                topology_id,
-                observed_worker_replicas,
-                run_started_unix_nano,
-                time.time_ns(),
-            )
+        _emit_drain_boundary(
+            point_count,
+            case_id,
+            fault_kind,
+            manifest_sha256,
+            topology_id,
+            observed_worker_replicas,
+            run_started_unix_nano,
+            time.time_ns(),
+        )
         log_emit_errors = _counters(redis_client)[
             "application_log_emit_errors"
         ]

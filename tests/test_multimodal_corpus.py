@@ -2,6 +2,7 @@ import json
 from dataclasses import replace
 
 import numpy as np
+import pytest
 
 from quantis_core.otlp_log_windowing import OtlpLogFeatureSpec
 from quantis_core.telemetry_corpus import TelemetryCorpusSplitSpec
@@ -117,7 +118,36 @@ def test_multimodal_corpus_prefers_metric_event_time_boundaries() -> None:
     )
 
 
-def _with_event_time_boundaries(run):
+def test_multimodal_corpus_requires_normal_drain_boundary() -> None:
+    source_runs, metric_spec = fresh_development_runs()
+    runs = [
+        _with_event_time_boundaries(run, include_drain=False)
+        for run in source_runs
+    ]
+    log_spec = OtlpLogFeatureSpec.from_dict(
+        json.loads(
+            open(
+                "lab/fault_matrix/log-feature-spec.json"
+            ).read()
+        )
+    )
+
+    with pytest.raises(ValueError, match="drain boundary"):
+        compile_multimodal_telemetry_corpus(
+            runs,
+            normal_log_captures(runs),
+            metric_spec,
+            log_spec,
+            TelemetryCorpusSplitSpec(
+                training_case_ids=FRESH_CASE_IDS[:2],
+                validation_case_ids=(FRESH_CASE_IDS[2],),
+                reserved_case_ids=(),
+                lookback=6,
+            ),
+        )
+
+
+def _with_event_time_boundaries(run, include_drain=True):
     point_times = sorted(
         {point.time_unix_nano for point in run.capture.points}
     )
@@ -139,6 +169,20 @@ def _with_event_time_boundaries(run):
             number_value=point_index * 10 + 5,
         )
         for point_index, point_time in enumerate(point_times)
+    )
+    drain_points = (
+        (
+            replace(
+                boundary_points[-1],
+                metric_name=(
+                    "quantis.experiment.drain.closed_unix_nano"
+                ),
+                time_unix_nano=point_times[-1] + 1_000_000_000,
+                number_value=(len(point_times) * 10 + 5),
+            ),
+        )
+        if include_drain
+        else ()
     )
     return replace(
         run,
@@ -164,6 +208,16 @@ def _with_event_time_boundaries(run):
                         },
                     )
                     for point in boundary_points
+                )
+                + tuple(
+                    replace(
+                        point,
+                        resource_attributes={
+                            **point.resource_attributes,
+                            "quantis.experiment.run.started_unix_nano": 0,
+                        },
+                    )
+                    for point in drain_points
                 )
             ),
         ),

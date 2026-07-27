@@ -310,6 +310,11 @@ def _metric_event_time_boundaries(
         raise ValueError(
             f"{run.manifest.case_id} has multiple drain boundaries"
         )
+    if not drain_points:
+        raise ValueError(
+            f"{run.manifest.case_id} event-time run requires a "
+            "drain boundary"
+        )
     drain_end: Optional[int] = None
     if drain_points:
         raw_drain_end = drain_points[0].number_value
