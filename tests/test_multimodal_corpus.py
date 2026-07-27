@@ -1,3 +1,4 @@
+import hashlib
 import json
 from dataclasses import replace
 
@@ -121,7 +122,10 @@ def test_multimodal_corpus_prefers_metric_event_time_boundaries() -> None:
 def test_multimodal_corpus_requires_normal_drain_boundary() -> None:
     source_runs, metric_spec = fresh_development_runs()
     runs = [
-        _with_event_time_boundaries(run, include_drain=False)
+        _with_event_time_boundaries(
+            _as_normal_run(run),
+            include_drain=False,
+        )
         for run in source_runs
     ]
     log_spec = OtlpLogFeatureSpec.from_dict(
@@ -145,6 +149,47 @@ def test_multimodal_corpus_requires_normal_drain_boundary() -> None:
                 lookback=6,
             ),
         )
+
+
+def _as_normal_run(run):
+    point_count = run.manifest.point_count
+    manifest = replace(
+        run.manifest,
+        fault_kind="none",
+        baseline_interval=(0, point_count),
+        routine_noise_interval=(point_count, point_count),
+        structural_interval=(point_count, point_count),
+        affected_features=(),
+        routine_noise_delay_ms=0,
+    )
+    manifest_sha256 = hashlib.sha256(
+        json.dumps(
+            manifest.to_dict(),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return replace(
+        run,
+        manifest=manifest,
+        capture=replace(
+            run.capture,
+            points=tuple(
+                replace(
+                    point,
+                    resource_attributes={
+                        **point.resource_attributes,
+                        "quantis.experiment.fault.kind": "none",
+                        "quantis.experiment.manifest.sha256": (
+                            manifest_sha256
+                        ),
+                    },
+                )
+                for point in run.capture.points
+            ),
+        ),
+    )
 
 
 def _with_event_time_boundaries(run, include_drain=True):
