@@ -183,7 +183,7 @@ def test_report_does_not_mislabel_non_false_positive_failure(
                 "structural_event_recall_is_one": False,
                 "aggregate_routine_noise_alert_rate_within_limit": True,
                 "aggregate_pre_noise_alert_rate_within_limit": True,
-                "all_topology_strata_within_limits": True,
+                "all_topology_strata_within_limits": False,
             },
         },
         limitations=(),

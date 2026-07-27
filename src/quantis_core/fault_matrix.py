@@ -1380,7 +1380,6 @@ def _failure_interpretation(report: FaultMatrixReport) -> str:
     false_positive_gates = (
         "aggregate_routine_noise_alert_rate_within_limit",
         "aggregate_pre_noise_alert_rate_within_limit",
-        "all_topology_strata_within_limits",
     )
     false_positive_failure = isinstance(gates, Mapping) and any(
         gates.get(gate) is False for gate in false_positive_gates
