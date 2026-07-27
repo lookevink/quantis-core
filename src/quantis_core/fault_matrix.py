@@ -415,13 +415,23 @@ def evaluate_demand_conditioned_fault_matrix(
             runs,
         )
         confirmation_status = "preregistered_held_out_confirmation"
-    evidence_limitation = (
-        "Evaluated cases overlap training cases, realized request schedules, "
-        "or fault timings; this is development regression evidence."
-        if confirmation_status == "development_regression"
-        else "Cases, canonical realized request schedules, and fault timings "
-        "are disjoint from training, but no preregistration is attested."
-    )
+    if confirmation_status == "development_regression":
+        evidence_limitation = (
+            "Evaluated cases overlap training cases, realized request "
+            "schedules, or fault timings; this is development regression "
+            "evidence."
+        )
+    elif confirmation_status == "preregistered_held_out_confirmation":
+        evidence_limitation = (
+            "Preregistration attests frozen inputs and disjoint cases, "
+            "canonical realized request schedules, and fault timings; three "
+            "local cases still provide limited external validity."
+        )
+    else:
+        evidence_limitation = (
+            "Cases, canonical realized request schedules, and fault timings "
+            "are disjoint from training, but no preregistration is attested."
+        )
     return _evaluate_restored_fault_matrix(
         runs=runs,
         feature_spec=feature_spec,

@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -104,6 +105,36 @@ def test_v2_training_combines_fault_free_schedules_without_crossing_runs():
                 runs[2],
             ],
             feature_spec,
+        )
+    equivalent_schedule_runs = [
+        FaultMatrixRun(
+            replace(
+                runs[0].manifest,
+                requests_per_window=6,
+                load_pattern_offsets=(0, 1),
+            ),
+            runs[0].capture,
+        ),
+        FaultMatrixRun(
+            replace(
+                runs[1].manifest,
+                requests_per_window=5,
+                load_pattern_offsets=(1, 2, 1, 2),
+            ),
+            runs[1].capture,
+        ),
+        FaultMatrixRun(
+            replace(
+                runs[2].manifest,
+                requests_per_window=7,
+                load_pattern_offsets=(-1, 0),
+            ),
+            runs[2].capture,
+        ),
+    ]
+    with pytest.raises(ValueError, match="three distinct schedules"):
+        train_demand_conditioned_model(
+            equivalent_schedule_runs, feature_spec
         )
 
     model = train_demand_conditioned_model(runs, feature_spec)

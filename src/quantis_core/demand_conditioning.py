@@ -223,9 +223,9 @@ def train_demand_conditioned_model(
             "demand-conditioned training requires at least three runs"
         )
     schedules = {
-        (
+        canonical_request_schedule(
             run.manifest.requests_per_window,
-            tuple(run.manifest.load_pattern_offsets),
+            run.manifest.load_pattern_offsets,
         )
         for run in runs
     }
