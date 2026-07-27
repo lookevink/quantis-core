@@ -30,11 +30,14 @@ and fails loudly when a record cannot be interpreted without data loss.
 
 The compiler:
 
-- assigns records using the declared integer logical-window attribute;
+- assigns new lab records by emission time against observed metric-window
+  boundaries, while retaining the request's origin index as provenance;
 - aggregates only preregistered event-name and severity filters;
 - sums events from multiple application instances in the same window;
 - materializes explicit zeros for windows with no matching event;
-- rejects missing, negative, fractional, or out-of-range window identities;
+- for legacy logical-window captures, rejects missing, negative, fractional,
+  or out-of-range window identities;
+- rejects event timestamps outside recorded run boundaries;
 - never derives features from unrestricted message text; and
 - records the source capture and feature-spec identities.
 
@@ -84,4 +87,3 @@ excluded from model features.
 - Restored artifacts reproduce scores exactly.
 - Metrics-only and multimodal results are reported separately; neither is
   confirmation evidence.
-

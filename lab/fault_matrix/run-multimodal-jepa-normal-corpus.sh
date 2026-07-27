@@ -15,6 +15,10 @@ compose=(
   --file "${lab_directory}/compose.yaml"
 )
 
+if [[ -n "$(git -C "${repository}" status --porcelain)" ]]; then
+  echo "Refusing to collect with a dirty worktree" >&2
+  exit 1
+fi
 if [[ -e "${output}" ]]; then
   echo "Refusing to overwrite multimodal JEPA corpus: ${output}" >&2
   exit 1
@@ -24,6 +28,7 @@ mkdir -p "${output}"
   "${lab_directory}/prepare_multimodal_normal_corpus.py" \
   --output "${inputs}"
 git -C "${repository}" rev-parse HEAD >"${inputs}/git-commit.txt"
+echo "true" >"${inputs}/worktree-clean.txt"
 "${repository}/.venv/bin/python" -c \
   'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
   "${specification}" >"${inputs}/specification-sha256.txt"

@@ -199,16 +199,30 @@ class OtlpLogWindowCompiler:
         self,
         capture: OtlpLogCapture,
         window_count: int,
+        *,
+        run_start_unix_nano: Optional[int] = None,
+        window_end_unix_nano: Optional[
+            NDArray[np.int64]
+        ] = None,
     ) -> CompiledLogTelemetry:
         if window_count < 1:
             raise ValueError("window_count must be positive")
+        event_time_boundaries = _event_time_boundaries(
+            window_count,
+            run_start_unix_nano,
+            window_end_unix_nano,
+        )
         values = np.zeros(
             (window_count, len(self.feature_spec.features)),
             dtype=np.float64,
         )
         matched_record_count = 0
         for record in capture.records:
-            window_index = self._window_index(record, window_count)
+            window_index = self._window_index(
+                record,
+                window_count,
+                event_time_boundaries,
+            )
             matched = False
             for feature_index, definition in enumerate(
                 self.feature_spec.features
@@ -243,7 +257,28 @@ class OtlpLogWindowCompiler:
         self,
         record: LogRecord,
         window_count: int,
+        event_time_boundaries: Optional[
+            Tuple[int, NDArray[np.int64]]
+        ],
     ) -> int:
+        if event_time_boundaries is not None:
+            run_start, window_ends = event_time_boundaries
+            if not (
+                run_start
+                <= record.time_unix_nano
+                <= int(window_ends[-1])
+            ):
+                raise OtlpLogWindowError(
+                    f"log event time {record.time_unix_nano} is "
+                    "outside metric boundaries"
+                )
+            return int(
+                np.searchsorted(
+                    window_ends,
+                    record.time_unix_nano,
+                    side="left",
+                )
+            )
         raw = record.record_attributes.get(
             self.feature_spec.window_index_attribute
         )
@@ -258,6 +293,39 @@ class OtlpLogWindowCompiler:
                 f"[0, {window_count})"
             )
         return raw
+
+
+def _event_time_boundaries(
+    window_count: int,
+    run_start_unix_nano: Optional[int],
+    window_end_unix_nano: Optional[NDArray[np.int64]],
+) -> Optional[Tuple[int, NDArray[np.int64]]]:
+    if (
+        run_start_unix_nano is None
+        and window_end_unix_nano is None
+    ):
+        return None
+    if (
+        run_start_unix_nano is None
+        or window_end_unix_nano is None
+    ):
+        raise ValueError(
+            "event-time assignment requires run start and window ends"
+        )
+    window_ends = np.asarray(
+        window_end_unix_nano,
+        dtype=np.int64,
+    )
+    if (
+        window_ends.ndim != 1
+        or len(window_ends) != window_count
+        or np.any(np.diff(window_ends) <= 0)
+        or run_start_unix_nano >= int(window_ends[0])
+    ):
+        raise ValueError(
+            "metric event-time boundaries must be complete and increasing"
+        )
+    return int(run_start_unix_nano), window_ends
 
 
 def _matches(

@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -45,6 +46,10 @@ def test_corpus_compiles_normal_windows_without_crossing_runs():
     assert corpus.protocol["validation_point_count"] == 36
     assert corpus.protocol["context_crosses_run_boundary"] is False
     assert corpus.protocol["training_validation_schedule_overlap"] == []
+    assert corpus.protocol["application_image_id"].startswith("sha256:")
+    assert len(
+        corpus.protocol["application_build_context_sha256"]
+    ) == 64
     assert set(
         corpus.protocol["split_spec"]["reserved_case_ids"]
     ) == RESERVED_EVIDENCE_CASE_IDS
@@ -56,6 +61,38 @@ def test_corpus_compiles_normal_windows_without_crossing_runs():
         "worker_heartbeat_age_s",
         "db_write_completion_ratio",
     )
+
+
+def test_corpus_rejects_unverified_or_mixed_application_builds():
+    runs, feature_spec = fresh_development_runs()
+    split = TelemetryCorpusSplitSpec(
+        training_case_ids=FRESH_CASE_IDS[:2],
+        validation_case_ids=(FRESH_CASE_IDS[2],),
+        reserved_case_ids=(),
+        lookback=6,
+    )
+
+    unverified = _with_application_image(
+        runs[0],
+        "unverified",
+    )
+    with pytest.raises(ValueError, match="application image provenance"):
+        compile_telemetry_corpus(
+            [unverified, runs[1], runs[2]],
+            feature_spec,
+            split,
+        )
+
+    mixed = _with_application_image(
+        runs[1],
+        "sha256:" + "a" * 64,
+    )
+    with pytest.raises(ValueError, match="same application build"):
+        compile_telemetry_corpus(
+            [runs[0], mixed, runs[2]],
+            feature_spec,
+            split,
+        )
 
 
 def test_corpus_rejects_reserved_evidence_and_schedule_leakage():
@@ -101,3 +138,25 @@ def test_reserved_evidence_registry_covers_all_committed_manifests():
     }
 
     assert manifest_case_ids == RESERVED_EVIDENCE_CASE_IDS
+
+
+def _with_application_image(
+    run: FaultMatrixRun,
+    image_id: str,
+) -> FaultMatrixRun:
+    return replace(
+        run,
+        capture=replace(
+            run.capture,
+            points=tuple(
+                replace(
+                    point,
+                    resource_attributes={
+                        **point.resource_attributes,
+                        "quantis.application.image.id": image_id,
+                    },
+                )
+                for point in run.capture.points
+            ),
+        ),
+    )

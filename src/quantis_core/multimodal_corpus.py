@@ -3,7 +3,7 @@
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -110,6 +110,7 @@ def compile_multimodal_telemetry_corpus(
 
     log_values_by_case_id = {}
     log_provenance = {}
+    log_window_assignments = set()
     log_compiler = OtlpLogWindowCompiler(log_spec)
     for case_id in selected_case_ids:
         run = runs_by_case_id[case_id]
@@ -122,10 +123,25 @@ def compile_multimodal_telemetry_corpus(
             capture,
             manifest_sha256,
         )
-        compiled = log_compiler.compile(
-            capture,
-            run.manifest.point_count,
-        )
+        event_time_boundaries = _metric_event_time_boundaries(run)
+        if event_time_boundaries is None:
+            compiled = log_compiler.compile(
+                capture,
+                run.manifest.point_count,
+            )
+            log_window_assignment = "declared_logical_window"
+        else:
+            run_start, window_ends = event_time_boundaries
+            compiled = log_compiler.compile(
+                capture,
+                run.manifest.point_count,
+                run_start_unix_nano=run_start,
+                window_end_unix_nano=window_ends,
+            )
+            log_window_assignment = (
+                "event_time_metric_boundaries"
+            )
+        log_window_assignments.add(log_window_assignment)
         normal_values = compiled.values[
             run.manifest.baseline_slice
         ]
@@ -138,7 +154,13 @@ def compile_multimodal_telemetry_corpus(
             "normal_interval": list(
                 run.manifest.baseline_interval
             ),
+            "log_window_assignment": log_window_assignment,
         }
+    if len(log_window_assignments) != 1:
+        raise ValueError(
+            "multimodal corpus log window assignment must be consistent"
+        )
+    log_window_assignment = next(iter(log_window_assignments))
 
     fitted_log_window_compiler = WindowCompiler(
         split_spec.lookback
@@ -193,12 +215,83 @@ def compile_multimodal_telemetry_corpus(
             ),
             "context_crosses_run_boundary": False,
             "channels_aligned": True,
+            "log_window_assignment": log_window_assignment,
             "runs": {
                 case_id: log_provenance[case_id]
                 for case_id in selected_case_ids
             },
         },
     )
+
+
+def _metric_event_time_boundaries(
+    run: FaultMatrixRun,
+) -> Optional[Tuple[int, NDArray[np.int64]]]:
+    start_attribute = (
+        "quantis.experiment.run.started_unix_nano"
+    )
+    boundary_metric = (
+        "quantis.experiment.window.closed_unix_nano"
+    )
+    has_start = [
+        start_attribute in point.resource_attributes
+        for point in run.capture.points
+    ]
+    boundary_points = [
+        point
+        for point in run.capture.points
+        if point.metric_name == boundary_metric
+    ]
+    if not any(has_start) and not boundary_points:
+        return None
+    if not all(has_start) or not boundary_points:
+        raise ValueError(
+            f"{run.manifest.case_id} metric event-time boundaries "
+            "are incomplete"
+        )
+    starts = {
+        point.resource_attributes[start_attribute]
+        for point in run.capture.points
+    }
+    raw_start = next(iter(starts)) if len(starts) == 1 else None
+    if (
+        isinstance(raw_start, bool)
+        or not isinstance(raw_start, int)
+    ):
+        raise ValueError(
+            f"{run.manifest.case_id} metric run start is invalid"
+        )
+    ends_by_metric_time: Dict[int, set[int]] = {}
+    for point in boundary_points:
+        raw_end = point.number_value
+        if isinstance(raw_end, bool) or not isinstance(raw_end, int):
+            raise ValueError(
+                f"{run.manifest.case_id} metric window boundary "
+                "is invalid"
+            )
+        ends_by_metric_time.setdefault(
+            point.time_unix_nano,
+            set(),
+        ).add(raw_end)
+    if (
+        len(ends_by_metric_time) != run.manifest.point_count
+        or any(
+            len(boundaries) != 1
+            for boundaries in ends_by_metric_time.values()
+        )
+    ):
+        raise ValueError(
+            f"{run.manifest.case_id} metric window boundaries "
+            "do not match points"
+        )
+    window_ends = np.asarray(
+        [
+            next(iter(ends_by_metric_time[metric_time]))
+            for metric_time in sorted(ends_by_metric_time)
+        ],
+        dtype=np.int64,
+    )
+    return raw_start, window_ends
 
 
 def _validate_log_capture_identity(

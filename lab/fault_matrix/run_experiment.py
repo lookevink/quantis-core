@@ -103,6 +103,7 @@ def main() -> None:
     time.sleep(0.25)
     previous_counters = _counters(redis_client)
     previous_db_rows = _database_row_count(database)[0]
+    run_started_unix_nano = time.time_ns()
     lock_connection: Optional[psycopg.Connection] = None
 
     maximum_requests = requests_per_window + max(load_pattern)
@@ -170,8 +171,14 @@ def main() -> None:
                 )
                 if remaining > 0.0:
                     time.sleep(remaining)
+                if (
+                    fault_kind == NORMAL_TELEMETRY_KIND
+                    and point_index == point_count - 1
+                ):
+                    _wait_for_normal_completion(redis_client)
                 current_counters = _counters(redis_client)
                 db_rows, _ = _database_row_count(database)
+                window_closed_unix_nano = time.time_ns()
                 values = _sample(
                     redis_client=redis_client,
                     period=period,
@@ -188,6 +195,8 @@ def main() -> None:
                     manifest_sha256,
                     topology_id,
                     observed_worker_replicas,
+                    run_started_unix_nano,
+                    window_closed_unix_nano,
                 )
                 previous_counters = current_counters
                 previous_db_rows = db_rows
@@ -419,6 +428,8 @@ def _emit(
     manifest_sha256: str,
     topology_id: str,
     worker_replicas: int,
+    run_started_unix_nano: int,
+    window_closed_unix_nano: int,
 ) -> None:
     timestamp = str((point_index + 1) * 1_000_000_000)
     metrics = [
@@ -436,6 +447,22 @@ def _emit(
         }
         for name in FEATURE_NAMES
     ]
+    metrics.append(
+        {
+            "name": (
+                "quantis.experiment.window.closed_unix_nano"
+            ),
+            "unit": "ns",
+            "gauge": {
+                "dataPoints": [
+                    {
+                        "timeUnixNano": timestamp,
+                        "asInt": str(window_closed_unix_nano),
+                    }
+                ]
+            },
+        }
+    )
     body = json.dumps(
         {
             "resourceMetrics": [
@@ -459,6 +486,14 @@ def _emit(
                                 "value": {
                                     "stringValue": (
                                         APPLICATION_BUILD_CONTEXT_SHA256
+                                    )
+                                },
+                            },
+                            {
+                                "key": "quantis.experiment.run.started_unix_nano",
+                                "value": {
+                                    "intValue": str(
+                                        run_started_unix_nano
                                     )
                                 },
                             },

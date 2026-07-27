@@ -105,6 +105,62 @@ def test_log_window_compiler_counts_only_declared_structured_events() -> None:
     }
 
 
+def test_log_window_compiler_assigns_by_event_time_boundaries() -> None:
+    capture = read_otlp_log_capture(
+        "tests/fixtures/otlp/application-logs.jsonl"
+    )
+    feature_spec = OtlpLogFeatureSpec(
+        window_index_attribute="unused.legacy.index",
+        features=(
+            LogFeatureDefinition(
+                name="checkout_event_count",
+                minimum_severity_number=9,
+            ),
+        ),
+    )
+
+    compiled = OtlpLogWindowCompiler(feature_spec).compile(
+        capture,
+        window_count=3,
+        run_start_unix_nano=1_000_000_000,
+        window_end_unix_nano=np.asarray(
+            [1_000_000_200, 1_000_000_400, 1_000_000_600],
+            dtype=np.int64,
+        ),
+    )
+
+    np.testing.assert_array_equal(
+        compiled.values,
+        np.asarray([[1.0], [1.0], [0.0]]),
+    )
+
+
+def test_log_window_compiler_rejects_events_after_final_boundary() -> None:
+    capture = read_otlp_log_capture(
+        "tests/fixtures/otlp/application-logs.jsonl"
+    )
+    feature_spec = OtlpLogFeatureSpec(
+        window_index_attribute="unused.legacy.index",
+        features=(
+            LogFeatureDefinition(
+                name="checkout_event_count",
+                minimum_severity_number=9,
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="outside metric boundaries"):
+        OtlpLogWindowCompiler(feature_spec).compile(
+            capture,
+            window_count=1,
+            run_start_unix_nano=1_000_000_000,
+            window_end_unix_nano=np.asarray(
+                [1_000_000_200],
+                dtype=np.int64,
+            ),
+        )
+
+
 def test_log_feature_spec_rejects_high_cardinality_filters() -> None:
     with pytest.raises(
         ValueError,

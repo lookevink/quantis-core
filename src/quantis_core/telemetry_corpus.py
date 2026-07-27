@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Sequence, Tuple
 
@@ -187,12 +188,19 @@ def compile_telemetry_corpus(
     compiler = OtlpWindowCompiler(feature_spec)
     conditioned_by_case_id = {}
     provenance_by_case_id = {}
+    application_builds = set()
     for case_id in selected_ids:
         run = run_by_case_id[case_id]
         manifest_sha256 = _canonical_sha256(
             run.manifest.to_dict()
         )
         _validate_capture_identity(run, manifest_sha256)
+        application_image_id, application_build_hash = (
+            _application_build_provenance(run)
+        )
+        application_builds.add(
+            (application_image_id, application_build_hash)
+        )
         compiled = compiler.compile(run.capture)
         if len(compiled.values) != run.manifest.point_count:
             raise ValueError(
@@ -214,6 +222,10 @@ def compile_telemetry_corpus(
             "case_id": case_id,
             "capture_sha256": run.capture.sha256,
             "manifest_sha256": manifest_sha256,
+            "application_image_id": application_image_id,
+            "application_build_context_sha256": (
+                application_build_hash
+            ),
             "normal_interval": list(
                 run.manifest.baseline_interval
             ),
@@ -225,6 +237,13 @@ def compile_telemetry_corpus(
                 )
             ),
         }
+    if len(application_builds) != 1:
+        raise ValueError(
+            "telemetry corpus runs must use the same application build"
+        )
+    application_image_id, application_build_hash = next(
+        iter(application_builds)
+    )
 
     training_values = [
         conditioned_by_case_id[case_id].values
@@ -260,6 +279,10 @@ def compile_telemetry_corpus(
         "validation_window_count": len(validation.windows.targets),
         "training_validation_schedule_overlap": [],
         "context_crosses_run_boundary": False,
+        "application_image_id": application_image_id,
+        "application_build_context_sha256": (
+            application_build_hash
+        ),
         "runs": {
             case_id: provenance_by_case_id[case_id]
             for case_id in selected_ids
@@ -331,6 +354,40 @@ def _validate_capture_identity(
         raise ValueError(
             f"{run.manifest.case_id} capture does not match manifest"
         )
+
+
+def _application_build_provenance(
+    run: FaultMatrixRun,
+) -> Tuple[str, str]:
+    image_ids = {
+        point.resource_attributes.get(
+            "quantis.application.image.id"
+        )
+        for point in run.capture.points
+    }
+    build_hashes = {
+        point.resource_attributes.get(
+            "quantis.application.build_context.sha256"
+        )
+        for point in run.capture.points
+    }
+    image_id = (
+        str(next(iter(image_ids))) if len(image_ids) == 1 else ""
+    )
+    build_hash = (
+        str(next(iter(build_hashes)))
+        if len(build_hashes) == 1
+        else ""
+    )
+    if (
+        re.fullmatch(r"sha256:[0-9a-f]{64}", image_id) is None
+        or re.fullmatch(r"[0-9a-f]{64}", build_hash) is None
+    ):
+        raise ValueError(
+            f"{run.manifest.case_id} application image provenance "
+            "is missing or invalid"
+        )
+    return image_id, build_hash
 
 
 def _compile_split(

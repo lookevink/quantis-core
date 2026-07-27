@@ -78,6 +78,16 @@ def test_multimodal_training_reports_preregistered_ablations(
     assert result.shuffled_log_model_artifact["kind"] == (
         "multimodal_jepa_world_model_v0"
     )
+    assert result.shuffled_log_model_artifact[
+        "preprocessing"
+    ] == result.model_artifact["preprocessing"]
+    assert result.shuffled_log_model_artifact["control_protocol"] == {
+        "kind": "shuffled_log_alignment_ablation",
+        "training_seed": 1044,
+        "validation_seed": 2044,
+        "preserves_log_context_target_pairs": True,
+        "breaks_metric_log_alignment": True,
+    }
     assert result.model_artifact["preprocessing"] == {
         "metric": {
             "conditioner": corpus.metric_corpus_metadata[
@@ -91,6 +101,9 @@ def test_multimodal_training_reports_preregistered_ablations(
             "feature_spec": corpus.log_feature_spec_artifact,
             "window_compiler": (
                 corpus.log_window_compiler_artifact
+            ),
+            "window_assignment": (
+                "declared_logical_window"
             ),
         },
     }
@@ -121,7 +134,7 @@ def test_multimodal_training_reports_preregistered_ablations(
         "validation_alert_rate_at_most_maximum",
         "no_worse_than_capacity_matched_metrics_only_alert_rate",
         "no_worse_than_shuffled_logs_alert_rate",
-        "no_worse_than_shuffled_logs_latent_loss",
+        "strictly_better_than_at_least_one_control_alert_rate",
     }
     assert result.promotion["status"] in {"passed", "failed"}
 

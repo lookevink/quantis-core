@@ -229,7 +229,9 @@ def _emit_checkout_event(
             body=event_name.replace(".", " "),
             experiment=experiment,
             attributes={
-                "quantis.experiment.window.index": window_index,
+                "quantis.experiment.origin.window.index": (
+                    window_index
+                ),
                 "http.response.status_code": status,
             },
         )

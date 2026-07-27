@@ -176,11 +176,24 @@ def train_multimodal_jepa_world_model(
             "window_compiler": (
                 corpus.log_window_compiler_artifact
             ),
+            "window_assignment": corpus.protocol[
+                "log_window_assignment"
+            ],
         },
     }
     metrics_only_artifact = metrics_only.to_dict()
     capacity_matched_artifact = capacity_matched.to_dict()
     shuffled_log_artifact = shuffled_logs.to_dict()
+    shuffled_log_artifact["preprocessing"] = model_artifact[
+        "preprocessing"
+    ]
+    shuffled_log_artifact["control_protocol"] = {
+        "kind": "shuffled_log_alignment_ablation",
+        "training_seed": shuffled_training_seed,
+        "validation_seed": shuffled_validation_seed,
+        "preserves_log_context_target_pairs": True,
+        "breaks_metric_log_alignment": True,
+    }
     corpus_metadata = corpus.metadata_dict()
     metrics = {
         "multimodal": {
@@ -416,12 +429,17 @@ def _promotion_assessment(
                 fused["alert_rate"] <= shuffled["alert_rate"]
             ),
         },
-        "no_worse_than_shuffled_logs_latent_loss": {
-            "observed": fused["latent_loss_mean"],
-            "comparator": shuffled["latent_loss_mean"],
+        "strictly_better_than_at_least_one_control_alert_rate": {
+            "observed": fused["alert_rate"],
+            "comparators": {
+                "capacity_matched_metrics_only": (
+                    capacity["alert_rate"]
+                ),
+                "shuffled_logs": shuffled["alert_rate"],
+            },
             "passed": (
-                fused["latent_loss_mean"]
-                <= shuffled["latent_loss_mean"]
+                fused["alert_rate"] < capacity["alert_rate"]
+                or fused["alert_rate"] < shuffled["alert_rate"]
             ),
         },
     }

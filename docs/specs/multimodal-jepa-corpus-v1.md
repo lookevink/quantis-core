@@ -47,6 +47,14 @@ Every included run must satisfy the existing capture and manifest identity,
 image provenance, completeness, channel-alignment, safe-log-vocabulary, and
 run-boundary checks. There is no post-result run-quality exclusion rule:
 failure of an invariant fails the corpus rather than silently removing a run.
+The collection command refuses a dirty worktree before recording the exact Git
+commit.
+
+Application events are assigned by their emission timestamps against the
+observed metric-window close times recorded by the runner. The request's
+originating logical-window index remains provenance only. An event outside the
+recorded run boundaries fails compilation; it is never moved back into its
+origin window.
 
 ## Models and controls
 
@@ -78,12 +86,12 @@ preregistered validation gates pass:
 - alert rate is no worse than the five-dimensional capacity-matched
   metrics-only baseline;
 - alert rate is no worse than the shuffled-log ablation; and
-- mean squared latent loss is no worse than the shuffled-log ablation.
+- alert rate is strictly better than at least one of those two controls.
 
-Latent loss is not compared with either metrics-only model because those
-models learn a different latent target. A failed gate is reported as a result;
-parameters, schedules, split membership, or thresholds are not revised for
-this corpus.
+Latent loss is not used as a cross-model gate because independently trained
+models learn different latent targets. A failed gate is reported as a result;
+parameters, schedules, split membership, or thresholds are not revised for this
+corpus.
 
 ## Publication boundary
 

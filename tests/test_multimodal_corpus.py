@@ -1,4 +1,7 @@
 import json
+from dataclasses import replace
+
+import numpy as np
 
 from quantis_core.otlp_log_windowing import OtlpLogFeatureSpec
 from quantis_core.telemetry_corpus import TelemetryCorpusSplitSpec
@@ -63,3 +66,105 @@ def test_multimodal_corpus_fits_separate_run_isolated_channels() -> None:
     assert corpus.protocol["runs"][FRESH_CASE_IDS[0]][
         "log_capture_sha256"
     ] == log_captures[FRESH_CASE_IDS[0]].sha256
+
+
+def test_multimodal_corpus_prefers_metric_event_time_boundaries() -> None:
+    source_runs, metric_spec = fresh_development_runs()
+    runs = [_with_event_time_boundaries(run) for run in source_runs]
+    log_captures = {
+        case_id: replace(
+            capture,
+            records=tuple(
+                replace(
+                    record,
+                    record_attributes={
+                        **record.record_attributes,
+                        "quantis.experiment.window.index": 0,
+                    },
+                )
+                for record in capture.records
+            ),
+        )
+        for case_id, capture in normal_log_captures(runs).items()
+    }
+    log_spec = OtlpLogFeatureSpec.from_dict(
+        json.loads(
+            open(
+                "lab/fault_matrix/log-feature-spec.json"
+            ).read()
+        )
+    )
+
+    corpus = compile_multimodal_telemetry_corpus(
+        runs,
+        log_captures,
+        metric_spec,
+        log_spec,
+        TelemetryCorpusSplitSpec(
+            training_case_ids=FRESH_CASE_IDS[:2],
+            validation_case_ids=(FRESH_CASE_IDS[2],),
+            reserved_case_ids=(),
+            lookback=6,
+        ),
+    )
+
+    assert corpus.protocol["log_window_assignment"] == (
+        "event_time_metric_boundaries"
+    )
+    np.testing.assert_allclose(
+        corpus.training.windows.logs.targets[:, 0],
+        0.0,
+    )
+
+
+def _with_event_time_boundaries(run):
+    point_times = sorted(
+        {point.time_unix_nano for point in run.capture.points}
+    )
+    source_by_time = {
+        point_time: next(
+            point
+            for point in run.capture.points
+            if point.time_unix_nano == point_time
+        )
+        for point_time in point_times
+    }
+    boundary_points = tuple(
+        replace(
+            source_by_time[point_time],
+            metric_name=(
+                "quantis.experiment.window.closed_unix_nano"
+            ),
+            unit="ns",
+            number_value=point_index * 10 + 5,
+        )
+        for point_index, point_time in enumerate(point_times)
+    )
+    return replace(
+        run,
+        capture=replace(
+            run.capture,
+            points=(
+                tuple(
+                    replace(
+                        point,
+                        resource_attributes={
+                            **point.resource_attributes,
+                            "quantis.experiment.run.started_unix_nano": 0,
+                        },
+                    )
+                    for point in run.capture.points
+                )
+                + tuple(
+                    replace(
+                        point,
+                        resource_attributes={
+                            **point.resource_attributes,
+                            "quantis.experiment.run.started_unix_nano": 0,
+                        },
+                    )
+                    for point in boundary_points
+                )
+            ),
+        ),
+    )
