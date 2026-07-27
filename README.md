@@ -46,3 +46,16 @@ Run the pinned OpenTelemetry Collector round-trip verification:
 The checked-in [OTLP verification report](artifacts/otlp-replay/report.md)
 records the Collector image digest, capture and feature-schema hashes, data
 quality, tensor parity, detector-score parity, and limitations.
+
+## Run the instrumented fault lab
+
+Run a real API, worker, Redis queue, PostgreSQL database, and OpenTelemetry
+Collector while injecting an isolated latency disturbance and a worker stall:
+
+```bash
+./lab/fault/run-fault-lab.sh
+```
+
+The checked-in [fault-lab report](artifacts/fault-lab/report.md) records the
+observed queue and database effects, held-out false-positive rates, detection
+latency, attribution, content hashes, and explicit limitations.

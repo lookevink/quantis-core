@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantis.dev/contracts/fault-lab-report.v1.schema.json",
+  "title": "Quantis fault-lab report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "capture",
+    "compiled",
+    "protocol",
+    "raw_effects",
+    "detection",
+    "attribution",
+    "acceptance",
+    "window_compiler_artifact",
+    "detector_artifact",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "capture": {
+      "type": "object",
+      "required": ["sha256", "json_message_count", "metric_point_count"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "json_message_count": {"type": "integer", "minimum": 1},
+        "metric_point_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "compiled": {
+      "type": "object",
+      "required": [
+        "feature_schema_id",
+        "window_count",
+        "feature_count",
+        "feature_names",
+        "data_quality"
+      ],
+      "properties": {
+        "feature_schema_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "window_count": {"type": "integer", "minimum": 1},
+        "feature_count": {"type": "integer", "minimum": 1},
+        "feature_names": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "data_quality": {"type": "object"}
+      }
+    },
+    "protocol": {"type": "object"},
+    "raw_effects": {
+      "type": "object",
+      "additionalProperties": {"type": "number"}
+    },
+    "detection": {
+      "type": "object",
+      "required": [
+        "threshold",
+        "alert_count",
+        "structural_detected",
+        "detection_delay_windows",
+        "routine_noise_alert_rate",
+        "validation_alert_rate"
+      ],
+      "properties": {
+        "threshold": {"type": "number"},
+        "alert_count": {"type": "integer", "minimum": 0},
+        "structural_detected": {"type": "boolean"},
+        "detection_delay_windows": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "routine_noise_alert_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "validation_alert_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "required": ["expected_features", "top_features", "hit_at_3"],
+      "properties": {
+        "expected_features": {"type": "array", "items": {"type": "string"}},
+        "top_features": {"type": "array", "items": {"type": "string"}},
+        "hit_at_3": {"type": "boolean"}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "required": ["all_passed", "gates"],
+      "properties": {
+        "all_passed": {"type": "boolean"},
+        "gates": {
+          "type": "object",
+          "additionalProperties": {"type": "boolean"}
+        }
+      }
+    },
+    "window_compiler_artifact": {"type": "object"},
+    "detector_artifact": {"type": "object"},
+    "limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

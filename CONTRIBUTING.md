@@ -17,3 +17,7 @@ evaluation.
 Changes to OTLP semantics must include an independently worked JSON fixture.
 Regenerate Collector evidence with `./lab/otel/run-roundtrip.sh`; never edit
 capture, compiled-telemetry, or verification artifacts by hand.
+
+Regenerate instrumented topology evidence with
+`./lab/fault/run-fault-lab.sh`. Fault-lab reports must be recomputable from the
+raw Collector capture and the checked-in experiment manifest.

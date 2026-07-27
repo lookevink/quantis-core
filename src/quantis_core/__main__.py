@@ -11,6 +11,11 @@ from .evaluation import (
     run_evaluation,
     write_evaluation_artifacts,
 )
+from .fault_lab import (
+    FaultLabManifest,
+    evaluate_fault_lab,
+    write_fault_lab_artifacts,
+)
 from .otlp import read_otlp_capture
 from .otlp_windowing import OtlpFeatureSpec, OtlpWindowCompiler
 
@@ -36,6 +41,14 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     replay.add_argument("--capture", type=Path, required=True)
     replay.add_argument("--feature-spec", type=Path, required=True)
     replay.add_argument("--output", type=Path, required=True)
+    fault_lab = commands.add_parser(
+        "evaluate-fault-lab",
+        help="evaluate an instrumented API/worker OTLP capture",
+    )
+    fault_lab.add_argument("--capture", type=Path, required=True)
+    fault_lab.add_argument("--feature-spec", type=Path, required=True)
+    fault_lab.add_argument("--manifest", type=Path, required=True)
+    fault_lab.add_argument("--output", type=Path, required=True)
     parsed = parser.parse_args(arguments)
 
     if parsed.command == "evaluate":
@@ -84,6 +97,24 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         print("OTLP replay: PASS")
         print(f"Compiled telemetry: {parsed.output / 'compiled-telemetry.json'}")
         return 0
+    if parsed.command == "evaluate-fault-lab":
+        capture = read_otlp_capture(parsed.capture)
+        feature_spec = OtlpFeatureSpec.from_dict(
+            json.loads(parsed.feature_spec.read_text())
+        )
+        manifest = FaultLabManifest.from_dict(
+            json.loads(parsed.manifest.read_text())
+        )
+        fault_report = evaluate_fault_lab(capture, feature_spec, manifest)
+        fault_paths = write_fault_lab_artifacts(
+            fault_report, parsed.output
+        )
+        status = (
+            "PASS" if fault_report.acceptance["all_passed"] else "FAIL"
+        )
+        print(f"Fault-lab acceptance: {status}")
+        print(f"Report: {fault_paths['report']}")
+        return 0 if fault_report.acceptance["all_passed"] else 1
     return 2
 
 

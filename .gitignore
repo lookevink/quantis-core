@@ -10,3 +10,5 @@ artifacts/*
 !artifacts/evaluation/**
 !artifacts/otlp-replay/
 !artifacts/otlp-replay/**
+!artifacts/fault-lab/
+!artifacts/fault-lab/**

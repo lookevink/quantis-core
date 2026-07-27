@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quantis.dev/contracts/fault-lab-manifest.v1.schema.json",
+  "title": "Quantis fault-lab manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "point_count",
+    "sample_period_seconds",
+    "logical_window_period_nano",
+    "training_interval",
+    "routine_noise_interval",
+    "structural_interval",
+    "affected_features",
+    "requests_per_window",
+    "routine_noise_delay_ms",
+    "load_pattern_offsets",
+    "images"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "point_count": {"type": "integer", "minimum": 1},
+    "sample_period_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "logical_window_period_nano": {"type": "integer", "minimum": 1},
+    "training_interval": {"$ref": "#/$defs/interval"},
+    "routine_noise_interval": {"$ref": "#/$defs/interval"},
+    "structural_interval": {"$ref": "#/$defs/interval"},
+    "affected_features": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "requests_per_window": {"type": "integer", "minimum": 1},
+    "routine_noise_delay_ms": {"type": "integer", "minimum": 0},
+    "load_pattern_offsets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "integer"}
+    },
+    "images": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "@sha256:[0-9a-f]{64}$"
+      }
+    }
+  },
+  "$defs": {
+    "interval": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 0},
+        {"type": "integer", "minimum": 1}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}
