@@ -1,21 +1,21 @@
 {
   "schema_version": 1,
-  "case_id": "cache-outage-confirmation-02",
+  "case_id": "cache-outage-confirmation-03",
   "fault_kind": "cache_outage",
-  "point_count": 90,
+  "point_count": 94,
   "sample_period_seconds": 0.25,
   "logical_window_period_nano": 1000000000,
-  "baseline_interval": [0, 38],
-  "routine_noise_interval": [47, 48],
-  "structural_interval": [63, 78],
+  "baseline_interval": [0, 40],
+  "routine_noise_interval": [51, 52],
+  "structural_interval": [67, 82],
   "affected_features": [
     "request_latency_ms",
     "error_rate",
     "worker_rate",
     "db_write_rate"
   ],
-  "requests_per_window": 8,
-  "load_pattern_offsets": [-3, 0, 1, -1, 2, -2, 1, 0],
+  "requests_per_window": 9,
+  "load_pattern_offsets": [-4, -1, 1, 0, 2, -2, 0, 1],
   "routine_noise_delay_ms": 150,
   "images": {
     "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",

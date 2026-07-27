@@ -1,21 +1,21 @@
 {
   "schema_version": 1,
-  "case_id": "database-lock-confirmation-02",
+  "case_id": "database-lock-confirmation-03",
   "fault_kind": "database_lock",
-  "point_count": 92,
+  "point_count": 96,
   "sample_period_seconds": 0.25,
   "logical_window_period_nano": 1000000000,
-  "baseline_interval": [0, 39],
-  "routine_noise_interval": [49, 50],
-  "structural_interval": [65, 80],
+  "baseline_interval": [0, 41],
+  "routine_noise_interval": [53, 54],
+  "structural_interval": [69, 84],
   "affected_features": [
     "queue_depth",
     "worker_rate",
     "worker_heartbeat_age_s",
     "db_write_rate"
   ],
-  "requests_per_window": 5,
-  "load_pattern_offsets": [3, -1, 1, 0, 2, -2, 0, 1],
+  "requests_per_window": 8,
+  "load_pattern_offsets": [-2, 1, -3, 0, 2, -1, 1, 0],
   "routine_noise_delay_ms": 150,
   "images": {
     "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",

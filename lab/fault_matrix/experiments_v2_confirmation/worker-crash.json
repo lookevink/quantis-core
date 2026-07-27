@@ -1,21 +1,21 @@
 {
   "schema_version": 1,
-  "case_id": "worker-crash-confirmation-02",
+  "case_id": "worker-crash-confirmation-03",
   "fault_kind": "worker_crash",
-  "point_count": 91,
+  "point_count": 95,
   "sample_period_seconds": 0.25,
   "logical_window_period_nano": 1000000000,
-  "baseline_interval": [0, 39],
-  "routine_noise_interval": [46, 47],
-  "structural_interval": [62, 77],
+  "baseline_interval": [0, 40],
+  "routine_noise_interval": [50, 51],
+  "structural_interval": [66, 81],
   "affected_features": [
     "queue_depth",
     "worker_rate",
     "worker_heartbeat_age_s",
     "db_write_rate"
   ],
-  "requests_per_window": 7,
-  "load_pattern_offsets": [-1, 2, -2, 0, 1, -1, 0, 2],
+  "requests_per_window": 6,
+  "load_pattern_offsets": [3, -2, 0, 1, -1, 2, -3, 0],
   "routine_noise_delay_ms": 150,
   "images": {
     "python": "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
