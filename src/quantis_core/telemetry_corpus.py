@@ -61,6 +61,9 @@ class TelemetryCorpusSplitSpec:
     validation_case_ids: Tuple[str, ...]
     reserved_case_ids: Tuple[str, ...]
     lookback: int = 6
+    expected_application_api_request_queue_size: Optional[
+        int
+    ] = None
 
     def __post_init__(self) -> None:
         if not self.training_case_ids:
@@ -69,6 +72,15 @@ class TelemetryCorpusSplitSpec:
             raise ValueError("telemetry corpus requires validation cases")
         if self.lookback < 1:
             raise ValueError("telemetry corpus lookback must be positive")
+        if (
+            self.expected_application_api_request_queue_size
+            is not None
+            and self.expected_application_api_request_queue_size < 1
+        ):
+            raise ValueError(
+                "expected application API request queue size "
+                "must be positive"
+            )
         for name, case_ids in (
             ("training", self.training_case_ids),
             ("validation", self.validation_case_ids),
@@ -98,7 +110,7 @@ class TelemetryCorpusSplitSpec:
             )
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        payload = {
             "schema_version": 1,
             "training_case_ids": list(self.training_case_ids),
             "validation_case_ids": list(self.validation_case_ids),
@@ -108,6 +120,14 @@ class TelemetryCorpusSplitSpec:
             ),
             "lookback": self.lookback,
         }
+        if (
+            self.expected_application_api_request_queue_size
+            is not None
+        ):
+            payload[
+                "expected_application_api_request_queue_size"
+            ] = self.expected_application_api_request_queue_size
+        return payload
 
     @classmethod
     def from_dict(
@@ -127,6 +147,18 @@ class TelemetryCorpusSplitSpec:
                 str(value) for value in payload["reserved_case_ids"]
             ),
             lookback=int(payload.get("lookback", 6)),
+            expected_application_api_request_queue_size=(
+                int(
+                    payload[
+                        "expected_application_api_request_queue_size"
+                    ]
+                )
+                if payload.get(
+                    "expected_application_api_request_queue_size"
+                )
+                is not None
+                else None
+            ),
         )
 
 
@@ -270,6 +302,17 @@ def compile_telemetry_corpus(
     application_queue_size = next(
         iter(application_queue_sizes)
     )
+    expected_queue_size = (
+        split_spec.expected_application_api_request_queue_size
+    )
+    if (
+        expected_queue_size is not None
+        and application_queue_size != expected_queue_size
+    ):
+        raise ValueError(
+            "telemetry corpus does not match expected API request "
+            "queue size"
+        )
 
     training_values = [
         conditioned_by_case_id[case_id].values

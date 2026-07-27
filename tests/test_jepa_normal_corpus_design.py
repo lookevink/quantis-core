@@ -218,6 +218,10 @@ def test_multimodal_corpus_uses_fresh_schedules_and_case_ids(
     assert len(manifests) == 30
     assert len(split.training_case_ids) == 24
     assert len(split.validation_case_ids) == 6
+    assert (
+        split.expected_application_api_request_queue_size
+        == 128
+    )
     assert len(set(schedules.values())) == 10
     assert set(schedules.values()).isdisjoint(prior_schedules)
     assert {

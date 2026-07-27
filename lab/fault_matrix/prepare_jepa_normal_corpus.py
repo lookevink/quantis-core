@@ -69,6 +69,9 @@ def prepare_normal_corpus(
     seed_label: int,
     schedule_families: ScheduleFamilies,
     sample_period_seconds: float,
+    expected_application_api_request_queue_size: Optional[
+        int
+    ] = None,
 ) -> None:
     """Write a fresh normal-only corpus from explicit schedule families."""
 
@@ -128,6 +131,9 @@ def prepare_normal_corpus(
         validation_case_ids=tuple(validation_case_ids),
         reserved_case_ids=(),
         lookback=LOOKBACK,
+        expected_application_api_request_queue_size=(
+            expected_application_api_request_queue_size
+        ),
     )
     _write_json(split_path, split.to_dict())
     print(

@@ -36,6 +36,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         seed_label=48,
         schedule_families=SCHEDULE_FAMILIES,
         sample_period_seconds=0.1,
+        expected_application_api_request_queue_size=128,
     )
     return 0
 

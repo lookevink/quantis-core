@@ -139,6 +139,41 @@ def test_split_rejects_failed_multimodal_corpus_case_ids():
         )
 
 
+def test_corpus_enforces_preregistered_api_queue_size():
+    runs, feature_spec = fresh_development_runs()
+    split = TelemetryCorpusSplitSpec(
+        training_case_ids=FRESH_CASE_IDS[:2],
+        validation_case_ids=(FRESH_CASE_IDS[2],),
+        reserved_case_ids=(),
+        expected_application_api_request_queue_size=128,
+    )
+
+    with pytest.raises(ValueError, match="expected API request queue"):
+        compile_telemetry_corpus(runs, feature_spec, split)
+
+    admitted = compile_telemetry_corpus(
+        [
+            _with_application_queue_size(run, 128)
+            for run in runs
+        ],
+        feature_spec,
+        split,
+    )
+    assert admitted.protocol[
+        "application_api_request_queue_size"
+    ] == 128
+
+    with pytest.raises(ValueError, match="expected API request queue"):
+        compile_telemetry_corpus(
+            [
+                _with_application_queue_size(run, 5)
+                for run in runs
+            ],
+            feature_spec,
+            split,
+        )
+
+
 def test_reserved_evidence_registry_covers_all_committed_manifests():
     repository = Path(__file__).resolve().parents[1]
     lab = repository / "lab" / "fault_matrix"
@@ -165,6 +200,30 @@ def _with_application_image(
                     resource_attributes={
                         **point.resource_attributes,
                         "quantis.application.image.id": image_id,
+                    },
+                )
+                for point in run.capture.points
+            ),
+        ),
+    )
+
+
+def _with_application_queue_size(
+    run: FaultMatrixRun,
+    queue_size: int,
+) -> FaultMatrixRun:
+    return replace(
+        run,
+        capture=replace(
+            run.capture,
+            points=tuple(
+                replace(
+                    point,
+                    resource_attributes={
+                        **point.resource_attributes,
+                        "quantis.application.api.request_queue_size": (
+                            queue_size
+                        ),
                     },
                 )
                 for point in run.capture.points
