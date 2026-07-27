@@ -59,3 +59,25 @@ Collector while injecting an isolated latency disturbance and a worker stall:
 The checked-in [fault-lab report](artifacts/fault-lab/report.md) records the
 observed queue and database effects, held-out false-positive rates, detection
 latency, attribution, content hashes, and explicit limitations.
+
+## Train and regress the demand-conditioned v2 model
+
+The first frozen model failed its multi-schedule fault matrix because it learned
+the development load pattern. That negative result is preserved in the
+[v1 matrix report](artifacts/fault-matrix/report.md).
+
+Model v2 conditions worker and database throughput on observed request demand.
+Its checked-in model and development regression are recomputable from the raw
+v1 captures:
+
+```bash
+.venv/bin/python -m quantis_core train-demand-conditioned-v2 \
+  --captures-directory artifacts/fault-matrix/cases \
+  --manifests-directory lab/fault_matrix/experiments \
+  --feature-spec lab/fault_matrix/feature-spec.json \
+  --output artifacts/demand-conditioned-v2
+```
+
+The [v2 regression report](artifacts/demand-conditioned-v2/regression/report.md)
+is development evidence. A separate, Git-preregistered confirmation is required
+before this model can be described as held out.

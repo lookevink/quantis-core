@@ -2,14 +2,19 @@
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Protocol, Sequence, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .detectors import detector_from_dict
+from .demand_conditioning import (
+    DemandConditioner,
+    canonical_request_schedule,
+)
 from .otlp import TelemetryCapture
 from .otlp_windowing import OtlpFeatureSpec, OtlpWindowCompiler
 from .windowing import (
@@ -173,6 +178,52 @@ class FaultMatrixEvaluationConfig:
 FROZEN_EVALUATION_CONFIG = FaultMatrixEvaluationConfig()
 
 
+class _FeatureAdapter(Protocol):
+    def adapt(
+        self,
+        values: NDArray[np.float64],
+        feature_names: Sequence[str],
+    ) -> Tuple[NDArray[np.float64], Tuple[str, ...]]:
+        ...
+
+    def map_affected_features(
+        self, raw_feature_names: Sequence[str]
+    ) -> Tuple[str, ...]:
+        ...
+
+
+class _IdentityFeatureAdapter:
+    def adapt(
+        self,
+        values: NDArray[np.float64],
+        feature_names: Sequence[str],
+    ) -> Tuple[NDArray[np.float64], Tuple[str, ...]]:
+        return values, tuple(feature_names)
+
+    def map_affected_features(
+        self, raw_feature_names: Sequence[str]
+    ) -> Tuple[str, ...]:
+        return tuple(raw_feature_names)
+
+
+class _DemandFeatureAdapter:
+    def __init__(self, conditioner: DemandConditioner) -> None:
+        self.conditioner = conditioner
+
+    def adapt(
+        self,
+        values: NDArray[np.float64],
+        feature_names: Sequence[str],
+    ) -> Tuple[NDArray[np.float64], Tuple[str, ...]]:
+        conditioned = self.conditioner.transform(values, feature_names)
+        return conditioned.values, conditioned.feature_names
+
+    def map_affected_features(
+        self, raw_feature_names: Sequence[str]
+    ) -> Tuple[str, ...]:
+        return self.conditioner.map_affected_features(raw_feature_names)
+
+
 @dataclass(frozen=True)
 class FaultMatrixReport:
     """Versioned case evidence plus aggregate acceptance decisions."""
@@ -204,9 +255,6 @@ def evaluate_fault_matrix(
 ) -> FaultMatrixReport:
     """Score held-out captures using restored, immutable fitted artifacts."""
 
-    config = FROZEN_EVALUATION_CONFIG
-    if not runs:
-        raise ValueError("fault matrix requires at least one run")
     window_compiler_artifact = _decode_artifact(
         window_compiler_artifact_bytes, "window compiler"
     )
@@ -221,6 +269,281 @@ def evaluate_fault_matrix(
             detector_artifact_bytes
         ).hexdigest(),
     }
+    return _evaluate_restored_fault_matrix(
+        runs=runs,
+        feature_spec=feature_spec,
+        window_compiler_artifact=window_compiler_artifact,
+        detector_artifact=detector_artifact,
+        artifact_file_sha256=artifact_file_sha256,
+        feature_adapter=_IdentityFeatureAdapter(),
+        evaluation_kind="held_out_frozen_model_fault_matrix",
+        protocol_extension={},
+        limitations=_legacy_limitations(),
+    )
+
+
+def evaluate_demand_conditioned_fault_matrix(
+    runs: Sequence[FaultMatrixRun],
+    feature_spec: OtlpFeatureSpec,
+    model_artifact_bytes: bytes,
+    confirmation_protocol_bytes: Optional[bytes] = None,
+    preregistered_git_commit: Optional[str] = None,
+) -> FaultMatrixReport:
+    """Score captures; confirmation requires a preregistered protocol."""
+
+    model = _decode_artifact(
+        model_artifact_bytes, "demand-conditioned model"
+    )
+    if (
+        model.get("schema_version") != 1
+        or model.get("kind") != "demand_conditioned_model"
+    ):
+        raise ValueError("unsupported demand-conditioned model artifact")
+    conditioner_payload = _mapping_value(model, "conditioner")
+    compiler_payload = _mapping_value(model, "window_compiler")
+    detector_payload = _mapping_value(model, "detector")
+    training_protocol = _mapping_value(model, "protocol")
+    conditioner = DemandConditioner.from_dict(conditioner_payload)
+    if (
+        detector_payload.get("kind")
+        != "demand_conditioned_coherent_predictive"
+    ):
+        raise ValueError(
+            "demand-conditioned model contains the wrong detector kind"
+        )
+    model_sha256 = hashlib.sha256(model_artifact_bytes).hexdigest()
+    training_runs = training_protocol.get("training_runs", [])
+    if not isinstance(training_runs, list):
+        raise ValueError("training_protocol.training_runs must be a list")
+    training_case_ids = {
+        str(item["case_id"])
+        for item in training_runs
+        if isinstance(item, dict) and "case_id" in item
+    }
+    evaluation_case_ids = {
+        run.manifest.case_id for run in runs
+    }
+    training_case_overlap = sorted(
+        training_case_ids & evaluation_case_ids
+    )
+    training_schedules = {
+        tuple(int(value) for value in item["canonical_request_schedule"])
+        for item in training_runs
+        if (
+            isinstance(item, dict)
+            and isinstance(
+                item.get("canonical_request_schedule"), list
+            )
+        )
+    }
+    if len(training_schedules) != len(training_runs):
+        raise ValueError(
+            "training provenance lacks canonical request schedules"
+        )
+    evaluation_schedules = {
+        canonical_request_schedule(
+            run.manifest.requests_per_window,
+            run.manifest.load_pattern_offsets,
+        )
+        for run in runs
+    }
+    training_schedule_overlap = sorted(
+        training_schedules & evaluation_schedules
+    )
+    training_fault_timings = {
+        (
+            str(item["fault_timing"]["fault_kind"]),
+            tuple(
+                int(value)
+                for value in item["fault_timing"][
+                    "structural_interval"
+                ]
+            ),
+        )
+        for item in training_runs
+        if (
+            isinstance(item, dict)
+            and isinstance(item.get("fault_timing"), dict)
+            and isinstance(
+                item["fault_timing"].get("structural_interval"),
+                list,
+            )
+            and "fault_kind" in item["fault_timing"]
+        )
+    }
+    if len(training_fault_timings) != len(training_runs):
+        raise ValueError("training provenance lacks fault timings")
+    evaluation_fault_timings = {
+        (run.manifest.fault_kind, run.manifest.structural_interval)
+        for run in runs
+    }
+    training_fault_timing_overlap = sorted(
+        training_fault_timings & evaluation_fault_timings
+    )
+    overlap_detected = bool(
+        training_case_overlap
+        or training_schedule_overlap
+        or training_fault_timing_overlap
+    )
+    confirmation_status = (
+        "development_regression"
+        if overlap_detected
+        else "out_of_sample_validation"
+    )
+    confirmation_extension: Dict[str, Any] = {}
+    if (
+        confirmation_protocol_bytes is None
+        and preregistered_git_commit is not None
+    ) or (
+        confirmation_protocol_bytes is not None
+        and preregistered_git_commit is None
+    ):
+        raise ValueError(
+            "confirmation protocol and preregistered commit are required together"
+        )
+    if confirmation_protocol_bytes is not None:
+        if overlap_detected:
+            raise ValueError(
+                "preregistered confirmation overlaps training provenance"
+            )
+        confirmation_extension = _validate_confirmation_protocol(
+            confirmation_protocol_bytes,
+            str(preregistered_git_commit),
+            model_sha256,
+            feature_spec,
+            training_runs,
+            runs,
+        )
+        confirmation_status = "preregistered_held_out_confirmation"
+    evidence_limitation = (
+        "Evaluated cases overlap training cases, realized request schedules, "
+        "or fault timings; this is development regression evidence."
+        if confirmation_status == "development_regression"
+        else "Cases, canonical realized request schedules, and fault timings "
+        "are disjoint from training, but no preregistration is attested."
+    )
+    return _evaluate_restored_fault_matrix(
+        runs=runs,
+        feature_spec=feature_spec,
+        window_compiler_artifact=compiler_payload,
+        detector_artifact=detector_payload,
+        artifact_file_sha256={"model": model_sha256},
+        feature_adapter=_DemandFeatureAdapter(conditioner),
+        evaluation_kind="demand_conditioned_fault_matrix",
+        protocol_extension={
+            "model_artifact_sha256": model_sha256,
+            "conditioning": dict(conditioner_payload),
+            "training_protocol": dict(training_protocol),
+            "confirmation_status": confirmation_status,
+            "training_case_overlap": training_case_overlap,
+            "training_schedule_overlap": [
+                list(pattern) for pattern in training_schedule_overlap
+            ],
+            "training_fault_timing_overlap": [
+                {
+                    "fault_kind": fault_kind,
+                    "structural_interval": list(interval),
+                }
+                for fault_kind, interval
+                in training_fault_timing_overlap
+            ],
+            **confirmation_extension,
+        },
+        limitations=(
+            evidence_limitation,
+            "Demand ratios assume positive observed request demand in every window.",
+            "Completion ratios encode a domain assumption that admitted requests "
+            "should lead to worker and database completions.",
+        )
+        + _base_limitations(),
+    )
+
+
+def _validate_confirmation_protocol(
+    protocol_bytes: bytes,
+    preregistered_git_commit: str,
+    model_sha256: str,
+    feature_spec: OtlpFeatureSpec,
+    training_runs: Sequence[Any],
+    evaluation_runs: Sequence[FaultMatrixRun],
+) -> Dict[str, Any]:
+    protocol = _decode_artifact(
+        protocol_bytes, "demand-conditioned confirmation protocol"
+    )
+    if (
+        protocol.get("schema_version") != 1
+        or protocol.get("kind")
+        != "demand_conditioned_v2_confirmation_protocol"
+    ):
+        raise ValueError("unsupported confirmation protocol artifact")
+    if not re.fullmatch(r"[0-9a-f]{40}", preregistered_git_commit):
+        raise ValueError("preregistered git commit must be a full SHA-1")
+    if protocol.get("model_file_sha256") != model_sha256:
+        raise ValueError("confirmation protocol model hash does not match")
+    config_sha256 = _canonical_sha256(
+        dict(vars(FROZEN_EVALUATION_CONFIG))
+    )
+    if protocol.get("evaluation_config_sha256") != config_sha256:
+        raise ValueError(
+            "confirmation protocol evaluation config does not match"
+        )
+    feature_spec_sha256 = _canonical_sha256(feature_spec.to_dict())
+    if protocol.get("feature_spec_sha256") != feature_spec_sha256:
+        raise ValueError("confirmation protocol feature spec does not match")
+    training_manifest_sha256 = sorted(
+        str(item["manifest_sha256"])
+        for item in training_runs
+        if isinstance(item, dict) and "manifest_sha256" in item
+    )
+    if protocol.get("training_manifest_sha256") != (
+        training_manifest_sha256
+    ):
+        raise ValueError(
+            "confirmation protocol training manifests do not match"
+        )
+    evaluation_manifest_sha256 = {
+        run.manifest.case_id: _canonical_sha256(run.manifest.to_dict())
+        for run in evaluation_runs
+    }
+    if protocol.get("confirmation_manifest_sha256") != (
+        evaluation_manifest_sha256
+    ):
+        raise ValueError(
+            "confirmation protocol evaluation manifests do not match"
+        )
+    frozen_files = protocol.get("frozen_files")
+    if not isinstance(frozen_files, dict) or not frozen_files:
+        raise ValueError("confirmation protocol must list frozen files")
+    if any(
+        not isinstance(path, str)
+        or not isinstance(digest, str)
+        or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+        for path, digest in frozen_files.items()
+    ):
+        raise ValueError("confirmation protocol frozen files are invalid")
+    return {
+        "confirmation_protocol_sha256": hashlib.sha256(
+            protocol_bytes
+        ).hexdigest(),
+        "preregistered_git_commit": preregistered_git_commit,
+        "confirmation_protocol": dict(protocol),
+    }
+
+
+def _evaluate_restored_fault_matrix(
+    runs: Sequence[FaultMatrixRun],
+    feature_spec: OtlpFeatureSpec,
+    window_compiler_artifact: Mapping[str, Any],
+    detector_artifact: Mapping[str, Any],
+    artifact_file_sha256: Mapping[str, str],
+    feature_adapter: _FeatureAdapter,
+    evaluation_kind: str,
+    protocol_extension: Mapping[str, Any],
+    limitations: Tuple[str, ...],
+) -> FaultMatrixReport:
+    config = FROZEN_EVALUATION_CONFIG
+    if not runs:
+        raise ValueError("fault matrix requires at least one run")
     source_compiler_sha256 = _canonical_sha256(
         window_compiler_artifact
     )
@@ -242,6 +565,7 @@ def evaluate_fault_matrix(
             compiler_payload,
             detector_payload,
             config,
+            feature_adapter,
         )
     if (
         compiler_payload != window_compiler_artifact
@@ -363,11 +687,15 @@ def evaluate_fault_matrix(
             for case in ordered_cases
         )
         and _is_sha256_hex(compiler_sha256)
-        and _is_sha256_hex(detector_sha256),
+        and _is_sha256_hex(detector_sha256)
+        and all(
+            _is_sha256_hex(value)
+            for value in artifact_file_sha256.values()
+        ),
     }
     return FaultMatrixReport(
         protocol={
-            "evaluation_kind": "held_out_frozen_model_fault_matrix",
+            "evaluation_kind": evaluation_kind,
             "model_fit_calls": 0,
             "window_compiler_sha256": compiler_sha256,
             "detector_sha256": detector_sha256,
@@ -376,6 +704,7 @@ def evaluate_fault_matrix(
             "case_fault_kinds": sorted(observed_kinds),
             "config": config_payload,
             "evaluator_config_sha256": _canonical_sha256(config_payload),
+            **dict(protocol_extension),
         },
         cases={
             key: case_reports[key] for key in sorted(case_reports)
@@ -385,17 +714,7 @@ def evaluate_fault_matrix(
             "all_passed": all(gates.values()),
             "gates": gates,
         },
-        limitations=(
-            "Three local cases are not representative of production fault diversity.",
-            "The topology and telemetry vocabulary remain the same as development.",
-            "The cache fault is a logical application-path outage, not a killed "
-            "Redis process, because Redis also carries this lab's public counters.",
-            "Load schedules and fault mechanisms are held out from fitting, but "
-            "were authored by the same development team.",
-            "Logical event-time windows are sampled faster than wall clock.",
-            "Feature evidence is associative attribution, not causal proof.",
-            "The target encoder is linear PCA, not a learned JEPA encoder.",
-        ),
+        limitations=limitations,
     )
 
 
@@ -429,6 +748,7 @@ def _evaluate_case(
     compiler_payload: Mapping[str, Any],
     detector_payload: Mapping[str, Any],
     config: FaultMatrixEvaluationConfig,
+    feature_adapter: _FeatureAdapter,
 ) -> Mapping[str, Any]:
     manifest = run.manifest
     capture = run.capture
@@ -459,10 +779,24 @@ def _evaluate_case(
             f"affected features are absent from telemetry: "
             f"{sorted(missing_affected)}"
         )
+    model_values, model_feature_names = feature_adapter.adapt(
+        compiled.values, compiled.feature_names
+    )
+    expected_model_features = feature_adapter.map_affected_features(
+        manifest.affected_features
+    )
+    missing_model_features = set(expected_model_features) - set(
+        model_feature_names
+    )
+    if missing_model_features:
+        raise ValueError(
+            f"conditioned affected features are absent: "
+            f"{sorted(missing_model_features)}"
+        )
     compiler = WindowCompiler.from_dict(dict(compiler_payload))
     detector = detector_from_dict(dict(detector_payload))
     windows = compiler.transform(
-        compiled.values, compiled.feature_names
+        model_values, model_feature_names
     )
     robust_windows, repaired_cells = repair_isolated_context_outliers(
         windows,
@@ -497,7 +831,7 @@ def _evaluate_case(
             windows.feature_names[int(index)] for index in top_indices
         )
     attribution_hit = bool(
-        set(top_features) & set(manifest.affected_features)
+        set(top_features) & set(expected_model_features)
     )
     noise_points = int(np.count_nonzero(noise_mask))
     noise_alerts = int(np.count_nonzero(scores.alerts & noise_mask))
@@ -615,9 +949,18 @@ def _evaluate_case(
             "repaired_isolated_context_cells": repaired_cells,
         },
         "attribution": {
-            "expected_features": list(manifest.affected_features),
+            "expected_features": list(expected_model_features),
             "top_features": list(top_features),
             "hit_at_3": attribution_hit,
+            **(
+                {
+                    "raw_expected_features": list(
+                        manifest.affected_features
+                    )
+                }
+                if expected_model_features != manifest.affected_features
+                else {}
+            ),
         },
         "acceptance": {
             "raw_effects_observed": all(raw_gates.values()),
@@ -713,8 +1056,21 @@ def _raw_effect_gates(
 def _markdown_report(report: FaultMatrixReport) -> str:
     aggregate = report.aggregate
     status = "PASS" if report.acceptance["all_passed"] else "FAIL"
+    confirmation_status = report.protocol.get("confirmation_status")
+    if confirmation_status == "preregistered_held_out_confirmation":
+        title = "Quantis demand-conditioned v2 confirmation"
+        pre_noise_label = "Pre-noise confirmation alerts"
+    elif confirmation_status == "out_of_sample_validation":
+        title = "Quantis demand-conditioned v2 out-of-sample validation"
+        pre_noise_label = "Pre-noise validation alerts"
+    elif confirmation_status == "development_regression":
+        title = "Quantis demand-conditioned v2 development regression"
+        pre_noise_label = "Pre-noise regression alerts"
+    else:
+        title = "Quantis held-out fault-matrix verification"
+        pre_noise_label = "Pre-noise held-out alerts"
     lines = [
-        "# Quantis held-out fault-matrix verification",
+        f"# {title}",
         "",
         f"Overall acceptance: **{status}**",
         "",
@@ -730,7 +1086,7 @@ def _markdown_report(report: FaultMatrixReport) -> str:
         f"- Routine-noise response alerts: "
         f"{aggregate['routine_noise_alerts']}/"
         f"{aggregate['routine_noise_points']}",
-        f"- Pre-noise held-out alerts: {aggregate['pre_noise_alerts']}/"
+        f"- {pre_noise_label}: {aggregate['pre_noise_alerts']}/"
         f"{aggregate['pre_noise_points']}",
         "",
         "## Cases",
@@ -796,6 +1152,35 @@ def _decode_artifact(raw: bytes, name: str) -> Mapping[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"{name} artifact must be a JSON object")
     return payload
+
+
+def _mapping_value(
+    payload: Mapping[str, Any], key: str
+) -> Mapping[str, Any]:
+    value = payload.get(key)
+    if not isinstance(value, dict):
+        raise ValueError(f"{key} must be a JSON object")
+    return value
+
+
+def _base_limitations() -> Tuple[str, ...]:
+    return (
+        "Three local cases are not representative of production fault diversity.",
+        "The topology and telemetry vocabulary remain the same as development.",
+        "The cache fault is a logical application-path outage, not a killed "
+        "Redis process, because Redis also carries this lab's public counters.",
+        "Logical event-time windows are sampled faster than wall clock.",
+        "Feature evidence is associative attribution, not causal proof.",
+        "The target encoder is linear PCA, not a learned JEPA encoder.",
+    )
+
+
+def _legacy_limitations() -> Tuple[str, ...]:
+    base = _base_limitations()
+    return base[:3] + (
+        "Load schedules and fault mechanisms are held out from fitting, but "
+        "were authored by the same development team.",
+    ) + base[3:]
 
 
 def _canonical_sha256(payload: Mapping[str, Any]) -> str:

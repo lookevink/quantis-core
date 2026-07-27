@@ -1,0 +1,119 @@
+{
+  "model_file_sha256": "a3bb0e864de266d8266de5ad7dcda7388119a16e9aa6a3d4fd348bbf601e2f8a",
+  "protocol": {
+    "config": {
+      "calibration_quantile": 0.98,
+      "consensus_rank": 2,
+      "latent_dimension": 1,
+      "lookback": 6,
+      "residual_scale_floor": 0.001,
+      "ridge": 0.01,
+      "threshold_safety_multiplier": 2.0
+    },
+    "config_sha256": "bc203f3ce166b7ab3f422bebc4c7e7c07385726b5083b978b844d247ce67b283",
+    "distinct_load_schedule_count": 3,
+    "training_point_count": 108,
+    "training_run_count": 3,
+    "training_runs": [
+      {
+        "canonical_request_schedule": [
+          7,
+          6,
+          8,
+          8
+        ],
+        "capture_sha256": "cc9c8698bb4c2fd60f4b6b937cd100b8c42595fc4b7535a59c3880e46715f08a",
+        "case_id": "cache-outage-held-out-01",
+        "fault_timing": {
+          "fault_kind": "cache_outage",
+          "structural_interval": [
+            57,
+            71
+          ]
+        },
+        "load_pattern_offsets": [
+          0,
+          -1,
+          1,
+          1,
+          0,
+          -1
+        ],
+        "manifest_sha256": "473d257411a53c628161a956f52ef5c94453fef9d1943fa3013eb7d8f269f401",
+        "requests_per_window": 7,
+        "training_interval": [
+          0,
+          36
+        ]
+      },
+      {
+        "canonical_request_schedule": [
+          7,
+          6,
+          6,
+          5,
+          6
+        ],
+        "capture_sha256": "be22c84e00fa036317156a3e7dbfc64373eacd933e536d5ce650b351a7de3ac1",
+        "case_id": "database-lock-held-out-01",
+        "fault_timing": {
+          "fault_kind": "database_lock",
+          "structural_interval": [
+            59,
+            73
+          ]
+        },
+        "load_pattern_offsets": [
+          1,
+          0,
+          0,
+          -1,
+          0,
+          1
+        ],
+        "manifest_sha256": "debdfc8ef8d45b95980f8e684fdcf3eafde364949854a4bb0b371ed4d5eedc74",
+        "requests_per_window": 6,
+        "training_interval": [
+          0,
+          36
+        ]
+      },
+      {
+        "canonical_request_schedule": [
+          6,
+          7,
+          5,
+          6,
+          7
+        ],
+        "capture_sha256": "ace68f352e8a425291b875b0a92faa04df7c4f9902444c7e1954e6b99ea021fc",
+        "case_id": "worker-crash-held-out-01",
+        "fault_timing": {
+          "fault_kind": "worker_crash",
+          "structural_interval": [
+            58,
+            72
+          ]
+        },
+        "load_pattern_offsets": [
+          0,
+          1,
+          -1,
+          0,
+          1,
+          0
+        ],
+        "manifest_sha256": "37fc1687a56625b170a98fcd20bc747f3f08571a01f2cdcfb93d85f62fdce649",
+        "requests_per_window": 6,
+        "training_interval": [
+          0,
+          36
+        ]
+      }
+    ],
+    "training_structural_points": 0,
+    "training_window_count": 90,
+    "window_boundary_policy": "compile each run separately before concatenating windows"
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,296 @@
+{
+  "conditioner": {
+    "kind": "request_demand_ratios",
+    "schema_version": 1
+  },
+  "detector": {
+    "calibration_quantile": 0.98,
+    "coefficients": [
+      [
+        -0.07933256559973367
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        -0.17563903069365597
+      ],
+      [
+        0.0
+      ],
+      [
+        -0.09602199448186903
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        -0.23147968119522136
+      ],
+      [
+        0.0
+      ],
+      [
+        -0.03765573936639036
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        -0.2761468839362347
+      ],
+      [
+        0.0
+      ],
+      [
+        0.04214443672176374
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.14926670809350573
+      ],
+      [
+        0.0
+      ],
+      [
+        0.09403229917538965
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.2628933529131605
+      ],
+      [
+        0.0
+      ],
+      [
+        0.05927952749851906
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.3653952822653602
+      ],
+      [
+        0.0
+      ],
+      [
+        -0.016450552919770704
+      ]
+    ],
+    "components": [
+      [
+        -0.9988805752573978,
+        0.0,
+        0.0,
+        0.0,
+        -0.047303238509112736,
+        -0.0
+      ]
+    ],
+    "consensus_rank": 2,
+    "context_shape": [
+      6,
+      6
+    ],
+    "kind": "demand_conditioned_coherent_predictive",
+    "latent_dimension": 1,
+    "residual_scale": [
+      0.8248175374883253,
+      0.001,
+      0.001,
+      0.001,
+      0.7398179289757247,
+      0.001
+    ],
+    "residual_scale_floor": 0.001,
+    "ridge": 0.01,
+    "schema_version": 1,
+    "target_center": [
+      0.22358565035221128,
+      0.0,
+      0.0,
+      0.0,
+      0.11877929020605822,
+      0.0
+    ],
+    "threshold": 2.9512678944677826
+  },
+  "kind": "demand_conditioned_model",
+  "protocol": {
+    "config": {
+      "calibration_quantile": 0.98,
+      "consensus_rank": 2,
+      "latent_dimension": 1,
+      "lookback": 6,
+      "residual_scale_floor": 0.001,
+      "ridge": 0.01,
+      "threshold_safety_multiplier": 2.0
+    },
+    "config_sha256": "bc203f3ce166b7ab3f422bebc4c7e7c07385726b5083b978b844d247ce67b283",
+    "distinct_load_schedule_count": 3,
+    "training_point_count": 108,
+    "training_run_count": 3,
+    "training_runs": [
+      {
+        "canonical_request_schedule": [
+          7,
+          6,
+          8,
+          8
+        ],
+        "capture_sha256": "cc9c8698bb4c2fd60f4b6b937cd100b8c42595fc4b7535a59c3880e46715f08a",
+        "case_id": "cache-outage-held-out-01",
+        "fault_timing": {
+          "fault_kind": "cache_outage",
+          "structural_interval": [
+            57,
+            71
+          ]
+        },
+        "load_pattern_offsets": [
+          0,
+          -1,
+          1,
+          1,
+          0,
+          -1
+        ],
+        "manifest_sha256": "473d257411a53c628161a956f52ef5c94453fef9d1943fa3013eb7d8f269f401",
+        "requests_per_window": 7,
+        "training_interval": [
+          0,
+          36
+        ]
+      },
+      {
+        "canonical_request_schedule": [
+          7,
+          6,
+          6,
+          5,
+          6
+        ],
+        "capture_sha256": "be22c84e00fa036317156a3e7dbfc64373eacd933e536d5ce650b351a7de3ac1",
+        "case_id": "database-lock-held-out-01",
+        "fault_timing": {
+          "fault_kind": "database_lock",
+          "structural_interval": [
+            59,
+            73
+          ]
+        },
+        "load_pattern_offsets": [
+          1,
+          0,
+          0,
+          -1,
+          0,
+          1
+        ],
+        "manifest_sha256": "debdfc8ef8d45b95980f8e684fdcf3eafde364949854a4bb0b371ed4d5eedc74",
+        "requests_per_window": 6,
+        "training_interval": [
+          0,
+          36
+        ]
+      },
+      {
+        "canonical_request_schedule": [
+          6,
+          7,
+          5,
+          6,
+          7
+        ],
+        "capture_sha256": "ace68f352e8a425291b875b0a92faa04df7c4f9902444c7e1954e6b99ea021fc",
+        "case_id": "worker-crash-held-out-01",
+        "fault_timing": {
+          "fault_kind": "worker_crash",
+          "structural_interval": [
+            58,
+            72
+          ]
+        },
+        "load_pattern_offsets": [
+          0,
+          1,
+          -1,
+          0,
+          1,
+          0
+        ],
+        "manifest_sha256": "37fc1687a56625b170a98fcd20bc747f3f08571a01f2cdcfb93d85f62fdce649",
+        "requests_per_window": 6,
+        "training_interval": [
+          0,
+          36
+        ]
+      }
+    ],
+    "training_structural_points": 0,
+    "training_window_count": 90,
+    "window_boundary_policy": "compile each run separately before concatenating windows"
+  },
+  "schema_version": 1,
+  "window_compiler": {
+    "location": [
+      1.3858214285714285,
+      0.0,
+      0.0,
+      1.0,
+      0.0027767419815063477,
+      1.0
+    ],
+    "lookback": 6,
+    "scale": [
+      0.4890109000000001,
+      1.0,
+      1.0,
+      1.0,
+      0.0023955297946929932,
+      1.0
+    ],
+    "schema_version": 1
+  }
+}

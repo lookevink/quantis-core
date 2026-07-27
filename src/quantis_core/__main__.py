@@ -11,6 +11,10 @@ from .evaluation import (
     run_evaluation,
     write_evaluation_artifacts,
 )
+from .demand_conditioning import (
+    train_demand_conditioned_model,
+    write_demand_conditioned_model,
+)
 from .fault_lab import (
     FaultLabManifest,
     evaluate_fault_lab,
@@ -20,6 +24,7 @@ from .fault_matrix import (
     FaultMatrixCaseManifest,
     FaultMatrixRun,
     evaluate_fault_matrix,
+    evaluate_demand_conditioned_fault_matrix,
     write_fault_matrix_artifacts,
 )
 from .otlp import read_otlp_capture
@@ -75,6 +80,34 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     )
     fault_matrix.add_argument("--detector-file-sha256", required=True)
     fault_matrix.add_argument("--output", type=Path, required=True)
+    train_v2 = commands.add_parser(
+        "train-demand-conditioned-v2",
+        help="fit v2 from fault-free intervals across development captures",
+    )
+    train_v2.add_argument(
+        "--captures-directory", type=Path, required=True
+    )
+    train_v2.add_argument(
+        "--manifests-directory", type=Path, required=True
+    )
+    train_v2.add_argument("--feature-spec", type=Path, required=True)
+    train_v2.add_argument("--output", type=Path, required=True)
+    evaluate_v2 = commands.add_parser(
+        "evaluate-demand-conditioned-matrix",
+        help="score fault captures with one frozen demand-conditioned model",
+    )
+    evaluate_v2.add_argument(
+        "--captures-directory", type=Path, required=True
+    )
+    evaluate_v2.add_argument(
+        "--manifests-directory", type=Path, required=True
+    )
+    evaluate_v2.add_argument("--feature-spec", type=Path, required=True)
+    evaluate_v2.add_argument("--model", type=Path, required=True)
+    evaluate_v2.add_argument("--model-file-sha256", required=True)
+    evaluate_v2.add_argument("--confirmation-protocol", type=Path)
+    evaluate_v2.add_argument("--preregistered-git-commit")
+    evaluate_v2.add_argument("--output", type=Path, required=True)
     parsed = parser.parse_args(arguments)
 
     if parsed.command == "evaluate":
@@ -161,26 +194,11 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         matrix_feature_spec = OtlpFeatureSpec.from_dict(
             json.loads(parsed.feature_spec.read_text())
         )
-        matrix_runs = []
-        for manifest_path in sorted(
-            parsed.manifests_directory.glob("*.json")
-        ):
-            matrix_manifest = FaultMatrixCaseManifest.from_dict(
-                json.loads(manifest_path.read_text())
-            )
-            capture_path = (
-                parsed.captures_directory
-                / matrix_manifest.case_id
-                / "collector-output.jsonl"
-            )
-            matrix_runs.append(
-                FaultMatrixRun(
-                    manifest=matrix_manifest,
-                    capture=read_otlp_capture(capture_path),
-                )
-            )
         matrix_report = evaluate_fault_matrix(
-            matrix_runs,
+            _load_fault_matrix_runs(
+                parsed.captures_directory,
+                parsed.manifests_directory,
+            ),
             matrix_feature_spec,
             compiler_bytes,
             detector_bytes,
@@ -194,7 +212,80 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         print(f"Fault-matrix acceptance: {matrix_status}")
         print(f"Report: {matrix_paths['report']}")
         return 0 if matrix_report.acceptance["all_passed"] else 1
+    if parsed.command == "train-demand-conditioned-v2":
+        training_feature_spec = OtlpFeatureSpec.from_dict(
+            json.loads(parsed.feature_spec.read_text())
+        )
+        training_runs = _load_fault_matrix_runs(
+            parsed.captures_directory,
+            parsed.manifests_directory,
+        )
+        v2_model = train_demand_conditioned_model(
+            training_runs, training_feature_spec
+        )
+        v2_paths = write_demand_conditioned_model(
+            v2_model, parsed.output
+        )
+        print("Demand-conditioned v2 training: PASS")
+        print(f"Model: {v2_paths['model']}")
+        return 0
+    if parsed.command == "evaluate-demand-conditioned-matrix":
+        v2_model_bytes = parsed.model.read_bytes()
+        if hashlib.sha256(v2_model_bytes).hexdigest() != (
+            parsed.model_file_sha256
+        ):
+            raise ValueError(
+                "demand-conditioned model changed after evaluation began"
+            )
+        v2_feature_spec = OtlpFeatureSpec.from_dict(
+            json.loads(parsed.feature_spec.read_text())
+        )
+        v2_report = evaluate_demand_conditioned_fault_matrix(
+            _load_fault_matrix_runs(
+                parsed.captures_directory,
+                parsed.manifests_directory,
+            ),
+            v2_feature_spec,
+            v2_model_bytes,
+            (
+                parsed.confirmation_protocol.read_bytes()
+                if parsed.confirmation_protocol is not None
+                else None
+            ),
+            parsed.preregistered_git_commit,
+        )
+        v2_paths = write_fault_matrix_artifacts(
+            v2_report, parsed.output
+        )
+        v2_status = (
+            "PASS" if v2_report.acceptance["all_passed"] else "FAIL"
+        )
+        print(f"Demand-conditioned matrix acceptance: {v2_status}")
+        print(f"Report: {v2_paths['report']}")
+        return 0 if v2_report.acceptance["all_passed"] else 1
     return 2
+
+
+def _load_fault_matrix_runs(
+    captures_directory: Path,
+    manifests_directory: Path,
+) -> Sequence[FaultMatrixRun]:
+    runs = []
+    for manifest_path in sorted(manifests_directory.glob("*.json")):
+        manifest = FaultMatrixCaseManifest.from_dict(
+            json.loads(manifest_path.read_text())
+        )
+        runs.append(
+            FaultMatrixRun(
+                manifest=manifest,
+                capture=read_otlp_capture(
+                    captures_directory
+                    / manifest.case_id
+                    / "collector-output.jsonl"
+                ),
+            )
+        )
+    return runs
 
 
 if __name__ == "__main__":

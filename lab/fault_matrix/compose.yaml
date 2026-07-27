@@ -64,7 +64,7 @@ services:
     image: quantis-fault-matrix-app:local
     command: ["python", "/app/run_experiment.py"]
     volumes:
-      - ./experiments:/experiments:ro
+      - ${EXPERIMENT_DIRECTORY:-./experiments}:/experiments:ro
     environment:
       <<: *application-environment
       API_URL: http://api:8080

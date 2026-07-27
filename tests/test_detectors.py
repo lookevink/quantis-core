@@ -2,6 +2,7 @@ import numpy as np
 
 from quantis_core.detectors import (
     CoherentLatentPredictiveDetector,
+    DemandConditionedCoherentDetector,
     LatentPredictiveDetector,
     PersistenceDetector,
     RobustFeatureDetector,
@@ -151,4 +152,36 @@ def test_coherent_detector_artifact_preserves_residual_calibration():
     np.testing.assert_allclose(
         actual.signed_feature_evidence,
         expected.signed_feature_evidence,
+    )
+
+
+def test_demand_conditioned_detector_preserves_sensitivity_to_constant_ratios():
+    axis = np.linspace(-1.0, 1.0, 40)
+    training = windows(
+        contexts=np.column_stack(
+            (axis - 0.05, np.zeros(40), np.zeros(40))
+        )[:, None, :],
+        targets=np.column_stack(
+            (axis, np.zeros(40), np.zeros(40))
+        ),
+    )
+    fitted = DemandConditionedCoherentDetector(
+        latent_dimension=1,
+        consensus_rank=2,
+        residual_scale_floor=1e-3,
+    ).fit(training)
+    restored = detector_from_dict(fitted.to_dict())
+    evaluated = windows(
+        contexts=[[[0.0, 0.0, 0.0]]],
+        targets=[[0.0, 1.0, -1.0]],
+    )
+
+    expected = fitted.score(evaluated)
+    actual = restored.score(evaluated)
+
+    assert fitted.to_dict()["residual_scale_floor"] == 1e-3
+    assert expected.scores[0] > 500.0
+    np.testing.assert_allclose(actual.scores, expected.scores)
+    np.testing.assert_allclose(
+        actual.feature_evidence, expected.feature_evidence
     )

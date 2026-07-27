@@ -275,6 +275,62 @@ class CoherentLatentPredictiveDetector(LatentPredictiveDetector):
         return detector
 
 
+class DemandConditionedCoherentDetector(
+    CoherentLatentPredictiveDetector
+):
+    """Coherent detector retaining sensitivity to stable completion ratios."""
+
+    kind = "demand_conditioned_coherent_predictive"
+
+    def __init__(
+        self,
+        latent_dimension: int = 1,
+        ridge: float = 1e-2,
+        calibration_quantile: float = 0.98,
+        consensus_rank: int = 2,
+        residual_scale_floor: float = 1e-3,
+    ) -> None:
+        super().__init__(
+            latent_dimension=latent_dimension,
+            ridge=ridge,
+            calibration_quantile=calibration_quantile,
+            consensus_rank=consensus_rank,
+        )
+        if residual_scale_floor <= 0.0:
+            raise ValueError("residual_scale_floor must be positive")
+        self.residual_scale_floor = residual_scale_floor
+
+    def _fit_model(self, windows: ModelWindows) -> None:
+        super()._fit_model(windows)
+        training_residual = np.abs(self._decoded_difference(windows))
+        self._residual_scale = np.maximum(
+            np.median(training_residual, axis=0),
+            self.residual_scale_floor,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        artifact = super().to_dict()
+        artifact["residual_scale_floor"] = self.residual_scale_floor
+        return artifact
+
+    @classmethod
+    def from_dict(
+        cls, payload: Dict[str, Any]
+    ) -> "DemandConditionedCoherentDetector":
+        detector = cls(
+            latent_dimension=int(payload["latent_dimension"]),
+            ridge=float(payload["ridge"]),
+            calibration_quantile=float(payload["calibration_quantile"]),
+            consensus_rank=int(payload["consensus_rank"]),
+            residual_scale_floor=float(payload["residual_scale_floor"]),
+        )
+        _restore_latent_state(detector, payload)
+        detector._residual_scale = np.asarray(
+            payload["residual_scale"], dtype=np.float64
+        )
+        return detector
+
+
 def _restore_latent_state(
     detector: LatentPredictiveDetector, payload: Dict[str, Any]
 ) -> None:
@@ -304,6 +360,8 @@ def detector_from_dict(payload: Dict[str, Any]) -> _CalibratedDetector:
         return LatentPredictiveDetector.from_dict(payload)
     if kind == CoherentLatentPredictiveDetector.kind:
         return CoherentLatentPredictiveDetector.from_dict(payload)
+    if kind == DemandConditionedCoherentDetector.kind:
+        return DemandConditionedCoherentDetector.from_dict(payload)
     raise ValueError(f"unsupported detector kind: {kind}")
 
 
