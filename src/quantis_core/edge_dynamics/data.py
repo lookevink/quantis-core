@@ -121,6 +121,138 @@ class PreparedEdgeDynamicsData:
         return self.windows["fit"].graph
 
 
+@dataclass(frozen=True)
+class WorkerTopologyPartition:
+    """Whole-pair in-distribution and held-out worker topologies."""
+
+    in_distribution: ActionConditionedWindows
+    held_out: ActionConditionedWindows
+    held_out_normalized_value: float
+
+
+def partition_worker_topology(
+    windows: ActionConditionedWindows,
+) -> WorkerTopologyPartition:
+    """Hold out the largest normalized worker topology by complete pair."""
+
+    try:
+        control_position = windows.control_feature_names.index(
+            "worker_replicas"
+        )
+    except ValueError as error:
+        raise ValueError(
+            "worker topology partition requires worker_replicas control"
+        ) from error
+    controls = np.asarray(windows.future_controls, dtype=np.float64)
+    values = controls[:, 0, control_position]
+    if not np.allclose(
+        controls[..., control_position], values[:, None]
+    ):
+        raise ValueError("worker topology must be constant within a window")
+    topology_by_pair: Dict[str, float] = {}
+    for pair_id, value in zip(windows.matched_pair_ids, values):
+        existing = topology_by_pair.setdefault(pair_id, float(value))
+        if not np.isclose(existing, value):
+            raise ValueError(
+                "worker topology must be constant within a matched pair"
+            )
+    unique_values = tuple(sorted(set(topology_by_pair.values())))
+    if len(unique_values) < 2:
+        raise ValueError(
+            "worker topology partition requires at least two levels"
+        )
+    held_out_value = unique_values[-1]
+    held_out_pairs = {
+        pair_id
+        for pair_id, value in topology_by_pair.items()
+        if np.isclose(value, held_out_value)
+    }
+    held_out_mask = np.asarray(
+        [
+            pair_id in held_out_pairs
+            for pair_id in windows.matched_pair_ids
+        ],
+        dtype=np.bool_,
+    )
+    return WorkerTopologyPartition(
+        in_distribution=subset_action_conditioned_windows(
+            windows, ~held_out_mask
+        ),
+        held_out=subset_action_conditioned_windows(
+            windows, held_out_mask
+        ),
+        held_out_normalized_value=held_out_value,
+    )
+
+
+def subset_action_conditioned_windows(
+    windows: ActionConditionedWindows,
+    selection: NDArray[np.bool_],
+) -> ActionConditionedWindows:
+    """Return a row subset while preserving the public semantic schema."""
+
+    mask = np.asarray(selection, dtype=np.bool_)
+    if (
+        mask.shape != (len(windows.histories),)
+        or not np.any(mask)
+    ):
+        raise ValueError("action-conditioned window selection is invalid")
+    indices = np.flatnonzero(mask)
+    return ActionConditionedWindows(
+        histories=windows.histories[indices],
+        future_states=windows.future_states[indices],
+        future_controls=windows.future_controls[indices],
+        future_actions=windows.future_actions[indices],
+        trajectory_ids=tuple(
+            windows.trajectory_ids[index] for index in indices
+        ),
+        matched_pair_ids=tuple(
+            windows.matched_pair_ids[index] for index in indices
+        ),
+        transition_indices=windows.transition_indices[indices],
+        entity_names=windows.entity_names,
+        state_feature_names=windows.state_feature_names,
+        control_feature_names=windows.control_feature_names,
+        action_feature_names=windows.action_feature_names,
+        graph=windows.graph,
+    )
+
+
+def subset_attribution_queries(
+    queries: PreparedAttributionQueries,
+    selection: NDArray[np.bool_],
+) -> PreparedAttributionQueries:
+    """Return a query subset while preserving the candidate library."""
+
+    mask = np.asarray(selection, dtype=np.bool_)
+    if (
+        mask.shape != (len(queries.query_ids),)
+        or not np.any(mask)
+    ):
+        raise ValueError("attribution query selection is invalid")
+    indices = np.flatnonzero(mask)
+    return PreparedAttributionQueries(
+        query_ids=tuple(queries.query_ids[index] for index in indices),
+        histories=queries.histories[indices],
+        future_controls=queries.future_controls[indices],
+        observed_future=queries.observed_future[indices],
+        candidate_actions=queries.candidate_actions[indices],
+        candidate_ids=queries.candidate_ids,
+        candidate_action_kinds=queries.candidate_action_kinds,
+        candidate_target_entities=queries.candidate_target_entities,
+        expected_action_kinds=tuple(
+            queries.expected_action_kinds[index] for index in indices
+        ),
+        expected_target_entities=tuple(
+            queries.expected_target_entities[index]
+            for index in indices
+        ),
+        expected_variant_ids=tuple(
+            queries.expected_variant_ids[index] for index in indices
+        ),
+    )
+
+
 def assign_edge_pair_roles(
     corpus: LoadedActionDynamicsCorpus,
 ) -> EdgePairRoles:
