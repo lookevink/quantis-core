@@ -178,6 +178,9 @@ def _run_stage(
         observation_schema_sha256=(
             observation_schema_sha256
         ),
+        application_build_context_sha256=(
+            build_context_sha256
+        ),
         qualifying_smoke_directory=(
             qualifying_smoke_directory
         ),

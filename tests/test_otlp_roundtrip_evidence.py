@@ -57,3 +57,10 @@ def test_checked_in_collector_roundtrip_matches_golden_transport_and_tensors():
     assert verification["parity"]["max_value_absolute_difference"] == 0.0
     assert verification["parity"]["max_score_absolute_difference"] == 0.0
     assert verification["compiled"]["data_quality"]["missing_cells"] == 0
+    assert verification["acceptance"]["gates"][
+        "runtime_format_action_counts"
+    ] is True
+    assert verification["capture"]["runtime_format_action_counts"] == {
+        "quantis.experiment.error_count": 3.0,
+        "quantis.experiment.request_count": 12.0,
+    }

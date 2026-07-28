@@ -3,10 +3,11 @@
 Overall acceptance: **PASS**
 
 - Collector: `ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa`
-- Capture SHA-256: `df8b4a4108bf41bc3b468244f700cd86e77ca2d6694a3e18c08cd141b2a670e8`
+- Capture SHA-256: `d62f959f1f6cef4e5d8baa7e69f2d5980891de0bd954d6b2c7b1ff0514714eb2`
 - Feature schema: `6fd422e11f03b343ab9084179fda8234d11945cf16bbd2a5ebd3bda7b8b34eac`
 - Windows × features: 240 × 12
 - Missing cells: 0
+- Runtime-format action counts: {'quantis.experiment.error_count': 3.0, 'quantis.experiment.request_count': 12.0}
 - Maximum value difference: 0
 - Maximum score difference: 0
 - Alerts identical: True
@@ -21,6 +22,7 @@ Overall acceptance: **PASS**
 - PASS: `scores_match_direct_path`
 - PASS: `alerts_match_direct_path`
 - PASS: `structural_event_detected`
+- PASS: `runtime_format_action_counts`
 - PASS: `compiled_matches_golden`
 
 ## Limitations

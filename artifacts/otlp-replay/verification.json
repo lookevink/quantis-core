@@ -6,6 +6,7 @@
       "capture_matches_golden": true,
       "compiled_matches_golden": true,
       "no_missing_cells": true,
+      "runtime_format_action_counts": true,
       "scores_match_direct_path": true,
       "structural_event_detected": true,
       "values_match_direct_path": true
@@ -13,9 +14,13 @@
   },
   "capture": {
     "json_message_count": 1,
-    "metric_point_count": 2880,
+    "metric_point_count": 2882,
     "path": "artifacts/otlp-replay/collector-output.jsonl",
-    "sha256": "df8b4a4108bf41bc3b468244f700cd86e77ca2d6694a3e18c08cd141b2a670e8"
+    "runtime_format_action_counts": {
+      "quantis.experiment.error_count": 3.0,
+      "quantis.experiment.request_count": 12.0
+    },
+    "sha256": "d62f959f1f6cef4e5d8baa7e69f2d5980891de0bd954d6b2c7b1ff0514714eb2"
   },
   "collector": {
     "config_sha256": "cd978836855e72f77d52821a0b4966ba73906ed78c3f0b89a4a1670521c7477d",
@@ -29,7 +34,7 @@
     },
     "feature_count": 12,
     "feature_schema_id": "6fd422e11f03b343ab9084179fda8234d11945cf16bbd2a5ebd3bda7b8b34eac",
-    "sha256": "eaeb2b4b56219fbc8d0cf45f3b51a4382057954b7b8aad647e9ab6bd0780ffcf",
+    "sha256": "f79aeb0e17737260fe2e6df251682f87051ec970298535868d1990e6e2c11d17",
     "window_count": 240
   },
   "detection": {

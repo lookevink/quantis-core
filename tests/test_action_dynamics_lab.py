@@ -21,6 +21,7 @@ _IMAGES = {
     "redis": "redis@sha256:" + "b" * 64,
 }
 _OBSERVATION_SCHEMA = "c" * 64
+_BUILD_CONTEXT_SHA256 = "b" * 64
 _EVIDENCE_METRIC_NAMES = (
     "quantis.experiment.request_count",
     "quantis.experiment.error_count",
@@ -241,6 +242,7 @@ def test_v3_assessment_requires_api_counts_and_enqueue_drain(
         prepared,
         image_digests=_IMAGES,
         observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
     )
     _, manifests, assignments = load_prepared_action_collection(
         prepared
@@ -268,11 +270,114 @@ def test_v3_assessment_requires_api_counts_and_enqueue_drain(
 
     assert assessment["status"] == "qualified"
     assert assessment["gates"]["api_count_resolution"] is True
+    assert assessment["gates"][
+        "request_count_schedule_binding"
+    ] is True
+    assert assessment["gates"]["count_evidence_consistency"] is True
     assert assessment["gates"]["enqueue_drain_eligibility"] is True
     assert api["treatment_active_requests"] == 240
     assert api["control_active_requests"] == 240
     assert len(enqueue) == 2
     assert all(pair["drain_eligible"] for pair in enqueue)
+
+    api_manifest = next(
+        manifest
+        for manifest in manifests
+        if manifest.action_case.actions
+        and manifest.action_case.actions[0].action_kind
+        == "api_rejection"
+    )
+    metrics_path = (
+        captures
+        / api_manifest.action_case.case_id
+        / "collector-metrics.jsonl"
+    )
+    metrics = json.loads(metrics_path.read_text())
+    error_metric = next(
+        metric
+        for metric in metrics["resourceMetrics"][0][
+            "scopeMetrics"
+        ][0]["metrics"]
+        if metric["name"]
+        == "quantis.experiment.error_count"
+    )
+    error_metric["gauge"]["dataPoints"][-1]["asDouble"] = 0.5
+    metrics_path.write_text(json.dumps(metrics) + "\n")
+
+    inconsistent = assess_prepared_action_collection(
+        prepared, captures, attestation
+    )
+
+    assert inconsistent["status"] == "failed"
+    assert inconsistent["gates"]["count_evidence_consistency"] is False
+
+
+def test_v3_assessment_rejects_counts_that_only_match_in_total(
+    tmp_path: Path,
+) -> None:
+    repository = Path(__file__).resolve().parents[1]
+    protocol = ActionCollectionProtocol.from_dict(
+        json.loads(
+            (
+                repository
+                / "lab"
+                / "action_dynamics"
+                / "smoke-protocol-v3.json"
+            ).read_text()
+        )
+    )
+    prepared = tmp_path / "inputs"
+    write_prepared_action_collection(
+        protocol,
+        prepared,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
+    )
+    _, manifests, assignments = load_prepared_action_collection(
+        prepared
+    )
+    captures = tmp_path / "cases"
+    _write_qualified_captures(captures, manifests)
+    api = next(
+        manifest
+        for manifest in manifests
+        if manifest.action_case.actions
+        and manifest.action_case.actions[0].action_kind
+        == "api_rejection"
+    )
+    metrics_path = (
+        captures
+        / api.action_case.case_id
+        / "collector-metrics.jsonl"
+    )
+    metrics = json.loads(metrics_path.read_text())
+    request_metric = next(
+        metric
+        for metric in metrics["resourceMetrics"][0][
+            "scopeMetrics"
+        ][0]["metrics"]
+        if metric["name"]
+        == "quantis.experiment.request_count"
+    )
+    action = api.action_case.actions[0]
+    points = request_metric["gauge"]["dataPoints"]
+    points[action.start_index + 1]["asDouble"] = 11.0
+    points[action.start_index + 2]["asDouble"] = 13.0
+    metrics_path.write_text(json.dumps(metrics) + "\n")
+    attestation = tmp_path / "collection-attestation.json"
+    attestation.write_text(
+        _pretty(_attestation(prepared, assignments))
+    )
+
+    assessment = assess_prepared_action_collection(
+        prepared, captures, attestation
+    )
+
+    assert assessment["status"] == "failed"
+    assert assessment["gates"][
+        "request_count_schedule_binding"
+    ] is False
 
 
 def test_prepared_collection_round_trip_recomputes_plan(
@@ -286,6 +391,7 @@ def test_prepared_collection_round_trip_recomputes_plan(
         prepared,
         image_digests=_IMAGES,
         observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
     )
     restored_protocol, manifests, assignments = (
         load_prepared_action_collection(prepared)
@@ -296,6 +402,9 @@ def test_prepared_collection_round_trip_recomputes_plan(
         manifest.prepared_plan_sha256 == written["plan_sha256"]
         for manifest in manifests
     )
+    assert json.loads((prepared / "plan.json").read_text())[
+        "application_build_context_sha256"
+    ] == _BUILD_CONTEXT_SHA256
     assert json.loads((prepared / "plan.json").read_text())[
         "kind"
     ] == "action_dynamics_execution_plan"
@@ -312,6 +421,9 @@ def test_prepared_collection_round_trip_recomputes_plan(
             prepared,
             image_digests=_IMAGES,
             observation_schema_sha256=_OBSERVATION_SCHEMA,
+            application_build_context_sha256=(
+                _BUILD_CONTEXT_SHA256
+            ),
         )
 
 
@@ -326,6 +438,7 @@ def test_pilot_preparation_binds_qualified_smoke_evidence(
         smoke_inputs,
         image_digests=_IMAGES,
         observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
     )
     _, smoke_manifests, smoke_assignments = (
         load_prepared_action_collection(smoke_inputs)
@@ -351,6 +464,7 @@ def test_pilot_preparation_binds_qualified_smoke_evidence(
         pilot_inputs,
         image_digests=_IMAGES,
         observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
         qualifying_smoke_directory=smoke,
     )
     _, manifests, assignments = load_prepared_action_collection(
@@ -386,6 +500,41 @@ def test_pilot_preparation_binds_qualified_smoke_evidence(
     assert assessment["gates"][
         "qualifying_smoke_binding"
     ] is True
+    assert assessment["identity"][
+        "qualifying_smoke_sha256"
+    ] == plan["qualifying_smoke_sha256"]
+    assert assessment["identity"]["plan_sha256"] == written[
+        "plan_sha256"
+    ]
+    write_action_collection_assessment(
+        pilot_inputs,
+        pilot_captures,
+        pilot_attestation,
+        pilot_inputs.parent,
+    )
+    assert plan["qualifying_smoke_sha256"] in (
+        pilot_inputs.parent / "report.md"
+    ).read_text()
+    (smoke / "artifact-manifest.json").write_text(
+        _pretty(
+            {
+                "schema_version": 1,
+                "kind": "action_dynamics_artifact_manifest",
+                "sha256": {},
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="artifact hashes"):
+        write_prepared_action_collection(
+            _protocol("instrumentation_pilot"),
+            tmp_path / "forged-pilot" / "inputs",
+            image_digests=_IMAGES,
+            observation_schema_sha256=_OBSERVATION_SCHEMA,
+            application_build_context_sha256=(
+                _BUILD_CONTEXT_SHA256
+            ),
+            qualifying_smoke_directory=smoke,
+        )
 
 
 def test_assessment_recomputes_smoke_evidence(
@@ -398,6 +547,7 @@ def test_assessment_recomputes_smoke_evidence(
         prepared,
         image_digests=_IMAGES,
         observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
     )
     _, manifests, assignments = load_prepared_action_collection(prepared)
     captures = tmp_path / "cases"
@@ -447,6 +597,7 @@ def test_assessment_rejects_truth_leak_and_missing_stop(
         prepared,
         image_digests=_IMAGES,
         observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
     )
     _, manifests, assignments = load_prepared_action_collection(prepared)
     captures = tmp_path / "cases"
@@ -504,6 +655,7 @@ def test_assessment_rejects_incomplete_metrics_and_broken_trace_chain(
         prepared,
         image_digests=_IMAGES,
         observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
     )
     _, manifests, assignments = load_prepared_action_collection(
         prepared

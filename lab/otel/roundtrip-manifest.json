@@ -3,6 +3,6 @@
   "collector_image": "ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa",
   "scenario_seed": 211,
   "scenario_length": 240,
-  "capture_sha256": "df8b4a4108bf41bc3b468244f700cd86e77ca2d6694a3e18c08cd141b2a670e8",
-  "compiled_sha256": "eaeb2b4b56219fbc8d0cf45f3b51a4382057954b7b8aad647e9ab6bd0780ffcf"
+  "capture_sha256": "d62f959f1f6cef4e5d8baa7e69f2d5980891de0bd954d6b2c7b1ff0514714eb2",
+  "compiled_sha256": "f79aeb0e17737260fe2e6df251682f87051ec970298535868d1990e6e2c11d17"
 }

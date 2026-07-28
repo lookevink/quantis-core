@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
+from quantis_core.otlp import read_otlp_capture
+
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 RUNTIME = REPOSITORY / "lab" / "action_dynamics"
@@ -303,3 +305,24 @@ def test_independently_worked_otlp_fixture_separates_truth_stream() -> None:
     assert "quantis.action.kind" not in observations
     assert "quantis.action.kind" in conditioning
     assert "worker_pause" in conditioning
+
+
+def test_independently_worked_count_fixture_preserves_exact_integers() -> None:
+    fixture = (
+        REPOSITORY
+        / "tests"
+        / "fixtures"
+        / "otlp"
+        / "action-dynamics-count-metrics.jsonl"
+    )
+
+    capture_result = read_otlp_capture(fixture)
+    values = {
+        point.metric_name: point.number_value
+        for point in capture_result.points
+    }
+
+    assert values == {
+        "quantis.experiment.request_count": 12.0,
+        "quantis.experiment.error_count": 3.0,
+    }

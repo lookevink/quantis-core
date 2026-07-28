@@ -868,6 +868,7 @@ def write_prepared_action_collection(
     *,
     image_digests: Mapping[str, str] | None = None,
     observation_schema_sha256: str | None = None,
+    application_build_context_sha256: str,
     qualifying_smoke_directory: Path | None = None,
 ) -> Mapping[str, Any]:
     """Persist the exact protocol, plan, and manifests once."""
@@ -888,6 +889,12 @@ def write_prepared_action_collection(
     protocol_payload = protocol.to_dict()
     protocol_path = output / "protocol.json"
     protocol_path.write_text(_pretty_json(protocol_payload))
+    if not _HEX_SHA256.fullmatch(
+        application_build_context_sha256
+    ):
+        raise ValueError(
+            "application build-context SHA-256 is invalid"
+        )
     qualifying_smoke_sha256 = (
         _write_smoke_qualification(
             Path(qualifying_smoke_directory), output
@@ -913,6 +920,9 @@ def write_prepared_action_collection(
         "schema_version": 2,
         "kind": "action_dynamics_execution_plan",
         "protocol_sha256": _canonical_sha256(protocol_payload),
+        "application_build_context_sha256": (
+            application_build_context_sha256
+        ),
         "qualifying_smoke_sha256": qualifying_smoke_sha256,
         "case_specs": {
             manifest.action_case.case_id: _manifest_plan_spec(
@@ -994,6 +1004,7 @@ def load_prepared_action_collection(
         "schema_version",
         "kind",
         "protocol_sha256",
+        "application_build_context_sha256",
         "qualifying_smoke_sha256",
         "case_specs",
         "assignments",
@@ -1004,6 +1015,12 @@ def load_prepared_action_collection(
         or plan["kind"] != "action_dynamics_execution_plan"
         or plan["protocol_sha256"]
         != _canonical_sha256(protocol_payload)
+        or not isinstance(
+            plan["application_build_context_sha256"], str
+        )
+        or not _HEX_SHA256.fullmatch(
+            plan["application_build_context_sha256"]
+        )
         or not isinstance(plan["case_specs"], dict)
         or not isinstance(plan["assignments"], list)
     ):
@@ -1066,6 +1083,9 @@ def load_prepared_action_collection(
         "schema_version": 2,
         "kind": "action_dynamics_execution_plan",
         "protocol_sha256": _canonical_sha256(protocol_payload),
+        "application_build_context_sha256": plan[
+            "application_build_context_sha256"
+        ],
         "qualifying_smoke_sha256": plan[
             "qualifying_smoke_sha256"
         ],
@@ -1147,23 +1167,33 @@ def _write_smoke_qualification(
         sources["artifact-manifest.json"]
     )
     raw_artifact_sha256s = artifact_manifest.get("sha256")
+    recomputed_assessment = assess_prepared_action_collection(
+        smoke / "inputs",
+        smoke / "cases",
+        smoke / "collection-attestation.json",
+    )
+    expected_artifact_sha256s = {
+        str(path.relative_to(smoke)): _file_sha256(path)
+        for path in sorted(smoke.rglob("*"))
+        if path.is_file()
+        and path != sources["artifact-manifest.json"]
+    }
     if (
         ActionCollectionProtocol.from_dict(protocol).stage
         != "smoke"
         or plan.get("kind") != "action_dynamics_execution_plan"
+        or recomputed_assessment != assessment
         or assessment.get("status") != "qualified"
         or assessment.get("decision")
         != "advance_to_instrumentation_pilot"
         or not isinstance(assessment.get("gates"), dict)
         or not all(assessment["gates"].values())
-        or not isinstance(raw_artifact_sha256s, dict)
-        or any(
-            not isinstance(relative, str)
-            or not isinstance(expected, str)
-            or not (smoke / relative).is_file()
-            or _file_sha256(smoke / relative) != expected
-            for relative, expected in raw_artifact_sha256s.items()
-        )
+        or set(artifact_manifest)
+        != {"schema_version", "kind", "sha256"}
+        or artifact_manifest.get("schema_version") != 1
+        or artifact_manifest.get("kind")
+        != "action_dynamics_artifact_manifest"
+        or raw_artifact_sha256s != expected_artifact_sha256s
     ):
         raise ValueError(
             "qualifying smoke assessment or artifact hashes failed"
@@ -1373,6 +1403,8 @@ def assess_prepared_action_collection(
     identity_binding = True
     action_coverage = True
     metric_completeness = True
+    count_evidence_consistency = True
+    request_count_schedule_binding = True
     trace_link_numerator = 0
     trace_link_denominator = 0
     complete_trace_numerator = 0
@@ -1409,6 +1441,14 @@ def assess_prepared_action_collection(
         )
         metric_completeness = metric_completeness and bool(
             capture["metric_completeness"]
+        )
+        count_evidence_consistency = (
+            count_evidence_consistency
+            and bool(capture["count_evidence_consistency"])
+        )
+        request_count_schedule_binding = (
+            request_count_schedule_binding
+            and bool(capture["request_count_schedule_binding"])
         )
         trace_link_numerator += int(
             capture["trace_link_numerator"]
@@ -1529,8 +1569,14 @@ def assess_prepared_action_collection(
             gates["enqueue_drain_eligibility"] = (
                 enqueue_drain_eligibility
             )
+            gates["request_count_schedule_binding"] = (
+                request_count_schedule_binding
+            )
+            gates["count_evidence_consistency"] = (
+                count_evidence_consistency
+            )
     qualified = all(gates.values())
-    return {
+    assessment: Dict[str, Any] = {
         "schema_version": 1,
         "kind": "action_dynamics_data_quality_assessment",
         "stage": protocol.stage,
@@ -1616,6 +1662,24 @@ def assess_prepared_action_collection(
             "not evidence for a world-model claim",
         ],
     }
+    if prepared_plan.get("schema_version") == 2:
+        assessment["identity"] = {
+            "protocol_sha256": _canonical_sha256(
+                _read_object(
+                    Path(prepared_directory) / "protocol.json"
+                )
+            ),
+            "plan_sha256": _canonical_sha256(prepared_plan),
+            "application_build_context_sha256": (
+                prepared_plan[
+                    "application_build_context_sha256"
+                ]
+            ),
+            "qualifying_smoke_sha256": prepared_plan.get(
+                "qualifying_smoke_sha256"
+            ),
+        }
+    return assessment
 
 
 def write_action_collection_assessment(
@@ -2004,6 +2068,15 @@ def _validate_attestation(
             and attestation.get("qualifying_smoke_sha256")
             != plan.get("qualifying_smoke_sha256")
         )
+        or (
+            plan.get("schema_version") == 2
+            and attestation.get(
+                "application_build_context_sha256"
+            )
+            != plan.get(
+                "application_build_context_sha256"
+            )
+        )
         or attestation.get("case_count") != len(assignments)
         or attestation.get("pair_count") != len(assignments) // 2
         or attestation.get("parallel_jobs") != 6
@@ -2208,11 +2281,41 @@ def _assess_capture(
         and len(required_timestamps) == 1
         and None not in required_timestamps
     )
+    observed_request_counts = metric_series.get(
+        "quantis.experiment.request_count"
+    )
+    expected_request_counts = (
+        0.0,
+        *(
+            float(value)
+            for value in manifest.request_schedule[
+                : manifest.action_case.point_count - 1
+            ]
+        ),
+    )
+    request_count_schedule_binding = (
+        not requires_count_evidence
+        or observed_request_counts == expected_request_counts
+    )
+    count_evidence_consistency = (
+        not requires_count_evidence
+        or _count_evidence_is_consistent(
+            metric_series,
+            manifest.sample_period_seconds,
+            manifest.action_case.point_count,
+        )
+    )
     return {
         "truth_exclusion": truth_exclusion,
         "identity_binding": identity_binding,
         "action_command_coverage": action_command_coverage,
         "metric_completeness": metric_completeness,
+        "request_count_schedule_binding": (
+            request_count_schedule_binding
+        ),
+        "count_evidence_consistency": (
+            count_evidence_consistency
+        ),
         "trace_link_numerator": trace_link_numerator,
         "trace_link_denominator": len(trace_records),
         "complete_trace_numerator": complete_trace_numerator,
@@ -2236,6 +2339,83 @@ def _assess_capture(
             if (directory / name).is_file()
         },
     }
+
+
+def _count_evidence_is_consistent(
+    series: Mapping[str, Sequence[float]],
+    sample_period_seconds: float,
+    point_count: int,
+) -> bool:
+    request_counts = series.get(
+        "quantis.experiment.request_count"
+    )
+    error_counts = series.get(
+        "quantis.experiment.error_count"
+    )
+    request_rates = series.get("request_rate")
+    error_rates = series.get("error_rate")
+    values = (
+        request_counts,
+        error_counts,
+        request_rates,
+        error_rates,
+    )
+    if (
+        any(value is None for value in values)
+        or any(len(value) != point_count for value in values if value is not None)
+    ):
+        return False
+    assert request_counts is not None
+    assert error_counts is not None
+    assert request_rates is not None
+    assert error_rates is not None
+    for request_count, error_count, request_rate, error_rate in zip(
+        request_counts,
+        error_counts,
+        request_rates,
+        error_rates,
+    ):
+        if (
+            not all(
+                math.isfinite(value)
+                for value in (
+                    request_count,
+                    error_count,
+                    request_rate,
+                    error_rate,
+                )
+            )
+            or request_count < 0.0
+            or error_count < 0.0
+            or error_count > request_count
+            or not request_count.is_integer()
+            or not error_count.is_integer()
+        ):
+            return False
+        expected_request_rate = (
+            request_count / sample_period_seconds
+        )
+        expected_error_rate = (
+            error_count / request_count
+            if request_count
+            else 0.0
+        )
+        if (
+            not math.isclose(
+                request_rate,
+                expected_request_rate,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+            or not math.isclose(
+                error_rate,
+                expected_error_rate,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            )
+        ):
+            return False
+    return True
 
 
 def _assess_pairs(
@@ -2892,12 +3072,25 @@ def _assessment_report(assessment: Mapping[str, Any]) -> str:
         f"recovery_pass={pair['recovery_passed']}"
         for pair in assessment["pairs"]
     )
+    identity = assessment.get("identity")
+    identity_section = ""
+    if isinstance(identity, dict):
+        identity_section = (
+            "## Identity\n\n"
+            f"- protocol SHA-256: `{identity['protocol_sha256']}`\n"
+            f"- execution-plan SHA-256: `{identity['plan_sha256']}`\n"
+            "- application build-context SHA-256: "
+            f"`{identity['application_build_context_sha256']}`\n"
+            "- qualifying-smoke SHA-256: "
+            f"`{identity['qualifying_smoke_sha256']}`\n\n"
+        )
     return (
         "# Action-dynamics collection assessment\n\n"
         f"Status: **{assessment['status']}**\n\n"
         f"Decision: `{assessment['decision']}`\n\n"
         "This is instrumentation and randomized-action data-quality "
         "evidence only. No model was trained.\n\n"
+        f"{identity_section}"
         "## Gates\n\n"
         f"{gate_lines}\n\n"
         "## Coverage\n\n"

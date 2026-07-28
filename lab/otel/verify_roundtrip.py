@@ -33,6 +33,15 @@ def main() -> None:
     scenario_length = int(manifest["scenario_length"])
 
     capture = read_otlp_capture(capture_path)
+    action_count_values = {
+        point.metric_name: point.number_value
+        for point in capture.points
+        if point.metric_name
+        in {
+            "quantis.experiment.request_count",
+            "quantis.experiment.error_count",
+        }
+    }
     feature_spec = OtlpFeatureSpec.from_dict(json.loads(spec_path.read_text()))
     compiled = OtlpWindowCompiler(feature_spec).compile(capture)
     materialized = materialize_compiled_telemetry(
@@ -126,6 +135,11 @@ def main() -> None:
         "scores_match_direct_path": max_score_difference <= 1e-12,
         "alerts_match_direct_path": alerts_identical,
         "structural_event_detected": structural_event_detected,
+        "runtime_format_action_counts": action_count_values
+        == {
+            "quantis.experiment.request_count": 12.0,
+            "quantis.experiment.error_count": 3.0,
+        },
     }
     compiled_encoded = (
         json.dumps(
@@ -152,6 +166,7 @@ def main() -> None:
             "sha256": capture.sha256,
             "json_message_count": capture.json_message_count,
             "metric_point_count": len(capture.points),
+            "runtime_format_action_counts": action_count_values,
         },
         "compiled": {
             "feature_schema_id": compiled.feature_schema_id,
@@ -234,6 +249,8 @@ def _markdown_report(report: Dict[str, Any]) -> str:
         f"- Windows × features: {compiled['window_count']} × "
         f"{compiled['feature_count']}",
         f"- Missing cells: {compiled['data_quality']['missing_cells']}",
+        f"- Runtime-format action counts: "
+        f"{report['capture']['runtime_format_action_counts']}",
         f"- Maximum value difference: "
         f"{parity['max_value_absolute_difference']:.3g}",
         f"- Maximum score difference: "

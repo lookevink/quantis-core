@@ -29,6 +29,34 @@ def build_request(seed: int, length: int) -> Dict[str, Any]:
                 },
             }
         )
+    metrics.extend(
+        [
+            {
+                "name": "quantis.experiment.request_count",
+                "unit": "1",
+                "gauge": {
+                    "dataPoints": [
+                        {
+                            "timeUnixNano": "1000000000",
+                            "asDouble": 12.0,
+                        }
+                    ]
+                },
+            },
+            {
+                "name": "quantis.experiment.error_count",
+                "unit": "1",
+                "gauge": {
+                    "dataPoints": [
+                        {
+                            "timeUnixNano": "1000000000",
+                            "asDouble": 3.0,
+                        }
+                    ]
+                },
+            },
+        ]
+    )
     return {
         "resourceMetrics": [
             {
