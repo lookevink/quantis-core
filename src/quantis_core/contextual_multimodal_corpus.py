@@ -1,7 +1,7 @@
 """Demand-aware temporal blocks for contextual multimodal JEPA training."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, Sequence, Tuple
+from typing import Any, Dict, Mapping, Sequence, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -50,6 +50,36 @@ RICH_REQUIRED_LOG_FEATURE_NAMES = (
     "database_latency_slow_count",
     "worker_busy_transition_count",
     "worker_idle_transition_count",
+)
+DEPENDENCY_LOG_FEATURE_NAMES = (
+    "checkout_completion_ratio",
+    "checkout_backlog_delta_ratio",
+    "checkout_rejection_rate",
+    "queue_pressure_transition_rate",
+    "queue_high_transition_rate",
+    "postgresql_latency_pressure_ratio",
+    "postgresql_slow_or_error_ratio",
+    "worker_activation_rate",
+    "redis_latency_pressure_rate",
+    "redis_slow_or_error_rate",
+    "checkout_queue_wait_pressure_ratio",
+    "checkout_queue_wait_slow_ratio",
+)
+DEPENDENCY_REQUIRED_LOG_FEATURE_NAMES = (
+    "checkout_accepted_count",
+    "checkout_rejected_count",
+    "checkout_completed_count",
+    "queue_backlog_elevated_transition_count",
+    "queue_backlog_high_transition_count",
+    "worker_busy_transition_count",
+    "redis_latency_elevated_count",
+    "redis_latency_slow_count",
+    "redis_operation_error_count",
+    "postgresql_latency_elevated_count",
+    "postgresql_latency_slow_count",
+    "postgresql_operation_error_count",
+    "checkout_queue_wait_elevated_count",
+    "checkout_queue_wait_slow_count",
 )
 
 
@@ -216,6 +246,126 @@ class DemandResidualLogTransformer:
         }
 
 
+class DependencyResidualLogTransformer:
+    """Encode dependency pressure without routine complementary events."""
+
+    kind = "dependency_residual_application_logs_v2"
+
+    def transform(
+        self,
+        values: NDArray[np.float64],
+        feature_names: Sequence[str],
+        request_demand: NDArray[np.float64],
+    ) -> SemanticLogTelemetry:
+        logs = np.asarray(values, dtype=np.float64)
+        demand = np.asarray(request_demand, dtype=np.float64)
+        names = tuple(feature_names)
+        if (
+            logs.ndim != 2
+            or logs.shape[1] != len(names)
+            or demand.shape != (len(logs),)
+        ):
+            raise ValueError(
+                "log values, feature names, and request demand "
+                "must align"
+            )
+        if (
+            not np.all(np.isfinite(logs))
+            or not np.all(np.isfinite(demand))
+        ):
+            raise ValueError("log values and request demand must be finite")
+        if np.any(logs < 0.0):
+            raise ValueError("application event counts cannot be negative")
+        if np.any(demand <= 0.0):
+            raise ValueError("request demand must be positive")
+        missing = (
+            set(DEPENDENCY_REQUIRED_LOG_FEATURE_NAMES) - set(names)
+        )
+        if missing:
+            raise ValueError(
+                "dependency log features are missing: "
+                f"{sorted(missing)}"
+            )
+        position = {
+            name: names.index(name)
+            for name in DEPENDENCY_REQUIRED_LOG_FEATURE_NAMES
+        }
+
+        def column(name: str) -> NDArray[np.float64]:
+            return logs[:, position[name]]
+
+        accepted = column("checkout_accepted_count")
+        rejected = column("checkout_rejected_count")
+        completed = column("checkout_completed_count")
+        completed_denominator = np.maximum(completed, 1.0)
+        transformed = np.column_stack(
+            (
+                completed / np.maximum(accepted, 1.0),
+                (accepted - completed) / demand,
+                rejected / demand,
+                (
+                    column(
+                        "queue_backlog_elevated_transition_count"
+                    )
+                    + column(
+                        "queue_backlog_high_transition_count"
+                    )
+                )
+                / demand,
+                column("queue_backlog_high_transition_count")
+                / demand,
+                (
+                    column("postgresql_latency_elevated_count")
+                    + column("postgresql_latency_slow_count")
+                )
+                / completed_denominator,
+                (
+                    column("postgresql_latency_slow_count")
+                    + column("postgresql_operation_error_count")
+                )
+                / completed_denominator,
+                column("worker_busy_transition_count") / demand,
+                (
+                    column("redis_latency_elevated_count")
+                    + column("redis_latency_slow_count")
+                )
+                / demand,
+                (
+                    column("redis_latency_slow_count")
+                    + column("redis_operation_error_count")
+                )
+                / demand,
+                (
+                    column("checkout_queue_wait_elevated_count")
+                    + column("checkout_queue_wait_slow_count")
+                )
+                / completed_denominator,
+                column("checkout_queue_wait_slow_count")
+                / completed_denominator,
+            )
+        )
+        return SemanticLogTelemetry(
+            values=transformed.astype(np.float64),
+            feature_names=DEPENDENCY_LOG_FEATURE_NAMES,
+        )
+
+    def to_dict(
+        self,
+        feature_names: Sequence[str] = DEPENDENCY_LOG_FEATURE_NAMES,
+    ) -> Dict[str, Any]:
+        if tuple(feature_names) != DEPENDENCY_LOG_FEATURE_NAMES:
+            raise ValueError(
+                "unsupported dependency-residual log features"
+            )
+        return {
+            "schema_version": 2,
+            "kind": self.kind,
+            "features": list(DEPENDENCY_LOG_FEATURE_NAMES),
+            "routine_success_events_included": False,
+            "complementary_state_pairs_included": False,
+        }
+
+
 @dataclass(frozen=True)
 class ContextualMultimodalModelWindows:
     """Run-isolated contexts, future blocks, and exogenous controls."""
@@ -357,7 +507,16 @@ def compile_contextual_multimodal_telemetry_corpus(
         base.log_window_compiler_artifact
     )
     reconstructed: Dict[str, _RunValues] = {}
-    transformer = DemandResidualLogTransformer()
+    transformer: Union[
+        DemandResidualLogTransformer,
+        DependencyResidualLogTransformer,
+    ]
+    if set(DEPENDENCY_REQUIRED_LOG_FEATURE_NAMES).issubset(
+        base.training.windows.logs.feature_names
+    ):
+        transformer = DependencyResidualLogTransformer()
+    else:
+        transformer = DemandResidualLogTransformer()
     semantic_log_feature_names: Tuple[str, ...] = ()
     for split in (base.training, base.validation):
         for case_id in split.case_ids:

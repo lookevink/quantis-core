@@ -63,6 +63,64 @@ def normal_log_capture(run) -> OtlpLogCapture:
     )
 
 
+def v2_normal_log_captures(runs):
+    captures = normal_log_captures(runs)
+    enriched = {}
+    event_names = (
+        "queue.backlog.elevated",
+        "queue.backlog.high",
+        "worker.state.busy",
+        "dependency.redis.latency.elevated",
+        "dependency.redis.latency.slow",
+        "dependency.redis.operation.error",
+        "dependency.postgresql.latency.elevated",
+        "dependency.postgresql.latency.slow",
+        "dependency.postgresql.operation.error",
+        "checkout.queue_wait.elevated",
+        "checkout.queue_wait.slow",
+    )
+    for run in runs:
+        capture = captures[run.manifest.case_id]
+        resource = capture.records[0].resource_attributes
+        extra_records = tuple(
+            LogRecord(
+                time_unix_nano=point_index * 100 + event_index + 50,
+                observed_time_unix_nano=None,
+                severity_number=(
+                    17 if event_name.endswith(".error") else 13
+                ),
+                severity_text=(
+                    "ERROR"
+                    if event_name.endswith(".error")
+                    else "WARN"
+                ),
+                body=event_name,
+                resource_attributes=resource,
+                record_attributes={
+                    "event.name": event_name,
+                    "quantis.experiment.window.index": point_index,
+                },
+                scope_name="quantis.application",
+                scope_version="2.0.0",
+                trace_id="",
+                span_id="",
+                flags=0,
+                dropped_attributes_count=0,
+            )
+            for point_index in range(run.manifest.point_count)
+            for event_index, event_name in enumerate(event_names)
+        )
+        enriched[run.manifest.case_id] = OtlpLogCapture(
+            records=capture.records + extra_records,
+            sha256=hashlib.sha256(
+                f"v2:{run.manifest.case_id}".encode()
+            ).hexdigest(),
+            source_path=f"memory://v2/{run.manifest.case_id}",
+            json_message_count=1,
+        )
+    return enriched
+
+
 def write_normal_log_captures(
     captures_directory: Path,
     manifests_directory: Path,

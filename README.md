@@ -241,3 +241,20 @@ The completed development comparison selected L1 loss with one log latent as a
 hypothesis for the next untouched corpus; the advantage was small and did not
 establish useful log transfer. See the
 [v1 development result](docs/research/contextual-multimodal-jepa-v1-results.md).
+
+The v2 development cycle replaces repetitive low/fast/idle complements with
+bounded Redis, PostgreSQL, and checkout queue-pressure events emitted by real
+lab operations. It evaluates a fixed latent-capacity and modality-balancing
+sequence using schedule-family-held-out controls only:
+
+```bash
+./lab/fault_matrix/run-contextual-multimodal-jepa-v2-development.sh
+```
+
+This collects 30 fresh development runs, trains separate contextual and
+metrics-only models plus controls, and writes the candidate leaderboard and
+selected bundle under
+`artifacts/jepa-world-model-v2/contextual-development-v2`. The v1 runs and the
+final two v2 families are diagnostic only; promotion requires a new untouched
+corpus after the v2 recipe is frozen. See the
+[v2 development specification](docs/specs/contextual-multimodal-jepa-v2-development.md).

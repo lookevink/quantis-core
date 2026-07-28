@@ -73,6 +73,9 @@ class ContextualMultimodalJepaTrainingConfig:
     huber_delta: float = 1.0
     auxiliary_loss_weight: float = 0.2
     rollout_loss_weight: float = 0.2
+    modality_mask_probability: float = 0.0
+    log_self_loss_multiplier: float = 1.0
+    cross_modal_loss_multiplier: float = 1.0
     calibration_quantile: float = 0.98
     seed: int = 0
 
@@ -81,9 +84,21 @@ class ContextualMultimodalJepaTrainingConfig:
             raise ValueError(
                 "cross_validation_epochs cannot be negative"
             )
+        if not 0.0 <= self.modality_mask_probability < 0.5:
+            raise ValueError(
+                "modality_mask_probability must be in [0, 0.5)"
+            )
+        if self.log_self_loss_multiplier < 0.0:
+            raise ValueError(
+                "log_self_loss_multiplier cannot be negative"
+            )
+        if self.cross_modal_loss_multiplier < 0.0:
+            raise ValueError(
+                "cross_modal_loss_multiplier cannot be negative"
+            )
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        payload = {
             "metric_latent_dimension": (
                 self.metric_latent_dimension
             ),
@@ -105,6 +120,19 @@ class ContextualMultimodalJepaTrainingConfig:
             "calibration_quantile": self.calibration_quantile,
             "seed": self.seed,
         }
+        if self.modality_mask_probability != 0.0:
+            payload["modality_mask_probability"] = (
+                self.modality_mask_probability
+            )
+        if self.log_self_loss_multiplier != 1.0:
+            payload["log_self_loss_multiplier"] = (
+                self.log_self_loss_multiplier
+            )
+        if self.cross_modal_loss_multiplier != 1.0:
+            payload["cross_modal_loss_multiplier"] = (
+                self.cross_modal_loss_multiplier
+            )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -597,6 +625,15 @@ def _new_detector(
         huber_delta=config.huber_delta,
         auxiliary_loss_weight=config.auxiliary_loss_weight,
         rollout_loss_weight=config.rollout_loss_weight,
+        modality_mask_probability=(
+            config.modality_mask_probability
+        ),
+        log_self_loss_multiplier=(
+            config.log_self_loss_multiplier
+        ),
+        cross_modal_loss_multiplier=(
+            config.cross_modal_loss_multiplier
+        ),
         calibration_quantile=config.calibration_quantile,
         seed=config.seed,
     )
@@ -964,6 +1001,37 @@ def _cross_validate(
             ),
             log_latent_dimension=0,
         ).fit(training_windows)
+        capacity_detector = _new_detector(
+            config,
+            pretraining_epochs=config.cross_validation_epochs,
+            predictor_refinement_epochs=refinement_epochs,
+            metric_latent_dimension=(
+                config.metric_latent_dimension
+                + config.log_latent_dimension
+            ),
+            log_latent_dimension=0,
+        ).fit(training_windows)
+        shuffled_seed = config.seed + 3_001 + fold_index
+        shuffled_training = _shuffle_logs(
+            training_windows,
+            shuffled_seed,
+        )
+        shuffled_held_out = _shuffle_logs(
+            held_out_windows,
+            shuffled_seed + 1_000,
+        )
+        shuffled_detector = _new_detector(
+            config,
+            pretraining_epochs=config.cross_validation_epochs,
+            predictor_refinement_epochs=refinement_epochs,
+        ).fit(shuffled_training)
+        log_only_detector = _new_detector(
+            config,
+            pretraining_epochs=config.cross_validation_epochs,
+            predictor_refinement_epochs=refinement_epochs,
+            metric_latent_dimension=0,
+            log_latent_dimension=config.log_latent_dimension,
+        ).fit(training_windows)
         folds.append(
             {
                 "fold": fold_index + 1,
@@ -983,6 +1051,35 @@ def _cross_validate(
                     metric_detector,
                     held_out_windows,
                 ),
+                "capacity_matched_metrics_only": (
+                    _contextual_metrics(
+                        capacity_detector,
+                        held_out_windows,
+                    )
+                ),
+                "shuffled_logs": _contextual_metrics(
+                    shuffled_detector,
+                    shuffled_held_out,
+                ),
+                "log_only": _contextual_metrics(
+                    log_only_detector,
+                    held_out_windows,
+                ),
+                "modality_dropout": {
+                    "metric_context_only": _contextual_metrics(
+                        fold_detector,
+                        held_out_windows,
+                        include_metric_context=True,
+                        include_log_context=False,
+                    ),
+                    "log_context_only": _contextual_metrics(
+                        fold_detector,
+                        held_out_windows,
+                        include_metric_context=False,
+                        include_log_context=True,
+                    ),
+                },
+                "shuffled_log_seed": shuffled_seed,
             }
         )
     contextual_rates = np.asarray(
@@ -999,6 +1096,27 @@ def _cross_validate(
         ],
         dtype=np.float64,
     )
+    capacity_rates = np.asarray(
+        [
+            fold["capacity_matched_metrics_only"]["alert_rate"]
+            for fold in folds
+        ],
+        dtype=np.float64,
+    )
+    shuffled_rates = np.asarray(
+        [
+            fold["shuffled_logs"]["alert_rate"]
+            for fold in folds
+        ],
+        dtype=np.float64,
+    )
+    log_only_rates = np.asarray(
+        [
+            fold["log_only"]["alert_rate"]
+            for fold in folds
+        ],
+        dtype=np.float64,
+    )
     return {
         "status": "completed",
         "folds": folds,
@@ -1011,11 +1129,26 @@ def _cross_validate(
             "metrics_only_mean_alert_rate": float(
                 np.mean(metric_rates)
             ),
+            "capacity_matched_mean_alert_rate": float(
+                np.mean(capacity_rates)
+            ),
+            "shuffled_logs_mean_alert_rate": float(
+                np.mean(shuffled_rates)
+            ),
+            "log_only_mean_alert_rate": float(
+                np.mean(log_only_rates)
+            ),
             "improved_fold_fraction": float(
                 np.mean(contextual_rates < metric_rates)
             ),
             "no_worse_fold_fraction": float(
                 np.mean(contextual_rates <= metric_rates)
+            ),
+            "no_worse_than_capacity_fold_fraction": float(
+                np.mean(contextual_rates <= capacity_rates)
+            ),
+            "better_than_shuffled_fold_fraction": float(
+                np.mean(contextual_rates < shuffled_rates)
             ),
         },
     }

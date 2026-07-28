@@ -1,10 +1,12 @@
 """Small structured OTLP Logs emitter for the instrumented lab application."""
 
+import hashlib
 import json
 import os
 import time
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping, Optional, Protocol, Sequence, Tuple, Union
 
 
@@ -13,8 +15,21 @@ OTLP_LOGS_ENDPOINT = os.environ.get(
     "http://collector:4318/v1/logs",
 )
 Attribute = Union[str, int, float, bool]
+DEPENDENCY_NAMES = ("postgresql", "redis")
+DEPENDENCY_LATENCY_THRESHOLDS_US = {
+    "redis": (500, 2_000),
+    "postgresql": (2_000, 10_000),
+}
+POOL_WAIT_ELEVATED_US = 2_000
+POOL_WAIT_SLOW_US = 10_000
+CHECKOUT_QUEUE_WAIT_ELEVATED_US = 10_000
+CHECKOUT_QUEUE_WAIT_SLOW_US = 50_000
 QUEUE_ENQUEUE_TRANSITION_SCRIPT = """
-redis.call('RPUSH', KEYS[1], ARGV[1])
+local timestamp = redis.call('TIME')
+local payload = cjson.decode(ARGV[1])
+payload['enqueued_unix_nano'] = timestamp[1]
+  .. string.format('%06d', tonumber(timestamp[2])) .. '000'
+redis.call('RPUSH', KEYS[1], cjson.encode(payload))
 local depth = redis.call('LLEN', KEYS[1])
 local state
 if depth <= 2 then
@@ -29,7 +44,6 @@ if previous == state then
   return {false, false, false}
 end
 redis.call('SET', KEYS[2], state)
-local timestamp = redis.call('TIME')
 return {state, timestamp[1], timestamp[2]}
 """.strip()
 QUEUE_DEQUEUE_TRANSITION_SCRIPT = """
@@ -86,6 +100,29 @@ class QueueTransition:
 
     event_name: str
     timestamp_unix_nano: int
+
+
+def experiment_identity_from_manifest(
+    path: Union[str, Path],
+) -> Mapping[str, str]:
+    """Read the immutable run identity before application work starts."""
+
+    manifest = json.loads(Path(path).read_text())
+    if not isinstance(manifest, dict):
+        raise TypeError("experiment manifest must be an object")
+    canonical = json.dumps(
+        manifest,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return {
+        "case_id": str(manifest["case_id"]),
+        "fault_kind": str(manifest["fault_kind"]),
+        "manifest_sha256": hashlib.sha256(canonical).hexdigest(),
+        "topology_id": str(
+            manifest.get("topology_id", "legacy-single-worker")
+        ),
+    }
 
 
 def queue_backlog_event_name(queue_depth: int) -> str:
@@ -153,6 +190,128 @@ def database_latency_event_name(latency_us: int) -> str:
     return "database.write.latency.slow"
 
 
+def checkout_queue_wait_event_name(
+    *,
+    enqueued_unix_nano: int,
+    dequeued_unix_nano: int,
+) -> Optional[str]:
+    """Map material queue residence time to a bounded pressure event."""
+
+    queue_wait_us = (
+        dequeued_unix_nano - enqueued_unix_nano
+    ) // 1_000
+    if queue_wait_us < 0:
+        raise ValueError("checkout queue wait cannot be negative")
+    if queue_wait_us >= CHECKOUT_QUEUE_WAIT_SLOW_US:
+        return "checkout.queue_wait.slow"
+    if queue_wait_us >= CHECKOUT_QUEUE_WAIT_ELEVATED_US:
+        return "checkout.queue_wait.elevated"
+    return None
+
+
+def checkout_queue_wait_event(
+    *,
+    enqueued_unix_nano: int,
+    dequeued_unix_nano: int,
+    origin_window_index: int,
+) -> Optional[ApplicationEvent]:
+    """Create queue pressure at the actual dequeue observation time."""
+
+    event_name = checkout_queue_wait_event_name(
+        enqueued_unix_nano=enqueued_unix_nano,
+        dequeued_unix_nano=dequeued_unix_nano,
+    )
+    if event_name is None:
+        return None
+    return ApplicationEvent(
+        event_name=event_name,
+        severity_number=13,
+        severity_text="WARN",
+        body=event_name.replace(".", " "),
+        attributes={
+            "quantis.experiment.origin.window.index": (
+                origin_window_index
+            ),
+        },
+        timestamp_unix_nano=dequeued_unix_nano,
+    )
+
+
+def dependency_operation_events(
+    *,
+    dependency_name: str,
+    latency_us: int,
+    origin_window_index: int,
+    failed: bool = False,
+    retry_count: int = 0,
+    pool_wait_us: Optional[int] = None,
+    timestamp_unix_nano: Optional[int] = None,
+) -> Tuple[ApplicationEvent, ...]:
+    """Turn one real client observation into finite, payload-free events."""
+
+    if dependency_name not in DEPENDENCY_NAMES:
+        raise ValueError(
+            f"unsupported dependency {dependency_name!r}"
+        )
+    if latency_us < 0:
+        raise ValueError("dependency latency cannot be negative")
+    if retry_count < 0:
+        raise ValueError("dependency retry count cannot be negative")
+    if pool_wait_us is not None and pool_wait_us < 0:
+        raise ValueError("dependency pool wait cannot be negative")
+    if timestamp_unix_nano is not None and timestamp_unix_nano < 0:
+        raise ValueError("dependency timestamp cannot be negative")
+
+    event_names = []
+    if not failed:
+        latency_state = _dependency_latency_state(
+            dependency_name,
+            latency_us,
+        )
+        if latency_state is not None:
+            event_names.append(
+                "dependency."
+                f"{dependency_name}.latency.{latency_state}"
+            )
+    if failed:
+        event_names.append(
+            f"dependency.{dependency_name}.operation.error"
+        )
+    if retry_count:
+        event_names.append(
+            f"dependency.{dependency_name}.retry.observed"
+        )
+    if pool_wait_us is not None:
+        pool_wait_state = _pressure_state(pool_wait_us)
+        if pool_wait_state is not None:
+            event_names.append(
+                "dependency."
+                f"{dependency_name}.pool_wait.{pool_wait_state}"
+            )
+
+    attributes: Mapping[str, Attribute] = {
+        "dependency.name": dependency_name,
+        "quantis.experiment.origin.window.index": (
+            origin_window_index
+        ),
+    }
+    return tuple(
+        ApplicationEvent(
+            event_name=event_name,
+            severity_number=(
+                17 if event_name.endswith(".error") else 13
+            ),
+            severity_text=(
+                "ERROR" if event_name.endswith(".error") else "WARN"
+            ),
+            body=event_name.replace(".", " "),
+            attributes=attributes,
+            timestamp_unix_nano=timestamp_unix_nano,
+        )
+        for event_name in event_names
+    )
+
+
 def emit_application_event(
     *,
     service_name: str,
@@ -214,7 +373,7 @@ def emit_application_events(
                     {
                         "scope": {
                             "name": "quantis.application",
-                            "version": "1.0.0",
+                            "version": "2.0.0",
                         },
                         "logRecords": [
                             {
@@ -264,6 +423,28 @@ def emit_application_events(
             raise RuntimeError(
                 f"collector returned HTTP {response.status}"
             )
+
+
+def _pressure_state(duration_us: int) -> Optional[str]:
+    if duration_us >= POOL_WAIT_SLOW_US:
+        return "slow"
+    if duration_us >= POOL_WAIT_ELEVATED_US:
+        return "elevated"
+    return None
+
+
+def _dependency_latency_state(
+    dependency_name: str,
+    latency_us: int,
+) -> Optional[str]:
+    elevated_us, slow_us = DEPENDENCY_LATENCY_THRESHOLDS_US[
+        dependency_name
+    ]
+    if latency_us >= slow_us:
+        return "slow"
+    if latency_us >= elevated_us:
+        return "elevated"
+    return None
 
 
 def _attributes(

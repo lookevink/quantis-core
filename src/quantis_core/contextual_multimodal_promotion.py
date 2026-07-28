@@ -854,8 +854,18 @@ def _validate_model_artifact(
     observed_config = {
         name: artifact.get(name) for name in expected_config
     }
+    v2_recipe_defaults = {
+        "modality_mask_probability": 0.0,
+        "log_self_loss_multiplier": 1.0,
+        "cross_modal_loss_multiplier": 1.0,
+    }
+    observed_v2_recipe = {
+        name: artifact.get(name, default)
+        for name, default in v2_recipe_defaults.items()
+    }
     if (
         observed_config != expected_config
+        or observed_v2_recipe != v2_recipe_defaults
         or artifact.get("metric_latent_dimension")
         != metric_latent_dimension
         or artifact.get("log_latent_dimension")

@@ -5,7 +5,7 @@ import os
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Mapping, NoReturn, Optional, Sequence
+from typing import Any, Callable, Mapping, NoReturn, Optional, Sequence
 from urllib.parse import parse_qs, urlparse
 
 import psycopg
@@ -14,10 +14,12 @@ import redis
 from application_logging import (
     ApplicationEvent,
     QueueTransition,
-    database_latency_event_name,
+    checkout_queue_wait_event,
+    dependency_operation_events,
     dequeue_with_queue_transition,
     emit_application_events,
     enqueue_with_queue_transition,
+    experiment_identity_from_manifest,
 )
 
 
@@ -25,6 +27,10 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://quantis:quantis@postgres:5432/quantis",
+)
+EXPERIMENT_PATH = os.environ.get(
+    "EXPERIMENT_PATH",
+    "/experiments/worker-crash.json",
 )
 QUEUE = "quantis:checkout:queue"
 COUNTERS = "quantis:counters"
@@ -89,16 +95,22 @@ class CheckoutHandler(BaseHTTPRequestHandler):
         started = time.perf_counter_ns()
         status = 202
         queue_transition: Optional[QueueTransition] = None
+        dependency_events: list[ApplicationEvent] = []
         try:
             delay_ms = float(
                 query.get("delay_ms", ["0"])[0]
             )
             if delay_ms > 0.0:
                 time.sleep(delay_ms / 1000.0)
-            if self.redis_client.get(CACHE_OUTAGE) == "1":
+            cache_outage = _observe_dependency_call(
+                lambda: self.redis_client.get(CACHE_OUTAGE),
+                dependency_name="redis",
+                origin_window_index=window_index,
+                events=dependency_events,
+            )
+            if cache_outage == "1":
                 time.sleep(0.03)
                 status = 503
-                self.redis_client.hincrby(COUNTERS, "api_errors", 1)
             else:
                 payload = json.dumps(
                     {
@@ -108,23 +120,22 @@ class CheckoutHandler(BaseHTTPRequestHandler):
                     },
                     separators=(",", ":"),
                 )
-                queue_transition = enqueue_with_queue_transition(
-                    self.redis_client,
-                    queue_key=QUEUE,
-                    state_key=QUEUE_BACKLOG_STATE,
-                    payload=payload,
+                queue_transition = _observe_dependency_call(
+                    lambda: enqueue_with_queue_transition(
+                        self.redis_client,
+                        queue_key=QUEUE,
+                        state_key=QUEUE_BACKLOG_STATE,
+                        payload=payload,
+                    ),
+                    dependency_name="redis",
+                    origin_window_index=window_index,
+                    events=dependency_events,
                 )
         except Exception:
             status = 500
-            self.redis_client.hincrby(COUNTERS, "api_errors", 1)
-        finally:
-            latency_us = max(
-                1, (time.perf_counter_ns() - started) // 1_000
-            )
-            pipeline = self.redis_client.pipeline()
-            pipeline.hincrby(COUNTERS, "api_requests", 1)
-            pipeline.hincrby(COUNTERS, "api_latency_us", latency_us)
-            pipeline.execute()
+        latency_us = max(
+            1, (time.perf_counter_ns() - started) // 1_000
+        )
         event_names = (
             (
                 "checkout.accepted"
@@ -137,9 +148,15 @@ class CheckoutHandler(BaseHTTPRequestHandler):
             service_name="quantis-fault-matrix-api",
             event_names=event_names,
             queue_transition=queue_transition,
+            additional_events=dependency_events,
             status=status,
             experiment=experiment,
             window_index=window_index,
+        )
+        _record_api_counters(
+            self.redis_client,
+            latency_us=latency_us,
+            failed=status != 202,
         )
         self._json_response(status, {"accepted": status == 202})
 
@@ -180,23 +197,69 @@ def run_worker() -> NoReturn:
     worker_id = os.environ.get("HOSTNAME", f"pid-{os.getpid()}")
     worker_busy = False
     last_activity = 0.0
-    last_experiment: Mapping[str, str] = {}
+    last_experiment = experiment_identity_from_manifest(
+        EXPERIMENT_PATH
+    )
     last_window_index = 0
     print("worker ready", flush=True)
     while True:
-        if redis_client.get(WORKER_CRASH) == "1":
-            print("worker fault: exiting with status 17", flush=True)
-            os._exit(17)
-        redis_client.set(WORKER_HEARTBEAT, repr(time.time()))
-        now = time.time()
-        redis_client.zadd(WORKER_INSTANCES, {worker_id: now})
-        redis_client.zremrangebyscore(
-            WORKER_INSTANCES, "-inf", now - 2.0
-        )
-        payload, queue_transition = dequeue_with_queue_transition(
-            redis_client,
-            queue_key=QUEUE,
-            state_key=QUEUE_BACKLOG_STATE,
+        redis_phase_started = time.perf_counter_ns()
+        try:
+            if redis_client.get(WORKER_CRASH) == "1":
+                print(
+                    "worker fault: exiting with status 17",
+                    flush=True,
+                )
+                os._exit(17)
+            redis_client.set(
+                WORKER_HEARTBEAT,
+                repr(time.time()),
+            )
+            now = time.time()
+            redis_client.zadd(
+                WORKER_INSTANCES,
+                {worker_id: now},
+            )
+            redis_client.zremrangebyscore(
+                WORKER_INSTANCES,
+                "-inf",
+                now - 2.0,
+            )
+            dequeue_started = time.perf_counter_ns()
+            payload, queue_transition = dequeue_with_queue_transition(
+                redis_client,
+                queue_key=QUEUE,
+                state_key=QUEUE_BACKLOG_STATE,
+            )
+        except Exception:
+            failed_unix_nano = time.time_ns()
+            _emit_checkout_events(
+                redis_client=redis_client,
+                service_name="quantis-fault-matrix-worker",
+                event_names=(),
+                additional_events=dependency_operation_events(
+                    dependency_name="redis",
+                    latency_us=max(
+                        1,
+                        (
+                            time.perf_counter_ns()
+                            - redis_phase_started
+                        )
+                        // 1_000,
+                    ),
+                    origin_window_index=last_window_index,
+                    failed=True,
+                    timestamp_unix_nano=failed_unix_nano,
+                ),
+                status=500,
+                experiment=last_experiment,
+                window_index=last_window_index,
+            )
+            raise
+        dequeued_unix_nano = time.time_ns()
+        redis_latency_us = max(
+            1,
+            (time.perf_counter_ns() - dequeue_started) // 1_000,
         )
         if payload is None:
             if (
@@ -222,20 +285,76 @@ def run_worker() -> NoReturn:
             for key, value in item["experiment"].items()
         }
         window_index = int(item["window_index"])
-        with database.transaction():
-            database.execute(
-                "SELECT pg_advisory_xact_lock(%s)",
-                (DATABASE_ADVISORY_LOCK,),
+        queue_wait_event = checkout_queue_wait_event(
+            enqueued_unix_nano=int(item["enqueued_unix_nano"]),
+            dequeued_unix_nano=dequeued_unix_nano,
+            origin_window_index=window_index,
+        )
+        dependency_events = list(
+            dependency_operation_events(
+                dependency_name="redis",
+                latency_us=redis_latency_us,
+                origin_window_index=window_index,
+                timestamp_unix_nano=dequeued_unix_nano,
             )
-            database.execute(
-                "INSERT INTO completed_checkout "
-                "(created_unix_nano) VALUES (%s)",
-                (int(item["created_unix_nano"]),),
+        )
+        if queue_wait_event is not None:
+            dependency_events.append(queue_wait_event)
+        database_started = time.perf_counter_ns()
+        try:
+            with database.transaction():
+                database.execute(
+                    "SELECT pg_advisory_xact_lock(%s)",
+                    (DATABASE_ADVISORY_LOCK,),
+                )
+                database.execute(
+                    "INSERT INTO completed_checkout "
+                    "(created_unix_nano) VALUES (%s)",
+                    (int(item["created_unix_nano"]),),
+                )
+        except Exception:
+            dependency_events.extend(
+                dependency_operation_events(
+                    dependency_name="postgresql",
+                    latency_us=max(
+                        1,
+                        (
+                            time.perf_counter_ns()
+                            - database_started
+                        )
+                        // 1_000,
+                    ),
+                    origin_window_index=window_index,
+                    failed=True,
+                    timestamp_unix_nano=time.time_ns(),
+                )
             )
+            _emit_checkout_events(
+                redis_client=redis_client,
+                service_name="quantis-fault-matrix-worker",
+                event_names=(),
+                additional_events=dependency_events,
+                status=500,
+                experiment=experiment,
+                window_index=window_index,
+            )
+            raise
         latency_us = max(1, (time.perf_counter_ns() - started) // 1_000)
+        database_latency_us = max(
+            1,
+            (time.perf_counter_ns() - database_started) // 1_000,
+        )
+        database_completed_unix_nano = time.time_ns()
+        dependency_events.extend(
+            dependency_operation_events(
+                dependency_name="postgresql",
+                latency_us=database_latency_us,
+                origin_window_index=window_index,
+                timestamp_unix_nano=database_completed_unix_nano,
+            )
+        )
         event_names = [
             "checkout.completed",
-            database_latency_event_name(latency_us),
         ]
         if not worker_busy:
             event_names.append("worker.state.busy")
@@ -244,6 +363,7 @@ def run_worker() -> NoReturn:
             service_name="quantis-fault-matrix-worker",
             event_names=event_names,
             queue_transition=queue_transition,
+            additional_events=dependency_events,
             status=200,
             experiment=experiment,
             window_index=window_index,
@@ -255,7 +375,10 @@ def run_worker() -> NoReturn:
         pipeline = redis_client.pipeline()
         pipeline.hincrby(COUNTERS, "worker_processed", 1)
         pipeline.hincrby(COUNTERS, "worker_db_latency_us", latency_us)
-        pipeline.execute()
+        try:
+            pipeline.execute()
+        except redis.RedisError:
+            pass
 
 
 def _experiment_identity(
@@ -275,12 +398,32 @@ def _experiment_identity(
         ) from error
 
 
+def _record_api_counters(
+    redis_client: redis.Redis,
+    *,
+    latency_us: int,
+    failed: bool,
+) -> None:
+    """Record lab metrics without blocking already-emitted OTLP logs."""
+
+    try:
+        pipeline = redis_client.pipeline()
+        pipeline.hincrby(COUNTERS, "api_requests", 1)
+        pipeline.hincrby(COUNTERS, "api_latency_us", latency_us)
+        if failed:
+            pipeline.hincrby(COUNTERS, "api_errors", 1)
+        pipeline.execute()
+    except redis.RedisError:
+        pass
+
+
 def _emit_checkout_events(
     *,
     redis_client: redis.Redis,
     service_name: str,
     event_names: Sequence[str],
     queue_transition: Optional[QueueTransition] = None,
+    additional_events: Sequence[ApplicationEvent] = (),
     status: int,
     experiment: Mapping[str, str],
     window_index: int,
@@ -305,6 +448,7 @@ def _emit_checkout_events(
             )
             for event_name in event_names
         ]
+        events.extend(additional_events)
         if queue_transition is not None:
             events.append(
                 ApplicationEvent(
@@ -333,10 +477,43 @@ def _emit_checkout_events(
             events=tuple(events),
         )
     except Exception:
-        redis_client.hincrby(
-            COUNTERS,
-            APPLICATION_LOG_EMIT_ERRORS,
-            1,
+        try:
+            redis_client.hincrby(
+                COUNTERS,
+                APPLICATION_LOG_EMIT_ERRORS,
+                1,
+            )
+        except redis.RedisError:
+            pass
+
+
+def _observe_dependency_call(
+    operation: Callable[[], Any],
+    *,
+    dependency_name: str,
+    origin_window_index: int,
+    events: list[ApplicationEvent],
+) -> Any:
+    started = time.perf_counter_ns()
+    failed = False
+    try:
+        return operation()
+    except Exception:
+        failed = True
+        raise
+    finally:
+        completed_unix_nano = time.time_ns()
+        events.extend(
+            dependency_operation_events(
+                dependency_name=dependency_name,
+                latency_us=max(
+                    1,
+                    (time.perf_counter_ns() - started) // 1_000,
+                ),
+                origin_window_index=origin_window_index,
+                failed=failed,
+                timestamp_unix_nano=completed_unix_nano,
+            )
         )
 
 

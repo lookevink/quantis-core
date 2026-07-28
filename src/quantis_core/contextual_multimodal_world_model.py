@@ -38,6 +38,9 @@ class ContextualMultimodalJepaWorldModelDetector:
         huber_delta: float = 1.0,
         auxiliary_loss_weight: float = 0.2,
         rollout_loss_weight: float = 0.2,
+        modality_mask_probability: float = 0.0,
+        log_self_loss_multiplier: float = 1.0,
+        cross_modal_loss_multiplier: float = 1.0,
         calibration_quantile: float = 0.98,
         seed: int = 0,
     ) -> None:
@@ -79,6 +82,18 @@ class ContextualMultimodalJepaWorldModelDetector:
             raise ValueError(
                 "rollout_loss_weight cannot be negative"
             )
+        if not 0.0 <= modality_mask_probability < 0.5:
+            raise ValueError(
+                "modality_mask_probability must be in [0, 0.5)"
+            )
+        if log_self_loss_multiplier < 0.0:
+            raise ValueError(
+                "log_self_loss_multiplier cannot be negative"
+            )
+        if cross_modal_loss_multiplier < 0.0:
+            raise ValueError(
+                "cross_modal_loss_multiplier cannot be negative"
+            )
         if not 0.5 < calibration_quantile < 1.0:
             raise ValueError(
                 "calibration_quantile must be between 0.5 and 1.0"
@@ -96,6 +111,13 @@ class ContextualMultimodalJepaWorldModelDetector:
         self.huber_delta = huber_delta
         self.auxiliary_loss_weight = auxiliary_loss_weight
         self.rollout_loss_weight = rollout_loss_weight
+        self.modality_mask_probability = (
+            modality_mask_probability
+        )
+        self.log_self_loss_multiplier = log_self_loss_multiplier
+        self.cross_modal_loss_multiplier = (
+            cross_modal_loss_multiplier
+        )
         self.calibration_quantile = calibration_quantile
         self.seed = seed
         self.threshold = float("nan")
@@ -140,7 +162,11 @@ class ContextualMultimodalJepaWorldModelDetector:
         for epoch in range(total_epochs):
             update_encoders = epoch < self.pretraining_epochs
             losses.append(
-                self._train_epoch(windows, update_encoders)
+                self._train_epoch(
+                    windows,
+                    update_encoders,
+                    epoch,
+                )
             )
         self.training_losses = tuple(losses)
         (
@@ -383,6 +409,7 @@ class ContextualMultimodalJepaWorldModelDetector:
         self,
         windows: ContextualMultimodalModelWindows,
         update_encoders: bool,
+        epoch_index: int,
     ) -> float:
         (
             metric_patches,
@@ -418,6 +445,14 @@ class ContextualMultimodalJepaWorldModelDetector:
                 self.log_latent_dimension,
             ),
         )
+        metric_direct_mask, log_direct_mask = (
+            self._context_modality_masks(
+                sample_count,
+                epoch_index,
+            )
+        )
+        metric_direct = metric_direct * metric_direct_mask
+        log_direct = log_direct * log_direct_mask
         joint_direct = np.concatenate(
             (metric_direct, log_direct),
             axis=3,
@@ -534,9 +569,14 @@ class ContextualMultimodalJepaWorldModelDetector:
                 self.huber_delta,
             )
             auxiliary_losses[name] = head_loss
-            auxiliary_loss += head_loss
+            objective_multiplier = (
+                self._auxiliary_objective_multiplier(name)
+            )
+            auxiliary_loss += objective_multiplier * head_loss
             scaled_gradient = (
-                self.auxiliary_loss_weight * head_gradient
+                self.auxiliary_loss_weight
+                * objective_multiplier
+                * head_gradient
             )
             head_weight_gradient = (
                 head_input.T @ scaled_gradient
@@ -556,6 +596,7 @@ class ContextualMultimodalJepaWorldModelDetector:
                         : patch_count
                         * self.metric_latent_dimension,
                     ].reshape(metric_direct.shape)
+                    * metric_direct_mask
                 )
             else:
                 log_context_gradient += (
@@ -564,6 +605,7 @@ class ContextualMultimodalJepaWorldModelDetector:
                         : patch_count
                         * self.log_latent_dimension,
                     ].reshape(log_direct.shape)
+                    * log_direct_mask
                 )
             self._head_weights[name] -= (
                 self.learning_rate * head_weight_gradient
@@ -593,8 +635,13 @@ class ContextualMultimodalJepaWorldModelDetector:
                 horizon_count,
                 joint_dimension,
             )
+            metric_context_mask = metric_direct_mask[:, 0, :, :]
+            log_context_mask = log_direct_mask[:, 0, :, :]
             joint_context = np.concatenate(
-                (metric_context, log_context),
+                (
+                    metric_context * metric_context_mask,
+                    log_context * log_context_mask,
+                ),
                 axis=2,
             )
             rolled_context = np.concatenate(
@@ -660,10 +707,10 @@ class ContextualMultimodalJepaWorldModelDetector:
 
         metric_context_gradient += joint_context_gradient[
             :, :, :, : self.metric_latent_dimension
-        ]
+        ] * metric_direct_mask
         log_context_gradient += joint_context_gradient[
             :, :, :, self.metric_latent_dimension :
-        ]
+        ] * log_direct_mask
         metric_base_gradient = np.sum(
             metric_context_gradient,
             axis=1,
@@ -674,10 +721,10 @@ class ContextualMultimodalJepaWorldModelDetector:
         )
         metric_base_gradient += rollout_context_gradient[
             :, :, : self.metric_latent_dimension
-        ]
+        ] * metric_direct_mask[:, 0, :, :]
         log_base_gradient += rollout_context_gradient[
             :, :, self.metric_latent_dimension :
-        ]
+        ] * log_direct_mask[:, 0, :, :]
 
         self._predictor_input_weights -= self.learning_rate * (
             input_weight_gradient
@@ -758,6 +805,39 @@ class ContextualMultimodalJepaWorldModelDetector:
             for name in AUXILIARY_OBJECTIVES
             if name in self._head_weights
         )
+
+    def _auxiliary_objective_multiplier(self, name: str) -> float:
+        if name == "log_to_log":
+            return self.log_self_loss_multiplier
+        if name in ("metric_to_log", "log_to_metric"):
+            return self.cross_modal_loss_multiplier
+        return 1.0
+
+    def _context_modality_masks(
+        self,
+        sample_count: int,
+        epoch_index: int,
+    ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+        shape = (sample_count, 1, 1, 1)
+        metric_mask = np.ones(shape, dtype=np.float64)
+        log_mask = np.ones(shape, dtype=np.float64)
+        if (
+            self.modality_mask_probability == 0.0
+            or self.metric_latent_dimension == 0
+            or self.log_latent_dimension == 0
+        ):
+            return metric_mask, log_mask
+        generator = np.random.default_rng(
+            self.seed + 10_007 * (epoch_index + 1)
+        )
+        selection = generator.random(sample_count)
+        probability = self.modality_mask_probability
+        metric_mask[selection < probability] = 0.0
+        log_mask[
+            (selection >= probability)
+            & (selection < 2.0 * probability)
+        ] = 0.0
+        return metric_mask, log_mask
 
     def _representations(
         self,
@@ -1278,7 +1358,7 @@ class ContextualMultimodalJepaWorldModelDetector:
             raise RuntimeError(
                 "detector must be fitted before serialization"
             )
-        return {
+        artifact = {
             "schema_version": 1,
             "kind": self.kind,
             "metric_latent_dimension": (
@@ -1359,6 +1439,19 @@ class ContextualMultimodalJepaWorldModelDetector:
             "log_feature_scale": self._log_feature_scale.tolist(),
             "training_protocol": self._training_protocol(),
         }
+        if self.modality_mask_probability != 0.0:
+            artifact["modality_mask_probability"] = (
+                self.modality_mask_probability
+            )
+        if self.log_self_loss_multiplier != 1.0:
+            artifact["log_self_loss_multiplier"] = (
+                self.log_self_loss_multiplier
+            )
+        if self.cross_modal_loss_multiplier != 1.0:
+            artifact["cross_modal_loss_multiplier"] = (
+                self.cross_modal_loss_multiplier
+            )
+        return artifact
 
     @classmethod
     def from_dict(
@@ -1395,6 +1488,15 @@ class ContextualMultimodalJepaWorldModelDetector:
             ),
             rollout_loss_weight=float(
                 payload["rollout_loss_weight"]
+            ),
+            modality_mask_probability=float(
+                payload.get("modality_mask_probability", 0.0)
+            ),
+            log_self_loss_multiplier=float(
+                payload.get("log_self_loss_multiplier", 1.0)
+            ),
+            cross_modal_loss_multiplier=float(
+                payload.get("cross_modal_loss_multiplier", 1.0)
             ),
             calibration_quantile=float(
                 payload["calibration_quantile"]
@@ -1698,7 +1800,7 @@ class ContextualMultimodalJepaWorldModelDetector:
                 "second_horizon": self._horizons[second_index],
                 "intermediate_prediction": "stop_gradient",
             }
-        return {
+        protocol = {
             "target_encoder_update": (
                 "ema_during_pretraining_only"
             ),
@@ -1717,6 +1819,25 @@ class ContextualMultimodalJepaWorldModelDetector:
                 self._active_auxiliary_objectives()
             ),
         }
+        if self.modality_mask_probability != 0.0:
+            protocol["context_modality_masking"] = {
+                "kind": (
+                    "deterministic_single_modality_dropout"
+                ),
+                "probability_per_available_modality": (
+                    self.modality_mask_probability
+                ),
+                "seed": self.seed,
+            }
+        if (
+            self.log_self_loss_multiplier != 1.0
+            or self.cross_modal_loss_multiplier != 1.0
+        ):
+            protocol["auxiliary_objective_multipliers"] = {
+                name: self._auxiliary_objective_multiplier(name)
+                for name in self._active_auxiliary_objectives()
+            }
+        return protocol
 
 
 def _validate_windows(

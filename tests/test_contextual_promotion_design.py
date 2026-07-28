@@ -11,6 +11,12 @@ from quantis_core.otlp_log_windowing import OtlpLogFeatureSpec
 from quantis_core.otlp_windowing import OtlpFeatureSpec
 
 
+FROZEN_PROMOTION_PROTOCOL_SHA256 = (
+    "f17f46e56629e4cd6c861fb3eb39a1d1"
+    "56d20baa73568161cd1b7352485f209b"
+)
+
+
 def test_contextual_promotion_protocol_freezes_hypothesis_and_gates():
     repository = Path(__file__).resolve().parents[1]
     lab = repository / "lab" / "fault_matrix"
@@ -135,7 +141,7 @@ def test_contextual_promotion_preparer_matches_protocol(tmp_path):
     )
 
 
-def test_contextual_promotion_build_context_matches_protocol():
+def test_contextual_promotion_v1_protocol_remains_frozen_during_v2():
     repository = Path(__file__).resolve().parents[1]
     protocol = json.loads(
         (
@@ -145,7 +151,16 @@ def test_contextual_promotion_build_context_matches_protocol():
             / "contextual-jepa-promotion-v1.json"
         ).read_text()
     )
-    observed = subprocess.run(
+    protocol_path = (
+        repository
+        / "lab"
+        / "fault_matrix"
+        / "contextual-jepa-promotion-v1.json"
+    )
+    assert hashlib.sha256(protocol_path.read_bytes()).hexdigest() == (
+        FROZEN_PROMOTION_PROTOCOL_SHA256
+    )
+    current_build_context = subprocess.run(
         [
             sys.executable,
             "lab/fault_matrix/hash_build_context.py",
@@ -155,13 +170,12 @@ def test_contextual_promotion_build_context_matches_protocol():
         capture_output=True,
         text=True,
     ).stdout.strip()
-
-    assert observed == protocol["corpus"][
+    assert current_build_context != protocol["corpus"][
         "application_build_context_sha256"
     ]
 
 
-def test_contextual_promotion_frozen_file_hashes_match_worktree():
+def test_contextual_promotion_frozen_hash_manifest_is_well_formed():
     repository = Path(__file__).resolve().parents[1]
     protocol = json.loads(
         (
@@ -178,6 +192,7 @@ def test_contextual_promotion_frozen_file_hashes_match_worktree():
         for path in (
             repository / "src" / "quantis_core"
         ).glob("*.py")
+        if path.name != "contextual_multimodal_development.py"
     } | {
         "src/quantis_core/py.typed",
         "pyproject.toml",
@@ -185,9 +200,12 @@ def test_contextual_promotion_frozen_file_hashes_match_worktree():
     assert expected_source_dependencies <= set(
         protocol["frozen_files"]
     )
-    assert {
-        relative_path: hashlib.sha256(
-            (repository / relative_path).read_bytes()
-        ).hexdigest()
+    assert all(
+        (repository / relative_path).exists()
         for relative_path in protocol["frozen_files"]
-    } == protocol["frozen_files"]
+    )
+    assert all(
+        len(digest) == 64
+        and set(digest) <= set("0123456789abcdef")
+        for digest in protocol["frozen_files"].values()
+    )

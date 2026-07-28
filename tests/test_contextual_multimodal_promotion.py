@@ -785,6 +785,29 @@ def test_promotion_rejects_truncated_model_artifact(
         _assess(promotion_case, result)
 
 
+def test_promotion_rejects_v2_training_recipe_fields(
+    promotion_case,
+) -> None:
+    result = _result(promotion_case["protocol"])
+    result["model"]["modality_mask_probability"] = 0.15
+    result["model"]["training_protocol"][
+        "context_modality_masking"
+    ] = {
+        "kind": "deterministic_single_modality_dropout",
+        "probability_per_available_modality": 0.15,
+        "seed": result["model"]["seed"],
+    }
+    result["protocol"]["model_artifact_sha256"] = (
+        _canonical_sha256(result["model"])
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="configuration differs from protocol",
+    ):
+        _assess(promotion_case, result)
+
+
 def test_promotion_rejects_non_finite_or_inconsistent_metrics(
     promotion_case,
 ) -> None:

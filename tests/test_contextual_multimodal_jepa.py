@@ -140,6 +140,57 @@ def test_contextual_jepa_is_conditioned_staged_and_roundtrips() -> None:
         )
 
 
+def test_contextual_jepa_v2_recipe_masks_and_balances_modalities() -> None:
+    training, validation = _contextual_windows()
+    detector = ContextualMultimodalJepaWorldModelDetector(
+        metric_latent_dimension=2,
+        log_latent_dimension=2,
+        pretraining_epochs=12,
+        predictor_refinement_epochs=4,
+        modality_mask_probability=0.15,
+        log_self_loss_multiplier=0.25,
+        cross_modal_loss_multiplier=1.5,
+        seed=71,
+    ).fit(training)
+
+    artifact = detector.to_dict()
+    assert artifact["training_protocol"][
+        "context_modality_masking"
+    ] == {
+        "kind": "deterministic_single_modality_dropout",
+        "probability_per_available_modality": 0.15,
+        "seed": 71,
+    }
+    assert artifact["training_protocol"][
+        "auxiliary_objective_multipliers"
+    ] == {
+        "metric_to_metric": 1.0,
+        "log_to_log": 0.25,
+        "metric_to_log": 1.5,
+        "log_to_metric": 1.5,
+    }
+    restored = ContextualMultimodalJepaWorldModelDetector.from_dict(
+        artifact
+    )
+    unmasked = ContextualMultimodalJepaWorldModelDetector(
+        metric_latent_dimension=2,
+        log_latent_dimension=2,
+        pretraining_epochs=12,
+        predictor_refinement_epochs=4,
+        seed=71,
+    ).fit(training)
+    np.testing.assert_allclose(
+        restored.score(validation).scores,
+        detector.score(validation).scores,
+    )
+    assert np.max(
+        np.abs(
+            detector.score(validation).scores
+            - unmasked.score(validation).scores
+        )
+    ) > 1e-6
+
+
 def _contextual_windows() -> tuple[
     ContextualMultimodalModelWindows,
     ContextualMultimodalModelWindows,

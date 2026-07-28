@@ -5,6 +5,7 @@ import numpy as np
 
 from quantis_core.contextual_multimodal_corpus import (
     DemandResidualLogTransformer,
+    DependencyResidualLogTransformer,
     compile_contextual_multimodal_telemetry_corpus,
 )
 from quantis_core.multimodal_corpus import (
@@ -17,7 +18,10 @@ from tests.corpus_test_support import (
     FRESH_CASE_IDS,
     fresh_development_runs,
 )
-from tests.multimodal_test_support import normal_log_captures
+from tests.multimodal_test_support import (
+    normal_log_captures,
+    v2_normal_log_captures,
+)
 
 
 def test_log_transformer_expresses_application_state_against_demand() -> None:
@@ -126,6 +130,90 @@ def test_log_transformer_retains_bounded_endogenous_state() -> None:
             ]
         ),
     )
+
+
+def test_v2_log_transformer_keeps_pressure_without_complement_events() -> None:
+    transformed = DependencyResidualLogTransformer().transform(
+        np.asarray(
+            [
+                [
+                    10.0,
+                    1.0,
+                    8.0,
+                    2.0,
+                    1.0,
+                    1.0,
+                    3.0,
+                    1.0,
+                    1.0,
+                    2.0,
+                    1.0,
+                    0.0,
+                    4.0,
+                    2.0,
+                ]
+            ]
+        ),
+        (
+            "checkout_accepted_count",
+            "checkout_rejected_count",
+            "checkout_completed_count",
+            "queue_backlog_elevated_transition_count",
+            "queue_backlog_high_transition_count",
+            "worker_busy_transition_count",
+            "redis_latency_elevated_count",
+            "redis_latency_slow_count",
+            "redis_operation_error_count",
+            "postgresql_latency_elevated_count",
+            "postgresql_latency_slow_count",
+            "postgresql_operation_error_count",
+            "checkout_queue_wait_elevated_count",
+            "checkout_queue_wait_slow_count",
+        ),
+        np.asarray([10.0]),
+    )
+
+    assert transformed.feature_names == (
+        "checkout_completion_ratio",
+        "checkout_backlog_delta_ratio",
+        "checkout_rejection_rate",
+        "queue_pressure_transition_rate",
+        "queue_high_transition_rate",
+        "postgresql_latency_pressure_ratio",
+        "postgresql_slow_or_error_ratio",
+        "worker_activation_rate",
+        "redis_latency_pressure_rate",
+        "redis_slow_or_error_rate",
+        "checkout_queue_wait_pressure_ratio",
+        "checkout_queue_wait_slow_ratio",
+    )
+    np.testing.assert_allclose(
+        transformed.values,
+        np.asarray(
+            [
+                [
+                    0.8,
+                    0.2,
+                    0.1,
+                    0.3,
+                    0.1,
+                    0.375,
+                    0.125,
+                    0.1,
+                    0.4,
+                    0.2,
+                    0.75,
+                    0.25,
+                ]
+            ]
+        ),
+    )
+    assert transformed.feature_names.count(
+        "database_latency_fast_ratio"
+    ) == 0
+    assert transformed.feature_names.count(
+        "worker_idle_transition_rate"
+    ) == 0
 
 
 def test_contextual_corpus_builds_conditioned_multihorizon_blocks() -> None:
@@ -241,6 +329,50 @@ def test_contextual_corpus_compiles_rich_promotion_log_vocabulary() -> None:
     assert corpus.preprocessing["logs"]["transformer"][
         "features"
     ] == list(corpus.training.windows.log_feature_names)
+
+
+def test_contextual_corpus_selects_v2_dependency_transformer() -> None:
+    runs, metric_spec = fresh_development_runs()
+    log_spec = OtlpLogFeatureSpec.from_dict(
+        json.loads(
+            open(
+                "lab/fault_matrix/"
+                "contextual-v2-log-feature-spec.json"
+            ).read()
+        )
+    )
+    base = compile_multimodal_telemetry_corpus(
+        runs,
+        v2_normal_log_captures(runs),
+        metric_spec,
+        log_spec,
+        TelemetryCorpusSplitSpec(
+            training_case_ids=FRESH_CASE_IDS[:2],
+            validation_case_ids=(FRESH_CASE_IDS[2],),
+            reserved_case_ids=(),
+            lookback=6,
+        ),
+    )
+
+    corpus = compile_contextual_multimodal_telemetry_corpus(
+        base,
+        runs,
+    )
+
+    assert corpus.training.windows.log_contexts.shape == (
+        48,
+        6,
+        12,
+    )
+    assert corpus.preprocessing["logs"]["transformer"] == {
+        "schema_version": 2,
+        "kind": "dependency_residual_application_logs_v2",
+        "features": list(
+            corpus.training.windows.log_feature_names
+        ),
+        "routine_success_events_included": False,
+        "complementary_state_pairs_included": False,
+    }
 
 
 def _rich_normal_log_captures(runs):
