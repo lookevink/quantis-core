@@ -43,6 +43,7 @@ from quantis_core.edge_dynamics.models import (
 )
 from quantis_core.edge_dynamics.residual_jepa import (
     FrozenBaselineResidualDynamics,
+    artifact_sha256,
     assess_residual_jepa_development,
     latent_divergence_detection,
     write_residual_jepa_artifacts,
@@ -56,7 +57,7 @@ def run_residual_jepa_development(
     output_directory: Path,
     epochs: int = 60,
     batch_size: int = 256,
-    device: str = "auto",
+    device: str = "cpu",
     seed: int = 113,
 ) -> Mapping[str, Any]:
     """Fit controls and write immutable open-development evidence."""
@@ -110,7 +111,7 @@ def run_residual_jepa_development(
     started = time.perf_counter()
     baseline.fit(fit)
     training_seconds["raw_low_rank"] = time.perf_counter() - started
-    baseline_hash_before = _artifact_hash(baseline.to_dict())
+    baseline_hash_before = artifact_sha256(baseline.to_dict())
 
     shared_config = {
         "node_latent_dimension": 16,
@@ -118,8 +119,6 @@ def run_residual_jepa_development(
         "epochs": epochs,
         "batch_size": batch_size,
         "context_reconstruction_weight": 0.0,
-        "variance_weight": 0.01,
-        "covariance_weight": 0.005,
         "zero_initialize_decoder": True,
         "device": device,
         "seed": seed,
@@ -128,6 +127,8 @@ def run_residual_jepa_development(
         **shared_config,
         mask_time_fraction=0.0,
         mask_entity_fraction=0.0,
+        variance_weight=0.0,
+        covariance_weight=0.0,
         objective="supervised",
     )
     jepa_config = ActionConditionedJepaConfig(
@@ -136,6 +137,8 @@ def run_residual_jepa_development(
         mask_entity_fraction=0.25,
         latent_prediction_weight=0.2,
         reconstruction_weight=1.0,
+        variance_weight=0.01,
+        covariance_weight=0.005,
         objective="jepa",
     )
     supervised = FrozenBaselineResidualDynamics(
@@ -158,7 +161,7 @@ def run_residual_jepa_development(
         training_seconds,
         "jepa_residual_correction",
     )
-    baseline_hash_after = _artifact_hash(baseline.to_dict())
+    baseline_hash_after = artifact_sha256(baseline.to_dict())
     if baseline_hash_before != baseline_hash_after:
         raise RuntimeError("shared frozen baseline changed during training")
     supervised.select_correction_gain(selection)
@@ -334,18 +337,6 @@ def _timed_fit(
     timings[name] = time.perf_counter() - started
 
 
-def _artifact_hash(artifact: Mapping[str, Any]) -> str:
-    import hashlib
-
-    payload = json.dumps(
-        artifact,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
 def _training_runtime(
     *,
     jepa: ActionConditionedJepaDynamics,
@@ -426,7 +417,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--device",
         choices=("auto", "cpu", "mps"),
-        default="mps",
+        default="cpu",
     )
     parser.add_argument("--seed", type=int, default=113)
     parsed = parser.parse_args(arguments)

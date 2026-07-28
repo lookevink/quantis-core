@@ -124,6 +124,10 @@ def test_residual_jepa_roundtrips_and_exposes_latent_divergence() -> None:
     assert np.allclose(first.mean, second.mean, atol=1e-6)
     assert model.selected_gain in (0.0, 0.25, 0.5, 0.75, 1.0)
     assert len(model.selection_curve) == 5
+    assert (
+        model.correction.initial_maximum_absolute_prediction
+        == 0.0
+    )
 
 
 def test_residual_jepa_assessment_keeps_confirmation_sealed() -> None:

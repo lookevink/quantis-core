@@ -68,12 +68,15 @@ This avoids asking an EMA encoder to equate raw state with a different
 residual-valued input domain. Context reconstruction is disabled because the
 residual decoder must not also be trained to reproduce raw state.
 
-Use deterministic PyTorch execution, seed 113, 60 epochs, batch size 256,
-AdamW at `1e-3`, EMA decay `0.996`, and the available Apple MPS backend.
-Residual MSE has weight `1.0`; the auxiliary JEPA latent loss has weight
-`0.2`; variance and covariance penalties have weights `0.01` and `0.005`.
-Mask contiguous 30% time blocks for 25% of entity tokens. These deliberately
-make observable residual accuracy primary and JEPA a light regularizer.
+Use deterministic PyTorch CPU execution, seed 113, 60 epochs, batch size 256,
+AdamW at `1e-3`, and EMA decay `0.996`. CPU is the confirmation backend because
+two same-seed Apple MPS development runs were not bitwise reproducible despite
+requesting deterministic algorithms. The supervised control has residual MSE
+weight `1.0` and every auxiliary weight set to zero. The JEPA branch has
+residual MSE weight `1.0`, latent loss weight `0.2`, and variance/covariance
+weights `0.01` and `0.005`. Mask contiguous 30% time blocks for 25% of entity
+tokens. These deliberately make observable residual accuracy primary and JEPA
+a light regularizer.
 
 ## Selection
 
@@ -95,8 +98,9 @@ Report in-distribution and topology-transfer:
 - JEPA token effective-rank diagnostics.
 
 Evaluate JEPA latent divergence separately. Reduce each in-distribution control
-trajectory to its maximum point divergence and calibrate the threshold over
-those trajectory maxima. Then report trajectory-level control false alarms,
+trajectory to the maximum divergence across every predicted horizon and
+calibrate the threshold over those trajectory maxima. Then report
+trajectory-level control false alarms,
 post-onset treatment detection, and median delay for both in-distribution and
 topology-transfer evaluation. This aligns the calibration and gate units and
 avoids compounding a pointwise false-alarm probability over dozens of

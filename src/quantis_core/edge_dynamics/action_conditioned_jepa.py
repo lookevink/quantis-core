@@ -999,6 +999,18 @@ def _build_network(
                 batch["future_controls"],
                 batch["future_actions"],
             )
+            target = self._target_latents(batch)
+            return {
+                "predicted_latents": predicted,
+                "target_latents": target,
+                "decoded_future": self.decoder(predicted),
+                "decoded_context": self.decoder(context),
+                "context_tokens": context,
+            }
+
+        def _target_latents(
+            self, batch: Mapping[str, Any]
+        ) -> Any:
             with torch.no_grad():
                 target_values = torch.cat(
                     (
@@ -1012,16 +1024,9 @@ def _build_network(
                     dtype=torch.bool,
                     device=target_values.device,
                 )
-                target = self.target(
+                return self.target(
                     target_values, target_visible
                 )[:, 1:]
-            return {
-                "predicted_latents": predicted,
-                "target_latents": target,
-                "decoded_future": self.decoder(predicted),
-                "decoded_context": self.decoder(context),
-                "context_tokens": context,
-            }
 
         def forward_latent_prediction(
             self, batch: Mapping[str, Any]
@@ -1037,22 +1042,7 @@ def _build_network(
                 batch["future_controls"],
                 batch["future_actions"],
             )
-            target_values = torch.cat(
-                (
-                    batch["histories"][:, -1:],
-                    batch["future_states"],
-                ),
-                dim=1,
-            )
-            target_visible = torch.ones(
-                target_values.shape[:-1],
-                dtype=torch.bool,
-                device=target_values.device,
-            )
-            target = self.target(
-                target_values, target_visible
-            )[:, 1:]
-            return predicted, target
+            return predicted, self._target_latents(batch)
 
         def forward_prediction(
             self, histories: Any, controls: Any, actions: Any

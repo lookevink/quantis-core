@@ -57,9 +57,7 @@ class FrozenBaselineResidualDynamics:
         )
         if _canonical_json_bytes(self.baseline.to_dict()) != baseline_bytes:
             raise RuntimeError("residual fitting mutated the frozen baseline")
-        self._baseline_sha256 = hashlib.sha256(
-            baseline_bytes
-        ).hexdigest()
+        self._baseline_sha256 = artifact_sha256(baseline_artifact)
         self._fitted = True
         return self
 
@@ -242,9 +240,7 @@ class FrozenBaselineResidualDynamics:
             if isinstance(row, Mapping)
         )
         model._baseline_sha256 = str(payload["baseline_sha256"])
-        expected_hash = hashlib.sha256(
-            _canonical_json_bytes(model.baseline.to_dict())
-        ).hexdigest()
+        expected_hash = artifact_sha256(model.baseline.to_dict())
         if model._baseline_sha256 != expected_hash:
             raise ValueError("residual JEPA baseline hash does not match")
         model._fitted = True
@@ -273,8 +269,8 @@ def latent_divergence_detection(
 
     if not 0.0 < alpha < 1.0:
         raise ValueError("latent divergence alpha must be in (0, 1)")
-    calibration_scores = model.latent_divergence(calibration)[:, 0]
-    evaluation_scores = model.latent_divergence(evaluation)[:, 0]
+    calibration_scores = model.latent_divergence(calibration)
+    evaluation_scores = model.latent_divergence(evaluation)
     calibration_groups = _trajectory_groups(calibration)
     control_maxima = np.asarray(
         [
@@ -362,7 +358,12 @@ def _latent_detection_rows(
         )
         trajectory_scores = scores[
             np.asarray(positions, dtype=np.int64)
-        ]
+        ].reshape(-1)
+        horizon = scores.shape[1]
+        transitions = (
+            transitions[:, None]
+            + np.arange(horizon, dtype=np.int64)[None, :]
+        ).reshape(-1)
         alarms = trajectory_scores > threshold
         onset = group["onset"]
         if onset is None:
@@ -606,6 +607,12 @@ def _canonical_json_bytes(payload: Mapping[str, Any]) -> bytes:
         separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
+
+
+def artifact_sha256(payload: Mapping[str, Any]) -> str:
+    """Return the canonical SHA-256 used for model identity."""
+
+    return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
 
 
 def _pretty_json(payload: Mapping[str, Any]) -> str:
