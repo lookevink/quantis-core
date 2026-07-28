@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "kind": "observability_rich_graph_jepa_confirmation_v1",
+  "claim": "within the fixed Quantis checkout stack, a graph-structured representation with frozen subsystem-specific widths preserves compact operational state and improves localized future-state prediction across held-out workload schedules and one-to-three-worker topologies",
+  "claim_exclusions": [
+    "fault localization",
+    "causal propagation",
+    "counterfactual prediction",
+    "action selection",
+    "cross-stack generalization",
+    "a validated general-purpose world model"
+  ],
+  "corpus": {
+    "case_prefix": "observability-graph-confirmation-v1",
+    "seed_label": 211,
+    "point_count": 340,
+    "sample_period_seconds": 0.1,
+    "lookback": 20,
+    "target_horizons": [1, 5, 10],
+    "target_block_size": 2,
+    "worker_replicas": [1, 2, 3],
+    "training_family_count": 12,
+    "validation_family_count": 12,
+    "expected_application_api_request_queue_size": 128,
+    "application_build_context_sha256": "34b50065893786c3d44d28fbd43b1e61082ba1dc99857bebdf94e8fe5c32de91",
+    "schedule_generator": {
+      "algorithm": "lcg32_offsets_v1",
+      "seed": 211,
+      "family_count": 24,
+      "baseline_min": 6,
+      "baseline_count": 10,
+      "baseline_stride": 7,
+      "period_min": 13,
+      "period_count": 7,
+      "offset_radius": 4,
+      "expanded_sha256": "69d03ea55f7acbd31a83a1bf135c93c8b8224b7dfce8dd3a7c9295f92074e809"
+    }
+  },
+  "collection": {
+    "parallel_jobs": 3,
+    "family_order": [
+      1, 13, 2, 14, 3, 15, 4, 16, 5, 17, 6, 18,
+      7, 19, 8, 20, 9, 21, 10, 22, 11, 23, 12, 24
+    ],
+    "lane_assignment": "latin_rotation_by_family_and_topology"
+  },
+  "metric_vocabulary": {
+    "feature_schema_id": "b1864b81545b644b0928d0082b8e87875c3224b02409b55f64393505862535d5",
+    "feature_spec_sha256": "b1864b81545b644b0928d0082b8e87875c3224b02409b55f64393505862535d5"
+  },
+  "log_vocabulary": {
+    "feature_schema_id": "948feccb0dbce4b52fd47e8a75a9d0650d2677859396eb5b1863dc2892f34393"
+  },
+  "graph_widths": {
+    "api": 2,
+    "checkout_queue": 4,
+    "worker_pool": 6,
+    "redis": 3,
+    "postgresql": 2,
+    "api_enqueues_queue": 2,
+    "queue_dequeues_to_worker": 3,
+    "queue_hosted_on_redis": 0,
+    "worker_writes_postgresql": 4
+  },
+  "training_seeds": [89, 97, 101, 103, 107],
+  "determinism_repeat_seed": 89,
+  "gates": {
+    "maximum_raw_one_hop_normalized_mse": 1.0,
+    "maximum_critical_group_normalized_mse": 1.0,
+    "maximum_reconstruction_mse": 0.1,
+    "minimum_context_compression_ratio": 1.25,
+    "maximum_one_hop_to_all_entity_ratio": 1.05,
+    "minimum_no_worse_validation_families": 9,
+    "minimum_seed_wins": 4
+  }
+}

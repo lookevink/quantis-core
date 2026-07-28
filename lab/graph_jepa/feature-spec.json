@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "window_period_nano": 1000000000,
+  "features": [
+    {"name": "request_rate", "metric_name": "request_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "request_latency_ms", "metric_name": "request_latency_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "error_rate", "metric_name": "error_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "api_inflight_current", "metric_name": "api_inflight_current", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "api_inflight_peak", "metric_name": "api_inflight_peak", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "api_concurrency_mean", "metric_name": "api_concurrency_mean", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "queue_depth", "metric_name": "queue_depth", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "queue_oldest_age_ms", "metric_name": "queue_oldest_age_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "enqueue_event_age_ms", "metric_name": "enqueue_event_age_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "dequeue_event_age_ms", "metric_name": "dequeue_event_age_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "queue_residence_mean_ms", "metric_name": "queue_residence_mean_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_rate", "metric_name": "worker_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_heartbeat_age_s", "metric_name": "worker_heartbeat_age_s", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_active_count", "metric_name": "worker_active_count", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_busy_count", "metric_name": "worker_busy_count", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_busy_age_max_ms", "metric_name": "worker_busy_age_max_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_busy_fraction", "metric_name": "worker_busy_fraction", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "worker_processing_latency_ms", "metric_name": "worker_processing_latency_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "redis_enqueue_latency_ms", "metric_name": "redis_enqueue_latency_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "redis_enqueue_error_rate", "metric_name": "redis_enqueue_error_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "redis_dequeue_latency_ms", "metric_name": "redis_dequeue_latency_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "redis_dequeue_error_rate", "metric_name": "redis_dequeue_error_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "db_write_rate", "metric_name": "db_write_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "postgresql_write_latency_ms", "metric_name": "postgresql_write_latency_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "postgresql_write_error_rate", "metric_name": "postgresql_write_error_rate", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}},
+    {"name": "postgresql_write_event_age_ms", "metric_name": "postgresql_write_event_age_ms", "statistic": "gauge_last", "resource_attributes": {"service.name": "quantis-fault-lab"}, "point_attributes": {}}
+  ]
+}

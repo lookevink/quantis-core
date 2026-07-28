@@ -1,0 +1,92 @@
+services:
+  redis:
+    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+
+  postgres:
+    image: postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      POSTGRES_DB: quantis
+      POSTGRES_USER: quantis
+      POSTGRES_PASSWORD: quantis
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U quantis -d quantis"]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+
+  collector:
+    image: ghcr.io/open-telemetry/opentelemetry-collector-releases/opentelemetry-collector-contrib:0.153.0@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ../fault_matrix/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - ${CAPTURE_DIRECTORY}:/captures
+
+  api:
+    build:
+      context: ..
+      dockerfile: graph_jepa/Dockerfile
+    image: quantis-graph-jepa-app:local
+    command: ["python", "/app/service.py", "api"]
+    environment: &application-environment
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://quantis:quantis@postgres:5432/quantis
+      OTLP_LOGS_ENDPOINT: http://collector:4318/v1/logs
+      QUANTIS_API_REQUEST_QUEUE_SIZE: ${QUANTIS_API_REQUEST_QUEUE_SIZE:-5}
+      EXPERIMENT_PATH: ${EXPERIMENT_PATH}
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=1)"
+        ]
+      interval: 1s
+      timeout: 2s
+      retries: 30
+
+  worker:
+    image: quantis-graph-jepa-app:local
+    command: ["python", "/app/service.py", "worker"]
+    environment: *application-environment
+    volumes:
+      - ${EXPERIMENT_DIRECTORY:-./experiments}:/experiments:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  runner:
+    image: quantis-graph-jepa-app:local
+    command: ["python", "/app/run_experiment.py"]
+    volumes:
+      - ${EXPERIMENT_DIRECTORY:-./experiments}:/experiments:ro
+    environment:
+      <<: *application-environment
+      API_URL: http://api:8080
+      OTLP_ENDPOINT: http://collector:4318/v1/metrics
+      COLLECTOR_HEALTH_URL: http://collector:13133/
+      EXPERIMENT_PATH: ${EXPERIMENT_PATH}
+      APPLICATION_IMAGE_ID: ${APPLICATION_IMAGE_ID:-unverified}
+      APPLICATION_BUILD_CONTEXT_SHA256: ${APPLICATION_BUILD_CONTEXT_SHA256:-unverified}
+      WORKER_REPLICAS: ${WORKER_REPLICAS:-1}
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      collector:
+        condition: service_started
+    profiles: ["runner"]
