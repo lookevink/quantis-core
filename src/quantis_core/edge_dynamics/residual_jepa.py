@@ -369,9 +369,11 @@ def _latent_detection_rows(
         if onset is None:
             detection_transition: Optional[int] = None
         else:
-            eligible = np.flatnonzero(alarms & (transitions >= onset))
+            eligible = transitions[
+                alarms & (transitions >= onset)
+            ]
             detection_transition = (
-                int(transitions[eligible[0]]) if len(eligible) else None
+                int(np.min(eligible)) if len(eligible) else None
             )
         rows.append(
             {

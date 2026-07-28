@@ -124,9 +124,8 @@ The final CPU run took:
 - `36.50 s` for supervised residual training; and
 - `42.34 s` for JEPA residual training.
 
-CPU JEPA rollout latency was `0.874 ms`, about 4.9× raw low-rank but far below
-the roughly 20 ms observed with MPS dispatch. The composed model stores 55,030
-inference parameters versus 34,503 for raw low-rank.
+CPU JEPA rollout latency was `0.874 ms`, about 4.9× raw low-rank. The composed
+model stores 55,030 inference parameters versus 34,503 for raw low-rank.
 
 A second full CPU run used the same seed, data, and configuration. All three
 model JSON artifacts were byte-for-byte identical, and all non-timing result

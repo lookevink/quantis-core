@@ -194,6 +194,50 @@ def test_latent_divergence_calibrates_the_trajectory_alarm_unit() -> None:
     assert not any(row["any_alarm"] for row in calibration_control_rows)
 
 
+def test_latent_divergence_detects_signal_only_at_later_horizon() -> None:
+    training, validation = _windows()
+    calibration_scores = np.zeros(
+        training.future_states.shape[:2], dtype=np.float64
+    )
+    evaluation_scores = np.zeros(
+        validation.future_states.shape[:2], dtype=np.float64
+    )
+    applicable = validation.action_feature_names.index("applicable")
+    treatment_at_first_horizon = np.any(
+        validation.future_actions[:, 0, :, applicable] > 0.5,
+        axis=1,
+    )
+    evaluation_scores[treatment_at_first_horizon, 2] = 1.0
+
+    class LaterHorizonSignal:
+        def latent_divergence(self, windows):
+            if windows is training:
+                return calibration_scores
+            if windows is validation:
+                return evaluation_scores
+            raise AssertionError("unexpected windows")
+
+    result = latent_divergence_detection(
+        model=LaterHorizonSignal(),
+        calibration=training,
+        evaluation=validation,
+        alpha=0.05,
+    )
+
+    assert (
+        result["evaluation_control_trajectory_false_alarm_rate"]
+        == 0.0
+    )
+    assert (
+        result["evaluation_treatment_trajectory_detection_rate"]
+        == 1.0
+    )
+    assert (
+        result["median_post_onset_detection_delay_transitions"]
+        == 2.0
+    )
+
+
 def test_residual_jepa_artifacts_are_immutable(tmp_path) -> None:
     report = {
         "assessment": {"decision": "reject_this_configuration"},
