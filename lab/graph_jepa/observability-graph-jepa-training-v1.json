@@ -24,6 +24,7 @@
   },
   "training_seeds": [89, 97, 101, 103, 107],
   "determinism_repeat_seed": 89,
+  "parallel_seed_jobs": 4,
   "learned_controls": [
     "entity_local",
     "all_entities",

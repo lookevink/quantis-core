@@ -86,6 +86,7 @@ def test_graph_training_protocol_is_bound_before_validation() -> None:
 
     assert training["corpus_protocol_sha256"] == corpus_sha256
     assert training["training_seeds"] == [89, 97, 101, 103, 107]
+    assert training["parallel_seed_jobs"] == 4
     assert training["primary_model"]["ema_decay"] == 0.98
     assert sum(
         training["entity_latent_dimensions"].values()

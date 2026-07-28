@@ -1,6 +1,7 @@
 """Train and assess the preregistered observability graph models."""
 
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import re
@@ -84,39 +85,33 @@ def run_confirmation(
     seed_results: Dict[str, Any] = {}
     primary_artifact_bytes: Optional[bytes] = None
     primary_model: Optional[LearnedGraphJepaWorldModel] = None
-    for seed in training_protocol["training_seeds"]:
-        seed_number = int(seed)
-        models = {
-            "one_hop": _fit_learned(
+    seeds = tuple(
+        int(seed) for seed in training_protocol["training_seeds"]
+    )
+    models_by_seed: Dict[
+        int, Mapping[str, LearnedGraphJepaWorldModel]
+    ] = {}
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=int(training_protocol["parallel_seed_jobs"])
+    ) as executor:
+        future_by_seed = {
+            executor.submit(
+                _fit_seed_models,
                 corpus.training,
                 widths,
                 optimization,
                 seed_number,
-                "one_hop",
-            ),
-            "entity_local": _fit_learned(
-                corpus.training,
-                widths,
-                optimization,
-                seed_number,
-                "entity_local",
-            ),
-            "all_entities": _fit_learned(
-                corpus.training,
-                widths,
-                optimization,
-                seed_number,
-                "all_entities",
-            ),
-            "shuffled_one_hop": _fit_learned(
-                corpus.training,
-                widths,
-                optimization,
-                seed_number,
-                "one_hop",
                 shuffled,
-            ),
+            ): seed_number
+            for seed_number in seeds
         }
+        for future in concurrent.futures.as_completed(
+            future_by_seed
+        ):
+            seed_number = future_by_seed[future]
+            models_by_seed[seed_number] = future.result()
+    for seed_number in seeds:
+        models = models_by_seed[seed_number]
         model_scores = {}
         seed_directory = output / "models" / f"seed-{seed_number}"
         seed_directory.mkdir()
@@ -466,6 +461,46 @@ def _fit_learned(
             seed=seed,
         )
     ).fit(training)
+
+
+def _fit_seed_models(
+    training: GraphStateWindows,
+    widths: Mapping[str, int],
+    optimization: Mapping[str, Any],
+    seed: int,
+    shuffled: Mapping[str, Tuple[str, ...]],
+) -> Mapping[str, LearnedGraphJepaWorldModel]:
+    return {
+        "one_hop": _fit_learned(
+            training,
+            widths,
+            optimization,
+            seed,
+            "one_hop",
+        ),
+        "entity_local": _fit_learned(
+            training,
+            widths,
+            optimization,
+            seed,
+            "entity_local",
+        ),
+        "all_entities": _fit_learned(
+            training,
+            widths,
+            optimization,
+            seed,
+            "all_entities",
+        ),
+        "shuffled_one_hop": _fit_learned(
+            training,
+            widths,
+            optimization,
+            seed,
+            "one_hop",
+            shuffled,
+        ),
+    }
 
 
 def _score_decoded(
