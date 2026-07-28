@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 from types import ModuleType
@@ -57,6 +58,44 @@ def test_observability_graph_protocol_prepares_fresh_balanced_cases(
     }
     assert len(fresh_schedules) == 24
     assert not fresh_schedules & prior_schedules
+
+
+def test_graph_training_protocol_is_bound_before_validation() -> None:
+    repository = Path(__file__).resolve().parents[1]
+    corpus = json.loads(
+        (
+            repository
+            / "lab"
+            / "graph_jepa"
+            / "observability-graph-jepa-confirmation-v1.json"
+        ).read_text()
+    )
+    training = json.loads(
+        (
+            repository
+            / "lab"
+            / "graph_jepa"
+            / "observability-graph-jepa-training-v1.json"
+        ).read_text()
+    )
+    corpus_sha256 = hashlib.sha256(
+        json.dumps(
+            corpus, sort_keys=True, separators=(",", ":")
+        ).encode()
+    ).hexdigest()
+
+    assert training["corpus_protocol_sha256"] == corpus_sha256
+    assert training["training_seeds"] == [89, 97, 101, 103, 107]
+    assert training["primary_model"]["ema_decay"] == 0.98
+    assert sum(
+        training["entity_latent_dimensions"].values()
+    ) == 26
+    assert (
+        training["entity_latent_dimensions"][
+            "queue_hosted_on_redis"
+        ]
+        == 0
+    )
 
 
 def _preparation_module(repository: Path) -> ModuleType:

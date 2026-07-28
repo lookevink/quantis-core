@@ -13,6 +13,8 @@ from quantis_core.observability_graph_corpus import (
     OBSERVABILITY_RAW_FEATURE_NAMES,
     ObservabilityGraphCorpus,
     OperationalStateTransformer,
+    _SemanticRun,
+    _compile_semantic_windows,
     load_observability_graph_cache,
     quantis_checkout_observability_graph,
     write_observability_graph_cache,
@@ -164,6 +166,53 @@ def test_observability_graph_cache_round_trips_and_rejects_tampering(
     tensor_path.write_bytes(tensor_path.read_bytes() + b"tampered")
     with pytest.raises(ValueError, match="archive hash changed"):
         load_observability_graph_cache(cache_directory)
+
+
+def test_observability_context_and_future_blocks_preserve_time() -> None:
+    point_count = 40
+    metric_count = len(OBSERVABILITY_METRIC_FEATURE_NAMES)
+    log_count = len(DEPENDENCY_LOG_FEATURE_NAMES)
+    metric = np.repeat(
+        np.arange(point_count, dtype=np.float64)[:, None],
+        metric_count,
+        axis=1,
+    )
+    logs = np.repeat(
+        (100.0 + np.arange(point_count))[:, None],
+        log_count,
+        axis=1,
+    )
+    controls = np.column_stack(
+        (
+            np.arange(point_count, dtype=np.float64),
+            np.ones(point_count, dtype=np.float64),
+        )
+    )
+
+    windows = _compile_semantic_windows(
+        _SemanticRun(metric, logs, controls),
+        lookback=20,
+        horizons=(1, 5, 10),
+        target_block_size=2,
+    )
+
+    assert windows.metric_contexts.shape == (
+        10,
+        20,
+        metric_count,
+    )
+    np.testing.assert_array_equal(
+        windows.metric_contexts[0, :, 0],
+        np.arange(20),
+    )
+    np.testing.assert_array_equal(
+        windows.metric_target_blocks[0, :, :, 0],
+        [[20.0, 21.0], [24.0, 25.0], [29.0, 30.0]],
+    )
+    np.testing.assert_array_equal(
+        windows.log_target_blocks[0, :, :, 0],
+        [[120.0, 121.0], [124.0, 125.0], [129.0, 130.0]],
+    )
 
 
 def _model_windows(

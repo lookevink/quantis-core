@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "kind": "observability_rich_graph_jepa_training_v1",
+  "corpus_protocol_sha256": "ce3403b1c57019c028df6b0d8502ce4f4a7e2ff3177ebfda52796b2cd94c94aa",
+  "primary_model": {
+    "kind": "learned_ema_graph_jepa_world_model_v1",
+    "context_scope": "one_hop",
+    "epochs": 40,
+    "learning_rate": 0.002,
+    "ema_decay": 0.98,
+    "weight_decay": 0.0001,
+    "batch_size": 2048
+  },
+  "entity_latent_dimensions": {
+    "api": 2,
+    "checkout_queue": 4,
+    "worker_pool": 6,
+    "redis": 3,
+    "postgresql": 2,
+    "api_enqueues_queue": 2,
+    "queue_dequeues_to_worker": 3,
+    "queue_hosted_on_redis": 0,
+    "worker_writes_postgresql": 4
+  },
+  "training_seeds": [89, 97, 101, 103, 107],
+  "determinism_repeat_seed": 89,
+  "learned_controls": [
+    "entity_local",
+    "all_entities",
+    "shuffled_one_hop"
+  ],
+  "shuffled_context_entities": {
+    "api": ["api", "redis", "postgresql"],
+    "checkout_queue": [
+      "checkout_queue",
+      "worker_pool",
+      "redis",
+      "postgresql",
+      "queue_dequeues_to_worker",
+      "worker_writes_postgresql"
+    ],
+    "worker_pool": [
+      "worker_pool",
+      "api",
+      "redis",
+      "api_enqueues_queue",
+      "worker_writes_postgresql"
+    ],
+    "redis": ["redis", "postgresql"],
+    "postgresql": ["postgresql", "api", "api_enqueues_queue"],
+    "api_enqueues_queue": [
+      "api_enqueues_queue",
+      "worker_pool",
+      "redis"
+    ],
+    "queue_dequeues_to_worker": [
+      "queue_dequeues_to_worker",
+      "api",
+      "postgresql"
+    ],
+    "worker_writes_postgresql": [
+      "worker_writes_postgresql",
+      "checkout_queue",
+      "redis"
+    ]
+  },
+  "fixed_controls": {
+    "equal_pca_width": 4,
+    "ridge": 0.001,
+    "references": ["training_mean", "persistence"],
+    "raw_predictors": ["flat_ridge", "one_hop_ridge"]
+  },
+  "critical_entities": [
+    "api",
+    "checkout_queue",
+    "worker_pool",
+    "redis",
+    "postgresql"
+  ],
+  "gates": {
+    "maximum_raw_one_hop_normalized_mse": 1.0,
+    "maximum_critical_group_normalized_mse": 1.0,
+    "maximum_reconstruction_normalized_mse": 0.1,
+    "minimum_context_compression_ratio": 1.25,
+    "maximum_one_hop_to_all_entity_ratio": 1.05,
+    "minimum_no_worse_validation_families": 9,
+    "minimum_seed_wins": 4
+  }
+}

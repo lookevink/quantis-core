@@ -11,13 +11,29 @@ from numpy.typing import NDArray
 
 from .contextual_multimodal_corpus import (
     DEPENDENCY_LOG_FEATURE_NAMES,
+    CONTROL_FEATURE_NAMES,
+    ContextualMultimodalModelWindows,
+    DependencyResidualLogTransformer,
 )
+from .demand_conditioning import canonical_request_schedule
+from .fault_matrix import FaultMatrixRun
 from .graph_telemetry import (
     DeclaredTelemetryGraph,
     GraphStateWindows,
     TelemetryBinding,
+    compile_graph_state_windows,
     quantis_checkout_graph,
 )
+from .multimodal_corpus import _metric_event_time_boundaries
+from .otlp import TelemetryCapture
+from .otlp_log_windowing import (
+    OtlpLogFeatureSpec,
+    OtlpLogWindowCompiler,
+)
+from .otlp_logs import OtlpLogCapture
+from .otlp_windowing import OtlpFeatureSpec, OtlpWindowCompiler
+from .telemetry_corpus import TelemetryCorpusSplitSpec
+from .windowing import MAD_NORMAL_SCALE
 
 
 OBSERVABILITY_RAW_FEATURE_NAMES = (
@@ -288,6 +304,253 @@ def quantis_checkout_observability_graph() -> DeclaredTelemetryGraph:
             TelemetryBinding(feature_key, entity_id)
             for feature_key, entity_id in ownership.items()
         ),
+    )
+
+
+@dataclass(frozen=True)
+class _SemanticRun:
+    metrics: NDArray[np.float64]
+    logs: NDArray[np.float64]
+    controls: NDArray[np.float64]
+
+
+def compile_observability_graph_corpus(
+    runs: Sequence[FaultMatrixRun],
+    log_captures: Mapping[str, OtlpLogCapture],
+    metric_spec: OtlpFeatureSpec,
+    log_spec: OtlpLogFeatureSpec,
+    split_spec: TelemetryCorpusSplitSpec,
+    *,
+    horizons: Tuple[int, ...] = (1, 5, 10),
+    target_block_size: int = 2,
+    protocol: Mapping[str, Any],
+) -> "ObservabilityGraphCorpus":
+    """Compile raw captures into normalized, graph-owned future blocks."""
+
+    if (
+        not horizons
+        or tuple(sorted(set(horizons))) != horizons
+        or any(horizon < 1 for horizon in horizons)
+        or target_block_size < 1
+    ):
+        raise ValueError("invalid observability graph temporal design")
+    run_by_case_id = {
+        run.manifest.case_id: run for run in runs
+    }
+    if len(run_by_case_id) != len(runs):
+        raise ValueError("duplicate observability graph case id")
+    selected_case_ids = (
+        split_spec.training_case_ids
+        + split_spec.validation_case_ids
+    )
+    missing = set(selected_case_ids) - set(run_by_case_id)
+    missing_logs = set(selected_case_ids) - set(log_captures)
+    if missing or missing_logs:
+        raise ValueError(
+            "observability graph corpus inputs are incomplete: "
+            f"metrics={sorted(missing)}, logs={sorted(missing_logs)}"
+        )
+    training_schedules = _schedule_set(
+        run_by_case_id, split_spec.training_case_ids
+    )
+    validation_schedules = _schedule_set(
+        run_by_case_id, split_spec.validation_case_ids
+    )
+    if training_schedules & validation_schedules:
+        raise ValueError(
+            "observability graph train and validation schedules overlap"
+        )
+
+    metric_compiler = OtlpWindowCompiler(metric_spec)
+    log_compiler = OtlpLogWindowCompiler(log_spec)
+    metric_transformer = OperationalStateTransformer()
+    log_transformer = DependencyResidualLogTransformer()
+    semantic_by_case_id: Dict[str, _SemanticRun] = {}
+    run_provenance: Dict[str, Any] = {}
+    application_builds = set()
+    queue_sizes = set()
+    for case_id in selected_case_ids:
+        run = run_by_case_id[case_id]
+        capture = run.capture
+        log_capture = log_captures[case_id]
+        manifest_sha256 = hashlib.sha256(
+            _canonical_json_bytes(run.manifest.to_dict())
+        ).hexdigest()
+        _validate_run_identity(
+            run, log_capture, manifest_sha256
+        )
+        compiled_metrics = metric_compiler.compile(capture)
+        if (
+            len(compiled_metrics.values)
+            != run.manifest.point_count
+            or compiled_metrics.data_quality["missing_cells"] != 0
+            or compiled_metrics.feature_names
+            != OBSERVABILITY_RAW_FEATURE_NAMES
+        ):
+            raise ValueError(
+                f"{case_id} does not contain complete operational state"
+            )
+        boundaries = _metric_event_time_boundaries(run)
+        if boundaries is None:
+            compiled_logs = log_compiler.compile(
+                log_capture, run.manifest.point_count
+            )
+            log_assignment = "declared_logical_window"
+        else:
+            run_start, window_ends, drain_end = boundaries
+            compiled_logs = log_compiler.compile(
+                log_capture,
+                run.manifest.point_count,
+                run_start_unix_nano=run_start,
+                window_end_unix_nano=window_ends,
+                drain_end_unix_nano=drain_end,
+            )
+            log_assignment = "event_time_metric_boundaries"
+        raw_metrics = compiled_metrics.values[
+            run.manifest.baseline_slice
+        ]
+        raw_logs = compiled_logs.values[
+            run.manifest.baseline_slice
+        ]
+        demand = _request_demand(run, len(raw_metrics))
+        metric_state = metric_transformer.transform(
+            raw_metrics,
+            compiled_metrics.feature_names,
+            request_demand=demand,
+            worker_replicas=run.manifest.worker_replicas,
+        )
+        log_state = log_transformer.transform(
+            raw_logs,
+            compiled_logs.feature_names,
+            demand,
+        )
+        if log_state.feature_names != DEPENDENCY_LOG_FEATURE_NAMES:
+            raise ValueError(
+                "observability graph semantic log schema changed"
+            )
+        semantic_by_case_id[case_id] = _SemanticRun(
+            metrics=metric_state.values,
+            logs=log_state.values,
+            controls=metric_state.controls,
+        )
+        build = _application_build(capture)
+        queue_size = _application_queue_size(capture)
+        application_builds.add(build)
+        queue_sizes.add(queue_size)
+        run_provenance[case_id] = {
+            "capture_sha256": capture.sha256,
+            "log_capture_sha256": log_capture.sha256,
+            "manifest_sha256": manifest_sha256,
+            "worker_replicas": run.manifest.worker_replicas,
+            "canonical_request_schedule": list(
+                canonical_request_schedule(
+                    run.manifest.requests_per_window,
+                    run.manifest.load_pattern_offsets,
+                )
+            ),
+            "metric_data_quality": dict(
+                compiled_metrics.data_quality
+            ),
+            "log_data_quality": dict(
+                compiled_logs.data_quality
+            ),
+            "log_window_assignment": log_assignment,
+        }
+    if len(application_builds) != 1 or len(queue_sizes) != 1:
+        raise ValueError(
+            "observability graph application provenance differs"
+        )
+    application_image_id, build_sha256 = next(
+        iter(application_builds)
+    )
+    queue_size = next(iter(queue_sizes))
+    if (
+        split_spec.expected_application_api_request_queue_size
+        is not None
+        and queue_size
+        != split_spec.expected_application_api_request_queue_size
+    ):
+        raise ValueError(
+            "observability graph API queue size differs from split"
+        )
+
+    training_ids = split_spec.training_case_ids
+    metric_normalizer = _fit_normalizer(
+        np.concatenate(
+            [
+                semantic_by_case_id[case_id].metrics
+                for case_id in training_ids
+            ]
+        )
+    )
+    log_normalizer = _fit_normalizer(
+        np.concatenate(
+            [
+                semantic_by_case_id[case_id].logs
+                for case_id in training_ids
+            ]
+        )
+    )
+    control_normalizer = _fit_normalizer(
+        np.concatenate(
+            [
+                semantic_by_case_id[case_id].controls
+                for case_id in training_ids
+            ]
+        )
+    )
+    normalized = {
+        case_id: _SemanticRun(
+            metrics=_normalize(
+                values.metrics, metric_normalizer
+            ),
+            logs=_normalize(values.logs, log_normalizer),
+            controls=_normalize(
+                values.controls, control_normalizer
+            ),
+        )
+        for case_id, values in semantic_by_case_id.items()
+    }
+    graph = quantis_checkout_observability_graph()
+    training, training_window_case_ids = _compile_graph_split(
+        training_ids,
+        normalized,
+        split_spec.lookback,
+        horizons,
+        target_block_size,
+        graph,
+    )
+    validation, validation_window_case_ids = _compile_graph_split(
+        split_spec.validation_case_ids,
+        normalized,
+        split_spec.lookback,
+        horizons,
+        target_block_size,
+        graph,
+    )
+    return ObservabilityGraphCorpus(
+        training=training,
+        validation=validation,
+        training_case_ids=training_window_case_ids,
+        validation_case_ids=validation_window_case_ids,
+        provenance={
+            "schema_version": 1,
+            "kind": "observability_graph_compilation",
+            "protocol": dict(protocol),
+            "metric_feature_spec": metric_spec.to_dict(),
+            "log_feature_spec": log_spec.to_dict(),
+            "split_spec": split_spec.to_dict(),
+            "metric_normalizer": metric_normalizer,
+            "log_normalizer": log_normalizer,
+            "control_normalizer": control_normalizer,
+            "application_image_id": application_image_id,
+            "application_build_context_sha256": build_sha256,
+            "application_api_request_queue_size": queue_size,
+            "preprocessing_fitted_on_training_only": True,
+            "context_crosses_run_boundary": False,
+            "target_crosses_run_boundary": False,
+            "runs": run_provenance,
+        },
     )
 
 
@@ -581,6 +844,291 @@ def _array_sha256(array: NDArray[Any]) -> str:
     digest.update(b"\0")
     digest.update(contiguous.tobytes(order="C"))
     return digest.hexdigest()
+
+
+def _schedule_set(
+    runs: Mapping[str, FaultMatrixRun],
+    case_ids: Sequence[str],
+) -> set[Tuple[int, ...]]:
+    return {
+        canonical_request_schedule(
+            runs[case_id].manifest.requests_per_window,
+            runs[case_id].manifest.load_pattern_offsets,
+        )
+        for case_id in case_ids
+    }
+
+
+def _request_demand(
+    run: FaultMatrixRun,
+    point_count: int,
+) -> NDArray[np.float64]:
+    start, stop = run.manifest.baseline_interval
+    if stop - start != point_count:
+        raise ValueError(
+            f"{run.manifest.case_id} baseline does not cover the run"
+        )
+    schedule = canonical_request_schedule(
+        run.manifest.requests_per_window,
+        run.manifest.load_pattern_offsets,
+    )
+    return np.asarray(
+        [
+            schedule[index % len(schedule)]
+            for index in range(start, stop)
+        ],
+        dtype=np.float64,
+    )
+
+
+def _validate_run_identity(
+    run: FaultMatrixRun,
+    log_capture: OtlpLogCapture,
+    manifest_sha256: str,
+) -> None:
+    metric_identity = {
+        (
+            point.resource_attributes.get(
+                "quantis.experiment.case.id"
+            ),
+            point.resource_attributes.get(
+                "quantis.experiment.fault.kind"
+            ),
+            point.resource_attributes.get(
+                "quantis.experiment.manifest.sha256"
+            ),
+        )
+        for point in run.capture.points
+    }
+    log_identity = {
+        (
+            record.resource_attributes.get(
+                "quantis.experiment.case.id"
+            ),
+            record.resource_attributes.get(
+                "quantis.experiment.fault.kind"
+            ),
+            record.resource_attributes.get(
+                "quantis.experiment.manifest.sha256"
+            ),
+        )
+        for record in log_capture.records
+    }
+    expected = {
+        (
+            run.manifest.case_id,
+            run.manifest.fault_kind,
+            manifest_sha256,
+        )
+    }
+    if metric_identity != expected or log_identity != expected:
+        raise ValueError(
+            f"{run.manifest.case_id} capture identity changed"
+        )
+
+
+def _application_build(
+    capture: TelemetryCapture,
+) -> Tuple[str, str]:
+    values = {
+        (
+            point.resource_attributes.get(
+                "quantis.application.image.id"
+            ),
+            point.resource_attributes.get(
+                "quantis.application.build_context.sha256"
+            ),
+        )
+        for point in capture.points
+    }
+    if len(values) != 1:
+        raise ValueError("application build provenance is ambiguous")
+    image_id, build_sha256 = next(iter(values))
+    if (
+        not isinstance(image_id, str)
+        or not image_id.startswith("sha256:")
+        or len(image_id) != 71
+        or not isinstance(build_sha256, str)
+        or len(build_sha256) != 64
+    ):
+        raise ValueError("application build provenance is invalid")
+    return image_id, build_sha256
+
+
+def _application_queue_size(capture: TelemetryCapture) -> int:
+    values = {
+        point.resource_attributes.get(
+            "quantis.application.api.request_queue_size"
+        )
+        for point in capture.points
+    }
+    raw = next(iter(values)) if len(values) == 1 else None
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1:
+        raise ValueError(
+            "application API queue size provenance is invalid"
+        )
+    return raw
+
+
+def _fit_normalizer(
+    values: NDArray[np.float64],
+) -> Dict[str, Any]:
+    location = np.median(values, axis=0)
+    scale = MAD_NORMAL_SCALE * np.median(
+        np.abs(values - location), axis=0
+    )
+    fallback = np.std(values, axis=0)
+    scale = np.where(scale > 1e-12, scale, fallback)
+    scale = np.where(scale > 1e-12, scale, 1.0)
+    return {
+        "schema_version": 1,
+        "kind": "robust_location_scale",
+        "location": location.tolist(),
+        "scale": scale.tolist(),
+    }
+
+
+def _normalize(
+    values: NDArray[np.float64],
+    artifact: Mapping[str, Any],
+) -> NDArray[np.float64]:
+    location = np.asarray(
+        artifact["location"], dtype=np.float64
+    )
+    scale = np.asarray(artifact["scale"], dtype=np.float64)
+    return (values - location) / scale
+
+
+def _compile_graph_split(
+    case_ids: Tuple[str, ...],
+    values_by_case_id: Mapping[str, _SemanticRun],
+    lookback: int,
+    horizons: Tuple[int, ...],
+    target_block_size: int,
+    graph: DeclaredTelemetryGraph,
+) -> Tuple[GraphStateWindows, Tuple[str, ...]]:
+    groups = tuple(
+        _compile_semantic_windows(
+            values_by_case_id[case_id],
+            lookback,
+            horizons,
+            target_block_size,
+        )
+        for case_id in case_ids
+    )
+    contextual = _combine_contextual_windows(groups)
+    window_case_ids = tuple(
+        case_id
+        for case_id, group in zip(case_ids, groups)
+        for _ in range(len(group.point_indices))
+    )
+    return (
+        compile_graph_state_windows(contextual, graph),
+        window_case_ids,
+    )
+
+
+def _compile_semantic_windows(
+    values: _SemanticRun,
+    lookback: int,
+    horizons: Tuple[int, ...],
+    target_block_size: int,
+) -> ContextualMultimodalModelWindows:
+    last_context_end = (
+        len(values.metrics)
+        - horizons[-1]
+        - target_block_size
+        + 1
+    )
+    if last_context_end < lookback:
+        raise ValueError(
+            "observability graph run is too short for temporal design"
+        )
+    context_ends = range(lookback, last_context_end + 1)
+    metric_contexts = np.stack(
+        [
+            values.metrics[end - lookback : end]
+            for end in context_ends
+        ]
+    )
+    log_contexts = np.stack(
+        [
+            values.logs[end - lookback : end]
+            for end in context_ends
+        ]
+    )
+
+    def future_blocks(
+        channel: NDArray[np.float64],
+    ) -> NDArray[np.float64]:
+        return np.stack(
+            [
+                np.stack(
+                    [
+                        channel[
+                            end + horizon - 1 :
+                            end
+                            + horizon
+                            - 1
+                            + target_block_size
+                        ]
+                        for horizon in horizons
+                    ]
+                )
+                for end in context_ends
+            ]
+        )
+
+    return ContextualMultimodalModelWindows(
+        metric_contexts=metric_contexts,
+        log_contexts=log_contexts,
+        metric_target_blocks=future_blocks(values.metrics),
+        log_target_blocks=future_blocks(values.logs),
+        target_controls=future_blocks(values.controls),
+        point_indices=np.asarray(
+            list(context_ends), dtype=np.int64
+        ),
+        metric_feature_names=OBSERVABILITY_METRIC_FEATURE_NAMES,
+        log_feature_names=DEPENDENCY_LOG_FEATURE_NAMES,
+        control_feature_names=CONTROL_FEATURE_NAMES,
+        horizons=horizons,
+        target_block_size=target_block_size,
+    )
+
+
+def _combine_contextual_windows(
+    groups: Sequence[ContextualMultimodalModelWindows],
+) -> ContextualMultimodalModelWindows:
+    if not groups:
+        raise ValueError(
+            "cannot combine an empty observability graph split"
+        )
+    first = groups[0]
+    return ContextualMultimodalModelWindows(
+        metric_contexts=np.concatenate(
+            [group.metric_contexts for group in groups]
+        ),
+        log_contexts=np.concatenate(
+            [group.log_contexts for group in groups]
+        ),
+        metric_target_blocks=np.concatenate(
+            [group.metric_target_blocks for group in groups]
+        ),
+        log_target_blocks=np.concatenate(
+            [group.log_target_blocks for group in groups]
+        ),
+        target_controls=np.concatenate(
+            [group.target_controls for group in groups]
+        ),
+        point_indices=np.concatenate(
+            [group.point_indices for group in groups]
+        ),
+        metric_feature_names=first.metric_feature_names,
+        log_feature_names=first.log_feature_names,
+        control_feature_names=first.control_feature_names,
+        horizons=first.horizons,
+        target_block_size=first.target_block_size,
+    )
 
 
 def _cache_semantic_payload(
