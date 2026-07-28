@@ -198,6 +198,7 @@ def test_contextual_promotion_frozen_hash_manifest_is_well_formed():
         not in {
             "action_conditioned_dynamics.py",
             "action_dynamics_development.py",
+            "action_dynamics_lab.py",
             "action_dynamics_synthetic.py",
             "contextual_multimodal_development.py",
             "contextual_confirmation.py",

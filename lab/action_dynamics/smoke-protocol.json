@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "kind": "action_dynamics_collection_protocol",
+  "stage": "smoke",
+  "evidence_boundary": "Instrumentation qualification only. These captures may select safe pilot ranges but must not be used for model fitting, threshold tuning against the pilot, forecasting claims, attribution claims, graph-benefit claims, or world-model claims.",
+  "generator_seed": 26072801,
+  "collection": {
+    "pair_count": 6,
+    "expected_capture_count": 12,
+    "parallel_jobs": 6,
+    "overwrite": false
+  },
+  "capture": {
+    "require_resolved_image_digests": true,
+    "require_observation_schema_sha256": true,
+    "case_ids": "opaque_uuid",
+    "pair_ids": "opaque_uuid",
+    "fresh_compose_project_per_capture": true,
+    "shared_named_volumes_allowed": false,
+    "host_ports_allowed": false
+  },
+  "trajectory": {
+    "point_count": 84,
+    "sample_period_seconds": 0.25,
+    "minimum_clean_context_windows": 20,
+    "onset_index_min": 28,
+    "onset_index_max": 39,
+    "duration_min": 8,
+    "duration_max": 20,
+    "minimum_recovery_windows": 24,
+    "action_at_t_predicts_state": "t+1"
+  },
+  "workload": {
+    "schedule_kind": "seeded_explicit_uniform_integer",
+    "minimum_requests_per_window": 6,
+    "maximum_requests_per_window": 10,
+    "api_request_queue_size": 128,
+    "twins_share_exact_schedule": true,
+    "schedule_is_materialized_before_capture": true
+  },
+  "action_library": {
+    "worker_pause": {
+      "target_entity": "worker_pool",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "worker_fraction",
+      "severity_values": [
+        0.34,
+        0.67,
+        1.0
+      ],
+      "effect_feature": "worker_rate",
+      "effect_direction": "decrease",
+      "minimum_effect": 1.0,
+      "recovery_feature_floor": 0.25,
+      "recovery_ratio_max": 0.3
+    },
+    "postgres_lock": {
+      "target_entity": "worker_writes_postgresql",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "lock_boolean",
+      "severity_values": [
+        1.0
+      ],
+      "effect_feature": "db_write_rate",
+      "effect_direction": "decrease",
+      "minimum_effect": 1.0,
+      "recovery_feature_floor": 0.25,
+      "recovery_ratio_max": 0.3
+    },
+    "redis_enqueue_delay": {
+      "target_entity": "api_enqueues_queue",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "milliseconds",
+      "severity_values": [
+        20.0,
+        40.0,
+        60.0
+      ],
+      "effect_feature": "request_latency_ms",
+      "effect_direction": "increase",
+      "minimum_effect": 10.0,
+      "recovery_feature_floor": 1.0,
+      "recovery_ratio_max": 0.3
+    },
+    "redis_dequeue_delay": {
+      "target_entity": "queue_dequeues_to_worker",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "milliseconds",
+      "severity_values": [
+        20.0,
+        40.0,
+        60.0
+      ],
+      "effect_feature": "redis_dequeue_latency_ms",
+      "effect_direction": "increase",
+      "minimum_effect": 10.0,
+      "recovery_feature_floor": 1.0,
+      "recovery_ratio_max": 0.3
+    },
+    "api_rejection": {
+      "target_entity": "api",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "probability",
+      "severity_values": [
+        0.25,
+        0.5,
+        0.75
+      ],
+      "effect_feature": "error_rate",
+      "effect_direction": "increase",
+      "minimum_effect": 0.15,
+      "recovery_feature_floor": 0.05,
+      "recovery_ratio_max": 0.3
+    }
+  },
+  "design": {
+    "design_kind": "fixed_smoke_cells",
+    "action_kind_quotas": {
+      "worker_pause": 2,
+      "postgres_lock": 1,
+      "redis_enqueue_delay": 1,
+      "redis_dequeue_delay": 1,
+      "api_rejection": 1
+    },
+    "topology_quotas": {
+      "workers-1": 2,
+      "workers-2": 3,
+      "workers-3": 1
+    },
+    "cells": [
+      {
+        "cell_id": "smoke-001",
+        "action_kind": "worker_pause",
+        "worker_replicas": 1,
+        "magnitude": 1.0,
+        "onset_index": 28,
+        "duration": 8,
+        "workload_seed": 51001,
+        "intervention_seed": 61001
+      },
+      {
+        "cell_id": "smoke-002",
+        "action_kind": "postgres_lock",
+        "worker_replicas": 1,
+        "magnitude": 1.0,
+        "onset_index": 30,
+        "duration": 10,
+        "workload_seed": 51002,
+        "intervention_seed": 61002
+      },
+      {
+        "cell_id": "smoke-003",
+        "action_kind": "redis_enqueue_delay",
+        "worker_replicas": 2,
+        "magnitude": 40.0,
+        "onset_index": 32,
+        "duration": 12,
+        "workload_seed": 51003,
+        "intervention_seed": 61003
+      },
+      {
+        "cell_id": "smoke-004",
+        "action_kind": "redis_dequeue_delay",
+        "worker_replicas": 2,
+        "magnitude": 40.0,
+        "onset_index": 34,
+        "duration": 12,
+        "workload_seed": 51004,
+        "intervention_seed": 61004
+      },
+      {
+        "cell_id": "smoke-005",
+        "action_kind": "api_rejection",
+        "worker_replicas": 3,
+        "magnitude": 0.5,
+        "onset_index": 36,
+        "duration": 8,
+        "workload_seed": 51005,
+        "intervention_seed": 61005
+      },
+      {
+        "cell_id": "smoke-006",
+        "action_kind": "worker_pause",
+        "worker_replicas": 2,
+        "magnitude": 0.34,
+        "onset_index": 38,
+        "duration": 12,
+        "workload_seed": 51006,
+        "intervention_seed": 61006
+      }
+    ]
+  },
+  "scheduling": {
+    "lane_count": 6,
+    "batch_count": 1,
+    "pairs_per_batch": 6,
+    "one_pair_per_lane": true,
+    "twins_run_sequentially_in_lane": true,
+    "treatment_first_for_even_pair_ordinal": true,
+    "fresh_project_between_twins": true,
+    "application_image_built_once_before_collection": true
+  },
+  "retry_policy": {
+    "max_attempts_per_pair": 1,
+    "automatic_retry": false,
+    "failed_effect_is_retryable": false,
+    "failed_recovery_is_retryable": false,
+    "failed_trace_gate_is_retryable": false,
+    "all_failures_remain_in_denominator": true,
+    "manual_rerun_requires_new_protocol_version": true
+  },
+  "gates": {
+    "expected_pair_count": 6,
+    "expected_capture_count": 12,
+    "metric_windows_per_capture": 84,
+    "exactly_one_treatment_and_control_per_pair": true,
+    "twin_schedule_and_topology_identity": true,
+    "manifest_and_build_identity_required": true,
+    "treatment_start_command_count": 1,
+    "treatment_stop_command_count": 1,
+    "control_action_command_count": 0,
+    "duplicate_action_ids_allowed": false,
+    "cleanup_must_show_no_active_action": true,
+    "logical_action_index_tolerance_windows": 0,
+    "eligible_event_trace_link_rate_min": 0.95,
+    "eligible_completed_checkout_path_rate_min": 0.95,
+    "cross_case_trace_reference_count_max": 0,
+    "truth_exclusion_required": true,
+    "forbidden_observation_fields": [
+      "action_id",
+      "action_kind",
+      "fault_kind",
+      "matched_pair_id",
+      "target_entity",
+      "action_phase",
+      "action_magnitude",
+      "intervention_seed"
+    ],
+    "every_intervention_must_pass_effect": true,
+    "recovery_window_count": 8,
+    "every_intervention_must_pass_recovery": true,
+    "placebo_false_positive_rate_max": 0.1,
+    "all_lanes_must_be_observed": true,
+    "shared_project_network_or_volume_count_max": 0
+  },
+  "analysis": {
+    "embedded_v3_split_semantics": "compatibility_only_not_authorization_for_model_fit",
+    "authoritative_corpus_role": "smoke",
+    "active_effect_statistic": "median_paired_treatment_minus_control",
+    "effect_sign_is_applied_before_threshold": true,
+    "recovery_statistic": "median_absolute_paired_delta_final_windows_divided_by_max_absolute_active_effect_or_feature_floor",
+    "confidence_interval_unit": "matched_pair",
+    "window_level_resampling_allowed": false,
+    "model_training_allowed": false,
+    "candidate_attribution_allowed": false
+  },
+  "claim": {
+    "supported": "The content-addressed Quantis lab harness can execute the five predeclared reversible intervention/location families with aligned action commands, matched observable effects, recovery, trace linkage, and isolated concurrent capture under the smoke configurations.",
+    "excluded": [
+      "forecasting skill",
+      "independent target localization",
+      "graph topology benefit",
+      "causal attribution outside the finite randomized intervention library",
+      "production transfer",
+      "a software world model"
+    ]
+  }
+}

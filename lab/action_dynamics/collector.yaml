@@ -1,0 +1,60 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+  otlp/actions:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4319
+
+processors:
+  batch:
+    send_batch_size: 8192
+    timeout: 200ms
+
+exporters:
+  file/metrics:
+    path: /captures/collector-metrics.jsonl
+    format: json
+    append: false
+    flush_interval: 100ms
+  file/logs:
+    path: /captures/collector-logs.jsonl
+    format: json
+    append: false
+    flush_interval: 100ms
+  file/traces:
+    path: /captures/collector-traces.jsonl
+    format: json
+    append: false
+    flush_interval: 100ms
+  file/actions:
+    path: /captures/collector-actions.jsonl
+    format: json
+    append: false
+    flush_interval: 100ms
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/logs]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file/traces]
+    logs/actions:
+      receivers: [otlp/actions]
+      processors: [batch]
+      exporters: [file/actions]
