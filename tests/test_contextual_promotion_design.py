@@ -202,8 +202,15 @@ def test_contextual_promotion_frozen_hash_manifest_is_well_formed():
             "graph_jepa.py",
             "graph_observability.py",
             "graph_telemetry.py",
+            "hybrid_event_features.py",
+            "hybrid_frozen_probe.py",
+            "hybrid_graph_jepa.py",
+            "hybrid_graph_tokens.py",
+            "hybrid_jepa_development.py",
+            "hybrid_jepa_evaluation.py",
             "learned_graph_jepa.py",
             "observability_graph_corpus.py",
+            "structured_events.py",
         }
     } | {
         "src/quantis_core/py.typed",

@@ -17,6 +17,9 @@ dev = [
   "mypy>=1.11,<2",
   "pytest>=8,<9",
 ]
+training = [
+  "torch>=2.4,<2.6",
+]
 
 [tool.mypy]
 python_version = "3.9"

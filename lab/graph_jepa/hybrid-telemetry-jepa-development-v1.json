@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "kind": "hybrid_telemetry_jepa_development_v1",
+  "evidence_boundary": "development-only reuse of the opened observability graph confirmation corpus",
+  "structured_events": {
+    "logical_window_attribute": "quantis.experiment.origin.window.index",
+    "numeric_attribute_names": [
+      "http.response.status_code"
+    ],
+    "service_to_entity": {
+      "quantis-fault-matrix-api": "api",
+      "quantis-fault-matrix-worker": "worker_pool"
+    },
+    "event_entity_overrides": {
+      "checkout.accepted": "api",
+      "checkout.completed": "worker_pool",
+      "checkout.queue_wait.elevated": "queue_dequeues_to_worker",
+      "checkout.queue_wait.slow": "queue_dequeues_to_worker",
+      "dependency.postgresql.latency.elevated": "worker_writes_postgresql",
+      "dependency.postgresql.latency.slow": "worker_writes_postgresql",
+      "queue.backlog.elevated": "checkout_queue",
+      "queue.backlog.high": "checkout_queue",
+      "queue.backlog.low": "checkout_queue",
+      "worker.state.busy": "worker_pool",
+      "worker.state.idle": "worker_pool"
+    },
+    "service_event_entity_overrides": {
+      "quantis-fault-matrix-api|dependency.redis.latency.elevated": "api_enqueues_queue",
+      "quantis-fault-matrix-api|dependency.redis.latency.slow": "api_enqueues_queue",
+      "quantis-fault-matrix-worker|dependency.redis.latency.elevated": "queue_dequeues_to_worker",
+      "quantis-fault-matrix-worker|dependency.redis.latency.slow": "queue_dequeues_to_worker"
+    }
+  },
+  "tokens": {
+    "coarse_pool_size": 5,
+    "mask_count": 2,
+    "mask_coverage": 0.7
+  },
+  "model": {
+    "latent_dimension": 64,
+    "attention_heads": 4,
+    "transformer_layers": 2,
+    "feedforward_multiplier": 2,
+    "epochs": 12,
+    "batch_size": 128,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "ema_decay": 0.996,
+    "reconstruction_weight": 0.1,
+    "context_reconstruction_weight": 0.1,
+    "variance_weight": 0.1,
+    "covariance_weight": 0.01
+  },
+  "training_seeds": [
+    89,
+    97,
+    101
+  ],
+  "development_ablations": [
+    "declared_topology",
+    "shuffled_topology",
+    "no_event_features"
+  ],
+  "fixed_controls": {
+    "source_assessment": "artifacts/jepa-world-model-v3/observability-graph-confirmation-v1/training/assessment.json",
+    "historical_width4_pca_operational_normalized_mse": 0.4898280676811358,
+    "historical_one_hop_raw_ridge_operational_normalized_mse": 0.464054579882884,
+    "matched_pca_width": 64,
+    "matched_probe_ridge": 0.001
+  },
+  "runtime": {
+    "log_reader_threads": 12,
+    "device": "auto"
+  },
+  "advance_only_if": {
+    "beats_equal_width_pca": true,
+    "declared_topology_beats_shuffled": true,
+    "declared_topology_beats_local_context": true,
+    "minimum_topology_relative_improvement": 0.01,
+    "minimum_effective_rank_fraction": 0.25,
+    "maximum_state_reconstruction_normalized_mse": 0.1
+  },
+  "known_limitations": [
+    "The reused nominal corpus contains no interventions.",
+    "The current application logs contain no populated trace or span identifiers.",
+    "This run cannot support a world-model, causal, or fault-localization claim."
+  ]
+}
