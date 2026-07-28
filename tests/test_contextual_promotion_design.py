@@ -199,6 +199,9 @@ def test_contextual_promotion_frozen_hash_manifest_is_well_formed():
             "contextual_multimodal_development.py",
             "contextual_confirmation.py",
             "contextual_representation_transfer.py",
+            "graph_jepa.py",
+            "graph_observability.py",
+            "graph_telemetry.py",
         }
     } | {
         "src/quantis_core/py.typed",

@@ -274,3 +274,24 @@ action-conditioned interventions if the claim passes, log-alignment repair if
 only compression transfers, or improved observability if compression fails.
 See the
 [confirmation v2 specification](docs/specs/contextual-multimodal-jepa-confirmation-v2.md).
+
+The negative confirmation routes to an observability-first graph tracer. It
+declares the fixed API, queue, worker, Redis, and PostgreSQL topology; assigns
+every semantic observation to one node or edge; and refuses representation
+training until raw held-out graph state clears mean, persistence, and flat
+controls:
+
+```bash
+./lab/fault_matrix/run-graph-observability-pilot.sh
+./lab/fault_matrix/run-linear-graph-jepa-pilot.sh
+./lab/fault_matrix/run-graph-jepa-width-sweep.sh
+./lab/fault_matrix/run-adaptive-graph-jepa-pilot.sh
+```
+
+On the inspected corpus, a training-selected adaptive profile compresses 108
+raw context values to 78 active graph-latent values while retaining 95.8% of
+measured target state. One-hop prediction modestly beats entity-local
+prediction but remains slightly behind the all-entity control. This is a
+development architecture result, not a world-model claim. See the
+[graph pilot specification](docs/specs/graph-jepa-observability-pilot-v1.md)
+and [result interpretation](docs/research/graph-jepa-observability-pilot-v1-results.md).
