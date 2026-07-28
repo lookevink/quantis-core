@@ -18,6 +18,9 @@ from quantis_core.edge_dynamics.jepa_evaluation import (
     assess_action_conditioned_jepa_development,
     write_action_conditioned_jepa_artifacts,
 )
+from quantis_core.edge_dynamics.evaluation import (
+    conformal_sequential_detection,
+)
 from quantis_core.edge_dynamics.models import (
     ContractiveLowRankDynamics,
     LowRankConfig,
@@ -70,6 +73,12 @@ def test_action_conditioned_jepa_preserves_node_tokens_and_roundtrips() -> None:
         validation.future_actions[:8],
         validation.graph,
     )
+    detection = conformal_sequential_detection(
+        model=model,
+        calibration=validation,
+        evaluation=validation,
+        alpha=0.1,
+    )
 
     assert first.mean.shape == validation.future_states[:8].shape
     assert embeddings.shape == (8, len(validation.entity_names), 2)
@@ -80,6 +89,13 @@ def test_action_conditioned_jepa_preserves_node_tokens_and_roundtrips() -> None:
     assert model.spectral_radius <= 0.98 + 1e-6
     assert model.to_dict()["kind"] == (
         "action_conditioned_jepa_low_rank_dynamics_v1"
+    )
+    assert (
+        0.0
+        <= detection[
+            "evaluation_control_sequential_false_alarm_rate"
+        ]
+        <= 1.0
     )
 
 
@@ -158,6 +174,11 @@ def test_jepa_development_assessment_keeps_confirmation_sealed() -> None:
             "evaluation_control_sequential_false_alarm_rate": 0.0,
             "evaluation_treatment_sequential_detection_rate": 0.85,
             "median_sequential_detection_delay_transitions": 8.0,
+        },
+        seed_robustness={
+            "seed_count": 3,
+            "required_seed_count": 3,
+            "passed": True,
         },
     )
 

@@ -2,12 +2,16 @@
 
 import argparse
 import json
+import platform
 from pathlib import Path
 import time
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 import numpy as np
 
+from quantis_core.action_dynamics_corpus import (
+    load_action_dynamics_development_corpus,
+)
 from quantis_core.edge_dynamics.action_conditioned_jepa import (
     ActionConditionedJepaConfig,
     ActionConditionedJepaDynamics,
@@ -17,9 +21,12 @@ from quantis_core.edge_dynamics.data import (
     PreparedEdgeDynamicsData,
     load_edge_dynamics_cache,
     partition_worker_topology,
+    prepare_worker_topology_transfer_data,
     source_artifact_manifest_sha256,
     subset_attribution_queries,
-    validate_edge_cache_source,
+    topology_transfer_cache_address,
+    validate_topology_transfer_cache,
+    write_edge_dynamics_cache,
 )
 from quantis_core.edge_dynamics.evaluation import (
     conformal_sequential_detection,
@@ -58,9 +65,20 @@ def run_action_conditioned_jepa_development(
     source_manifest = source_artifact_manifest_sha256(
         corpus_directory
     )
-    cache_directory = cache_root / source_manifest
-    prepared = load_edge_dynamics_cache(cache_directory)
-    validate_edge_cache_source(prepared, corpus_directory)
+    cache_directory = cache_root / topology_transfer_cache_address(
+        source_manifest
+    )
+    if cache_directory.exists():
+        prepared = load_edge_dynamics_cache(cache_directory)
+        cache_reused = True
+    else:
+        corpus = load_action_dynamics_development_corpus(
+            corpus_directory
+        )
+        prepared = prepare_worker_topology_transfer_data(corpus)
+        write_edge_dynamics_cache(prepared, cache_directory)
+        cache_reused = False
+    validate_topology_transfer_cache(prepared, corpus_directory)
     partitions = {
         role: partition_worker_topology(windows)
         for role, windows in prepared.windows.items()
@@ -168,6 +186,11 @@ def run_action_conditioned_jepa_development(
         token_diagnostics=diagnostics,
         action_sanity=action_sanity,
         detection=detection,
+        seed_robustness={
+            "seed_count": 1,
+            "required_seed_count": 3,
+            "passed": False,
+        },
     )
     report: Dict[str, Any] = {
         "schema_version": 1,
@@ -183,6 +206,8 @@ def run_action_conditioned_jepa_development(
             prepared.source_artifact_manifest_sha256
         ),
         "preprocessing_cache_address": cache_directory.name,
+        "preprocessing_protocol": prepared.preprocessing_protocol,
+        "preprocessing_cache_reused": cache_reused,
         "held_out_topology": {
             "control_feature": "worker_replicas",
             "normalized_value": held_out_value,
@@ -219,6 +244,10 @@ def run_action_conditioned_jepa_development(
             "jepa_latent_low_rank": jepa_config.to_dict(),
         },
         "training_seconds": training_seconds,
+        "training_runtime": _training_runtime(
+            jepa=jepa,
+            supervised=supervised,
+        ),
         "selection_scores": selection_scores,
         "in_distribution_scores": in_distribution_scores,
         "transfer_scores": transfer_scores,
@@ -255,6 +284,28 @@ def _timed_fit(
     fitted = model.fit(fit)
     timings[name] = time.perf_counter() - started
     return fitted
+
+
+def _training_runtime(
+    *,
+    jepa: ActionConditionedJepaDynamics,
+    supervised: ActionConditionedJepaDynamics,
+) -> Mapping[str, Any]:
+    import torch
+
+    return {
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "torch_version": str(torch.__version__),
+        "deterministic_algorithms_enabled": bool(
+            torch.are_deterministic_algorithms_enabled()
+        ),
+        "jepa_requested_device": jepa.config.device,
+        "jepa_resolved_device": jepa.device,
+        "supervised_requested_device": supervised.config.device,
+        "supervised_resolved_device": supervised.device,
+    }
 
 
 def _partition_queries(
@@ -317,7 +368,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--device",
         choices=("auto", "cpu", "mps"),
-        default="auto",
+        default="mps",
     )
     parser.add_argument("--seed", type=int, default=89)
     parsed = parser.parse_args(arguments)

@@ -12,7 +12,11 @@ This is an open-development experiment over the already-inspected
 ## Source and split
 
 Use only the content-addressed edge preprocessing cache associated with the
-qualified source artifact manifest.
+qualified source artifact manifest. This experiment uses a distinct cache
+address derived from both that manifest and the topology-transfer preprocessing
+protocol. Its state and control normalizers are fit only on the two smaller
+worker topologies; the held-out topology cannot influence preprocessing
+statistics.
 
 The primary open transfer diagnostic holds the largest observed
 `worker_replicas` topology out of fitting:
@@ -56,7 +60,8 @@ Training combines:
 - spectral projection of the latent transition.
 
 The deterministic tracer uses seed 89, 60 epochs, batch size 256, AdamW at
-`1e-3`, EMA decay `0.996`, and Apple MPS when available. Sixty epochs replace
+`1e-3`, EMA decay `0.996`, and the explicitly recorded Apple MPS backend.
+PyTorch deterministic algorithms are enabled. Sixty epochs replace
 the under-converged 12-epoch smoke run; seed robustness is required only if
 the tracer passes the development gates.
 
@@ -104,7 +109,8 @@ held-out-topology diagnostic, it:
 1. improves downstream-effect MSE by at least 10% over raw low-rank;
 2. keeps action-overlap MSE within 5% of raw low-rank;
 3. retains at least 90% action-and-target hit@1;
-4. has per-node-token effective rank at least 25% of latent width; and
+4. has effective rank at least 25% of latent width for every node token,
+   including nodes without varying observations; and
 5. beats both action ablations on at least 80% of treatment pairs.
 
 The anomaly-investigation gate is separate:

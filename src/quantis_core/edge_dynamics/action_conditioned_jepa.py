@@ -44,7 +44,7 @@ class ActionConditionedJepaConfig:
     covariance_weight: float = 0.01
     variance_floor: float = 1e-4
     objective: str = "jepa"
-    device: str = "auto"
+    device: str = "mps"
     seed: int = 89
 
     def __post_init__(self) -> None:
@@ -90,6 +90,32 @@ class ActionConditionedJepaConfig:
         """Return a JSON-compatible configuration."""
 
         return dict(asdict(self))
+
+    @property
+    def uses_masking(self) -> bool:
+        """Return whether the objective applies block masking."""
+
+        return self.objective == "jepa"
+
+    @property
+    def effective_latent_prediction_weight(self) -> float:
+        """Return the objective-specific latent loss weight."""
+
+        return (
+            self.latent_prediction_weight
+            if self.objective == "jepa"
+            else 0.0
+        )
+
+    @property
+    def effective_reconstruction_weight(self) -> float:
+        """Return the objective-specific decoded-state loss weight."""
+
+        return (
+            self.reconstruction_weight
+            if self.objective == "jepa"
+            else 1.0
+        )
 
     @classmethod
     def from_dict(
@@ -211,12 +237,12 @@ class ActionConditionedJepaDynamics:
                     entity_count=windows.histories.shape[2],
                     time_fraction=(
                         self.config.mask_time_fraction
-                        if self.config.objective == "jepa"
+                        if self.config.uses_masking
                         else 0.0
                     ),
                     entity_fraction=(
                         self.config.mask_entity_fraction
-                        if self.config.objective == "jepa"
+                        if self.config.uses_masking
                         else 0.0
                     ),
                 )
@@ -585,6 +611,7 @@ def _select_device(torch: Any, requested: str) -> str:
 
 
 def _seed_torch(torch: Any, seed: int) -> None:
+    torch.use_deterministic_algorithms(True)
     torch.manual_seed(seed)
     if hasattr(torch, "mps") and hasattr(torch.mps, "manual_seed"):
         torch.mps.manual_seed(seed)
@@ -659,7 +686,7 @@ def _loss_components(
     batch: Mapping[str, Any],
     config: ActionConditionedJepaConfig,
 ) -> Mapping[str, Any]:
-    latent = torch.nn.functional.smooth_l1_loss(
+    latent = torch.nn.functional.l1_loss(
         output["predicted_latents"].contiguous(),
         output["target_latents"].contiguous(),
     )
@@ -690,19 +717,9 @@ def _loss_components(
             - torch.diag(torch.diag(covariance_matrix))
         )
     )
-    latent_weight = (
-        config.latent_prediction_weight
-        if config.objective == "jepa"
-        else 0.0
-    )
-    reconstruction_weight = (
-        config.reconstruction_weight
-        if config.objective == "jepa"
-        else 1.0
-    )
     total = (
-        latent_weight * latent
-        + reconstruction_weight * reconstruction
+        config.effective_latent_prediction_weight * latent
+        + config.effective_reconstruction_weight * reconstruction
         + config.context_reconstruction_weight
         * context_reconstruction
         + config.variance_weight * variance

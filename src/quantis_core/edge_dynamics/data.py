@@ -23,6 +23,10 @@ from ..graph_telemetry import DeclaredTelemetryGraph
 
 
 EDGE_ROLE_NAMES = ("fit", "selection", "calibration", "evaluation")
+DEFAULT_EDGE_PREPROCESSING_PROTOCOL = "edge_dynamics_default_v1"
+TOPOLOGY_TRANSFER_PREPROCESSING_PROTOCOL = (
+    "action_conditioned_jepa_topology_transfer_v1"
+)
 _CONTEXT_LENGTH = 20
 _ROLLOUT_HORIZON = 10
 
@@ -113,6 +117,7 @@ class PreparedEdgeDynamicsData:
     compiler_artifact: Mapping[str, Any]
     windows: Mapping[str, ActionConditionedWindows]
     attribution_queries: PreparedAttributionQueries
+    preprocessing_protocol: str = DEFAULT_EDGE_PREPROCESSING_PROTOCOL
 
     @property
     def graph(self) -> DeclaredTelemetryGraph:
@@ -298,18 +303,88 @@ def prepare_edge_dynamics_data(
     """Normalize once and materialize the common experiment inputs."""
 
     roles = assign_edge_pair_roles(corpus)
-    runs_by_role = {
-        role: tuple(
-            run
-            for run in corpus.runs
-            if run.manifest.matched_pair_id in set(roles.pair_ids(role))
-        )
-        for role in EDGE_ROLE_NAMES
-    }
+    runs_by_role = _runs_by_role(corpus, roles)
     compiler = ActionTrajectoryCompiler(
         context_length=_CONTEXT_LENGTH,
         rollout_horizon=_ROLLOUT_HORIZON,
     ).fit(runs_by_role["fit"])
+    return _prepare_with_compiler(
+        corpus=corpus,
+        roles=roles,
+        runs_by_role=runs_by_role,
+        compiler=compiler,
+        preprocessing_protocol=DEFAULT_EDGE_PREPROCESSING_PROTOCOL,
+    )
+
+
+def prepare_worker_topology_transfer_data(
+    corpus: LoadedActionDynamicsCorpus,
+) -> PreparedEdgeDynamicsData:
+    """Fit preprocessing without the largest worker topology."""
+
+    roles = assign_edge_pair_roles(corpus)
+    runs_by_role = _runs_by_role(corpus, roles)
+    largest_topology = max(
+        run.manifest.worker_replicas
+        for run in runs_by_role["fit"]
+    )
+    topology_fit_runs = tuple(
+        run
+        for run in runs_by_role["fit"]
+        if run.manifest.worker_replicas != largest_topology
+    )
+    if (
+        len(
+            {
+                run.manifest.matched_pair_id
+                for run in topology_fit_runs
+            }
+        )
+        != 40
+    ):
+        raise ValueError(
+            "topology transfer preprocessing requires 40 fit pairs"
+        )
+    compiler = ActionTrajectoryCompiler(
+        context_length=_CONTEXT_LENGTH,
+        rollout_horizon=_ROLLOUT_HORIZON,
+    ).fit(topology_fit_runs)
+    return _prepare_with_compiler(
+        corpus=corpus,
+        roles=roles,
+        runs_by_role=runs_by_role,
+        compiler=compiler,
+        preprocessing_protocol=(
+            TOPOLOGY_TRANSFER_PREPROCESSING_PROTOCOL
+        ),
+    )
+
+
+def topology_transfer_cache_address(
+    source_manifest_sha256: str,
+) -> str:
+    """Return the source-and-protocol content address for this cache."""
+
+    if len(source_manifest_sha256) != 64:
+        raise ValueError("source manifest SHA-256 is malformed")
+    return hashlib.sha256(
+        (
+            f"{source_manifest_sha256}:"
+            f"{TOPOLOGY_TRANSFER_PREPROCESSING_PROTOCOL}"
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _prepare_with_compiler(
+    *,
+    corpus: LoadedActionDynamicsCorpus,
+    roles: EdgePairRoles,
+    runs_by_role: Mapping[
+        str, Tuple[ActionConditionedRun, ...]
+    ],
+    compiler: ActionTrajectoryCompiler,
+    preprocessing_protocol: str,
+) -> PreparedEdgeDynamicsData:
     windows = {
         role: _as_float32(compiler.transform(runs_by_role[role]))
         for role in EDGE_ROLE_NAMES
@@ -332,6 +407,7 @@ def prepare_edge_dynamics_data(
         compiler_artifact=compiler.to_dict(),
         windows=windows,
         attribution_queries=prepared_queries,
+        preprocessing_protocol=preprocessing_protocol,
     )
 
 
@@ -372,6 +448,7 @@ def write_edge_dynamics_cache(
         "source_artifact_manifest_sha256": (
             data.source_artifact_manifest_sha256
         ),
+        "preprocessing_protocol": data.preprocessing_protocol,
         "roles": data.roles.to_dict(),
         "compiler": dict(data.compiler_artifact),
         "window_counts": {
@@ -410,6 +487,7 @@ def write_edge_dynamics_cache(
         "source_artifact_manifest_sha256": (
             data.source_artifact_manifest_sha256
         ),
+        "preprocessing_protocol": data.preprocessing_protocol,
         "sha256": artifact_hashes,
     }
     (output / "artifact-manifest.json").write_text(_pretty_json(manifest))
@@ -532,6 +610,12 @@ def load_edge_dynamics_cache(
         compiler_artifact=compiler,
         windows=windows,
         attribution_queries=prepared_queries,
+        preprocessing_protocol=str(
+            metadata.get(
+                "preprocessing_protocol",
+                DEFAULT_EDGE_PREPROCESSING_PROTOCOL,
+            )
+        ),
     )
 
 
@@ -557,6 +641,39 @@ def validate_edge_cache_source(
         raise ValueError(
             "edge cache source artifact manifest does not match corpus"
         )
+
+
+def validate_topology_transfer_cache(
+    data: PreparedEdgeDynamicsData,
+    corpus_directory: Path,
+) -> None:
+    """Reject source or preprocessing drift in the transfer cache."""
+
+    validate_edge_cache_source(data, corpus_directory)
+    compiler = dict(data.compiler_artifact)
+    if (
+        data.preprocessing_protocol
+        != TOPOLOGY_TRANSFER_PREPROCESSING_PROTOCOL
+        or compiler.get("training_pair_count") != 40
+    ):
+        raise ValueError(
+            "topology transfer cache protocol does not match"
+        )
+
+
+def _runs_by_role(
+    corpus: LoadedActionDynamicsCorpus,
+    roles: EdgePairRoles,
+) -> Mapping[str, Tuple[ActionConditionedRun, ...]]:
+    return {
+        role: tuple(
+            run
+            for run in corpus.runs
+            if run.manifest.matched_pair_id
+            in set(roles.pair_ids(role))
+        )
+        for role in EDGE_ROLE_NAMES
+    }
 
 
 def _pair_cells(

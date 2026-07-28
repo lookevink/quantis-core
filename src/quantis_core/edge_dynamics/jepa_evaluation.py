@@ -101,6 +101,10 @@ def node_token_diagnostics(
         "minimum_observed_entity_effective_rank": min(
             observed_ranks
         ),
+        "minimum_entity_effective_rank": min(
+            float(values["effective_rank"])
+            for values in by_entity.values()
+        ),
         "by_entity": by_entity,
     }
 
@@ -133,7 +137,10 @@ def action_conditioning_sanity(
     no_actions = np.zeros_like(actions)
     no_actions[..., no_action_position] = 1.0
     shuffled_actions = _shuffle_actions_by_pair(
-        windows, actions, seed=seed
+        windows,
+        actions,
+        applicable_position=applicable_position,
+        seed=seed,
     )
     observed = np.asarray(windows.future_states, dtype=np.float64)
     correct = model.rollout(
@@ -234,6 +241,7 @@ def assess_action_conditioned_jepa_development(
     token_diagnostics: Mapping[str, Any],
     action_sanity: Mapping[str, Any],
     detection: Mapping[str, Any],
+    seed_robustness: Mapping[str, Any],
 ) -> Mapping[str, Any]:
     """Apply frozen development gates without making a confirmation claim."""
 
@@ -259,8 +267,7 @@ def assess_action_conditioned_jepa_development(
     effective_rank = float(token_diagnostics["effective_rank"])
     minimum_entity_rank = float(
         token_diagnostics.get(
-            "minimum_observed_entity_effective_rank",
-            effective_rank,
+            "minimum_entity_effective_rank", effective_rank
         )
     )
     latent_dimension = int(token_diagnostics["latent_dimension"])
@@ -284,6 +291,14 @@ def assess_action_conditioned_jepa_development(
         "median_sequential_detection_delay_transitions"
     ]
     delay = float(raw_delay) if raw_delay is not None else float("inf")
+    seed_count = int(seed_robustness["seed_count"])
+    required_seed_count = int(
+        seed_robustness["required_seed_count"]
+    )
+    seed_gate = (
+        seed_count >= required_seed_count
+        and bool(seed_robustness["passed"])
+    )
     gates = {
         "downstream_effect_improvement_at_least_10_percent": (
             effect_improvement >= 0.10
@@ -298,6 +313,7 @@ def assess_action_conditioned_jepa_development(
         "correct_action_beats_both_on_80_percent_of_pairs": (
             action_fraction >= 0.80
         ),
+        "seed_robustness_completed": seed_gate,
     }
     anomaly_gates = {
         "sequential_control_false_alarm_at_most_5_percent": (
@@ -308,6 +324,12 @@ def assess_action_conditioned_jepa_development(
         ),
         "median_sequential_delay_at_most_10": delay <= 10.0,
     }
+    tracer_gates = {
+        name: passed
+        for name, passed in gates.items()
+        if name != "seed_robustness_completed"
+    }
+    tracer_passed = all(tracer_gates.values())
     predictive_passed = all(gates.values())
     anomaly_passed = all(anomaly_gates.values())
     return {
@@ -322,7 +344,7 @@ def assess_action_conditioned_jepa_development(
             "action_overlap_mse_ratio": action_ratio,
             "action_and_target_hit_at_1": action_hit,
             "effective_rank": effective_rank,
-            "minimum_observed_entity_effective_rank": (
+            "minimum_entity_effective_rank": (
                 minimum_entity_rank
             ),
             "latent_dimension": latent_dimension,
@@ -332,15 +354,22 @@ def assess_action_conditioned_jepa_development(
             "median_sequential_detection_delay": (
                 None if not np.isfinite(delay) else delay
             ),
+            "seed_count": seed_count,
+            "required_seed_count": required_seed_count,
         },
         "predictive_gates": gates,
         "anomaly_gates": anomaly_gates,
+        "predictive_tracer_gates_passed": tracer_passed,
         "predictive_development_gates_passed": predictive_passed,
         "anomaly_development_gates_passed": anomaly_passed,
         "decision": (
             "advance_to_sealed_confirmation"
             if predictive_passed
-            else "reject_this_configuration"
+            else (
+                "run_seed_robustness"
+                if tracer_passed
+                else "reject_this_configuration"
+            )
         ),
         "sealed_confirmation": False,
     }
@@ -350,6 +379,7 @@ def _shuffle_actions_by_pair(
     windows: ActionConditionedWindows,
     actions: NDArray[np.float64],
     *,
+    applicable_position: int,
     seed: int,
 ) -> NDArray[np.float64]:
     pair_ids = tuple(sorted(set(windows.matched_pair_ids)))
@@ -358,20 +388,21 @@ def _shuffle_actions_by_pair(
         for trajectory_id in set(windows.trajectory_ids)
         if any(
             candidate == trajectory_id
-            and np.any(actions[position, ..., 1] > 0.5)
+            and np.any(
+                actions[position, ..., applicable_position] > 0.5
+            )
             for position, candidate in enumerate(
                 windows.trajectory_ids
             )
         )
     }
     generator = np.random.default_rng(seed)
-    shuffled_pairs = list(pair_ids)
-    generator.shuffle(shuffled_pairs)
-    if len(shuffled_pairs) > 1 and all(
-        left == right
-        for left, right in zip(pair_ids, shuffled_pairs)
-    ):
-        shuffled_pairs = shuffled_pairs[1:] + shuffled_pairs[:1]
+    if len(pair_ids) < 2:
+        raise ValueError("action shuffle requires at least two pairs")
+    offset = int(generator.integers(1, len(pair_ids)))
+    shuffled_pairs = list(
+        pair_ids[offset:] + pair_ids[:offset]
+    )
     source_pair = dict(zip(pair_ids, shuffled_pairs))
     source_index = {
         (
