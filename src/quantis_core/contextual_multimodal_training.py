@@ -21,6 +21,9 @@ from .contextual_multimodal_corpus import (
 from .contextual_multimodal_world_model import (
     ContextualMultimodalJepaWorldModelDetector,
 )
+from .contextual_representation_transfer import (
+    evaluate_frozen_context_transfer,
+)
 from .contextual_multimodal_promotion import (
     validate_contextual_multimodal_promotion_corpus,
 )
@@ -150,6 +153,7 @@ class ContextualMultimodalJepaDevelopmentResult:
     shuffled_log_model_artifact: Mapping[str, Any]
     log_only_model_artifact: Mapping[str, Any]
     metrics: Mapping[str, Mapping[str, Mapping[str, Any]]]
+    representation_transfer: Mapping[str, Any]
     schedule_transfer: Mapping[str, Any]
     cross_validation: Mapping[str, Any]
     protocol: Mapping[str, Any]
@@ -188,6 +192,9 @@ class ContextualMultimodalJepaDevelopmentResult:
                 }
                 for model_name, splits in self.metrics.items()
             },
+            "representation_transfer": dict(
+                self.representation_transfer
+            ),
             "schedule_transfer": dict(self.schedule_transfer),
             "cross_validation": dict(self.cross_validation),
             "protocol": dict(self.protocol),
@@ -224,9 +231,22 @@ def train_contextual_multimodal_jepa_world_model(
             raise ValueError(
                 "promotion confirmation requires a frozen protocol"
             )
-        if config.to_dict() != dict(
+        expected_config = dict(
             promotion_protocol["training_config"]
+        )
+        if promotion_protocol.get("kind") == (
+            "contextual_multimodal_jepa_confirmation_v2"
         ):
+            allowed_seeds = tuple(
+                int(value)
+                for value in promotion_protocol["training_seeds"]
+            )
+            if config.seed not in allowed_seeds:
+                raise ValueError(
+                    "training seed is not preregistered"
+                )
+            expected_config["seed"] = config.seed
+        if config.to_dict() != expected_config:
             raise ValueError(
                 "training configuration differs from promotion protocol"
             )
@@ -366,6 +386,42 @@ def train_contextual_multimodal_jepa_world_model(
             ),
         },
     }
+    transfer_spec = (
+        dict(promotion_protocol["representation_transfer"])
+        if promotion_protocol is not None
+        and "representation_transfer" in promotion_protocol
+        else None
+    )
+    representation_transfer = (
+        evaluate_frozen_context_transfer(
+            {
+                "contextual_multimodal": detector,
+                "metrics_only": metrics_only,
+                "capacity_matched_metrics_only": capacity_matched,
+                "shuffled_logs": shuffled_detector,
+            },
+            training,
+            validation,
+            training_window_case_ids=(
+                corpus.training.window_case_ids
+            ),
+            validation_window_case_ids=(
+                corpus.validation.window_case_ids
+            ),
+            shuffled_training=shuffled_training,
+            shuffled_validation=shuffled_validation,
+            target_names=tuple(transfer_spec["targets"]),
+            ridge=float(transfer_spec["ridge"]),
+            pca_dimension=int(
+                transfer_spec["pca_context_dimension"]
+            ),
+        )
+        if transfer_spec is not None
+        else {
+            "status": "not_assessed",
+            "reason": "no preregistered transfer protocol",
+        }
+    )
     schedule_transfer = _schedule_transfer_metrics(
         corpus,
         detector,
@@ -408,14 +464,18 @@ def train_contextual_multimodal_jepa_world_model(
                 config.cross_validation_epochs // 2,
             ),
         },
-        "controls": [
-            "metrics_only",
-            "capacity_matched_metrics_only",
-            "shuffled_logs",
-            "log_only",
-            "metric_context_only",
-            "log_context_only",
-        ],
+        "controls": (
+            list(promotion_protocol["controls"])
+            if promotion_protocol is not None
+            else [
+                "metrics_only",
+                "capacity_matched_metrics_only",
+                "shuffled_logs",
+                "log_only",
+                "metric_context_only",
+                "log_context_only",
+            ]
+        ),
         "training_runtime": _runtime_fingerprint(),
         "corpus_metadata_sha256": _canonical_sha256(
             corpus_metadata
@@ -478,6 +538,7 @@ def train_contextual_multimodal_jepa_world_model(
         shuffled_log_model_artifact=shuffled_artifact,
         log_only_model_artifact=log_only_artifact,
         metrics=metrics,
+        representation_transfer=representation_transfer,
         schedule_transfer=schedule_transfer,
         cross_validation=cross_validation,
         protocol=protocol,

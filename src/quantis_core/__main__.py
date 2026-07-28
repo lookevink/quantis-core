@@ -51,6 +51,10 @@ from .contextual_multimodal_promotion import (
     assess_contextual_multimodal_promotion,
     write_contextual_multimodal_promotion_assessment,
 )
+from .contextual_confirmation import (
+    assess_contextual_confirmation,
+    write_contextual_confirmation_assessment,
+)
 from .contextual_multimodal_development import (
     default_contextual_multimodal_jepa_v2_candidates,
     develop_contextual_multimodal_jepa_v2,
@@ -552,6 +556,59 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         type=Path,
         required=True,
     )
+    assess_confirmation = commands.add_parser(
+        "assess-contextual-confirmation-v2",
+        help=(
+            "verify and assess the frozen multi-seed contextual JEPA "
+            "confirmation"
+        ),
+    )
+    assess_confirmation.add_argument(
+        "--training-result",
+        type=Path,
+        action="append",
+        required=True,
+    )
+    assess_confirmation.add_argument(
+        "--training-attestation",
+        type=Path,
+        action="append",
+        required=True,
+    )
+    assess_confirmation.add_argument(
+        "--repeat-training-result",
+        type=Path,
+        required=True,
+    )
+    assess_confirmation.add_argument(
+        "--collection-attestation",
+        type=Path,
+        required=True,
+    )
+    assess_confirmation.add_argument(
+        "--repeat-training-attestation",
+        type=Path,
+        required=True,
+    )
+    assess_confirmation.add_argument(
+        "--confirmation-protocol",
+        type=Path,
+        required=True,
+    )
+    assess_confirmation.add_argument(
+        "--repository",
+        type=Path,
+        required=True,
+    )
+    assess_confirmation.add_argument(
+        "--preregistered-git-commit",
+        required=True,
+    )
+    assess_confirmation.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+    )
     parsed = parser.parse_args(arguments)
 
     if parsed.command == "evaluate":
@@ -1011,6 +1068,43 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         return (
             0
             if promotion_assessment["status"] == "passed"
+            else 1
+        )
+    if parsed.command == "assess-contextual-confirmation-v2":
+        confirmation_assessment = assess_contextual_confirmation(
+            parsed.training_result,
+            parsed.training_attestation,
+            collection_attestation_path=(
+                parsed.collection_attestation
+            ),
+            repeat_training_result_path=(
+                parsed.repeat_training_result
+            ),
+            repeat_training_attestation_path=(
+                parsed.repeat_training_attestation
+            ),
+            confirmation_protocol_path=(
+                parsed.confirmation_protocol
+            ),
+            repository=parsed.repository,
+            preregistered_git_commit=(
+                parsed.preregistered_git_commit
+            ),
+        )
+        confirmation_paths = (
+            write_contextual_confirmation_assessment(
+                confirmation_assessment,
+                parsed.output,
+            )
+        )
+        print(
+            "Contextual multimodal JEPA confirmation: "
+            f"{confirmation_assessment['status'].upper()}"
+        )
+        print(f"Report: {confirmation_paths['report']}")
+        return (
+            0
+            if confirmation_assessment["publication_ready"]
             else 1
         )
     return 2

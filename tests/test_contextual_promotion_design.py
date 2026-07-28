@@ -187,12 +187,19 @@ def test_contextual_promotion_frozen_hash_manifest_is_well_formed():
     )
 
     assert protocol["frozen_files"]
+    # Later versioned modules must not be retroactively added to this
+    # historical, commit-bound v1 preregistration.
     expected_source_dependencies = {
         str(path.relative_to(repository))
         for path in (
             repository / "src" / "quantis_core"
         ).glob("*.py")
-        if path.name != "contextual_multimodal_development.py"
+        if path.name
+        not in {
+            "contextual_multimodal_development.py",
+            "contextual_confirmation.py",
+            "contextual_representation_transfer.py",
+        }
     } | {
         "src/quantis_core/py.typed",
         "pyproject.toml",

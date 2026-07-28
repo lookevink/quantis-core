@@ -9,6 +9,10 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Mapping, Sequence, Tuple
 
+from .contextual_confirmation import (
+    CONFIRMATION_PROTOCOL_KIND,
+    confirmation_case_ids,
+)
 from .demand_conditioning import canonical_request_schedule
 from .contextual_multimodal_world_model import (
     ContextualMultimodalJepaWorldModelDetector,
@@ -284,8 +288,11 @@ def validate_contextual_multimodal_promotion_corpus(
         != "contextual_multimodal_telemetry_corpus"
     ):
         raise ValueError("unsupported contextual promotion corpus")
-    expected_training = list(protocol["training_case_ids"])
-    expected_validation = list(protocol["validation_case_ids"])
+    raw_expected_training, raw_expected_validation = _protocol_case_ids(
+        protocol
+    )
+    expected_training = list(raw_expected_training)
+    expected_validation = list(raw_expected_validation)
     contextual_protocol = dict(corpus["protocol"])
     if contextual_protocol.get("evidence_assignment") != (
         "deferred_to_training_protocol"
@@ -608,7 +615,11 @@ def _validate_inputs(
         raise ValueError(
             "result evidence mode is not promotion confirmation"
         )
-    if dict(result["config"]) != dict(protocol["training_config"]):
+    observed_training_config = dict(result["config"])
+    if observed_training_config != _expected_training_config(
+        protocol,
+        int(observed_training_config.get("seed", -1)),
+    ):
         raise ValueError(
             "training configuration differs from promotion protocol"
         )
@@ -649,7 +660,9 @@ def _validate_inputs(
         )
     for split in ("training", "validation"):
         observed = list(result_protocol[f"{split}_case_ids"])
-        expected = list(protocol[f"{split}_case_ids"])
+        expected = list(_protocol_case_ids(protocol)[
+            0 if split == "training" else 1
+        ])
         if observed != expected:
             raise ValueError(
                 f"{split} cases differ from promotion protocol"
@@ -705,8 +718,12 @@ def _validate_inputs(
             "control artifact hashes do not match artifacts"
         )
     shuffled_artifact = model_artifacts["shuffled_log_model"]
-    if dict(shuffled_artifact["control_protocol"]) != dict(
-        protocol["shuffled_log_control"]
+    expected_shuffled_control = _expected_shuffled_control(
+        protocol,
+        int(observed_training_config["seed"]),
+    )
+    if dict(shuffled_artifact["control_protocol"]) != (
+        expected_shuffled_control
     ):
         raise ValueError(
             "shuffled-log control differs from promotion protocol"
@@ -721,7 +738,7 @@ def _validate_inputs(
             "semantic_feature_names"
         ]
     )
-    training_config = dict(protocol["training_config"])
+    training_config = observed_training_config
     expected_dimensions = {
         "model": (
             training_config["metric_latent_dimension"],
@@ -789,6 +806,11 @@ def _validate_inputs(
                 f"schedule family {model_name}",
             )
     _validate_family_aggregates(families, metrics)
+    if protocol.get("kind") == CONFIRMATION_PROTOCOL_KIND:
+        _validate_confirmation_transfer(
+            dict(result["representation_transfer"]),
+            protocol,
+        )
     diagnostics = dict(model_artifacts["model"]["diagnostics"])
     _validate_effective_rank(
         diagnostics.get("metric_effective_rank"),
@@ -803,11 +825,16 @@ def _validate_inputs(
 
 
 def _validate_protocol(protocol: Mapping[str, Any]) -> None:
-    if (
+    v1 = (
         protocol.get("schema_version") != 1
         or protocol.get("kind")
         != "contextual_multimodal_jepa_promotion_v1"
-    ):
+    )
+    v2 = (
+        protocol.get("schema_version") != 2
+        or protocol.get("kind") != CONFIRMATION_PROTOCOL_KIND
+    )
+    if v1 and v2:
         raise ValueError("unsupported contextual promotion protocol")
 
 
@@ -1021,11 +1048,197 @@ def _validate_effective_rank(
         )
 
 
+def _validate_confirmation_transfer(
+    transfer: Mapping[str, Any],
+    protocol: Mapping[str, Any],
+) -> None:
+    expected = dict(protocol["representation_transfer"])
+    if (
+        transfer.get("schema_version") != 1
+        or transfer.get("kind") != expected["kind"]
+        or transfer.get("fit_split")
+        != "training_schedule_families_only"
+        or transfer.get("evaluation_split")
+        != "untouched_validation_schedule_families"
+        or transfer.get("ridge") != expected["ridge"]
+        or transfer.get("target_block_reduction")
+        != expected["target_block_reduction"]
+        or list(transfer.get("targets", ()))
+        != list(expected["targets"])
+    ):
+        raise ValueError(
+            "frozen representation transfer differs from protocol"
+        )
+    pca_name = (
+        f"pca_{int(expected['pca_context_dimension'])}"
+        "_context_ridge"
+    )
+    dimensions = {
+        "contextual_multimodal": int(
+            expected["context_latent_dimension"]
+        ),
+        "metrics_only": 9,
+        "capacity_matched_metrics_only": int(
+            expected["context_latent_dimension"]
+        ),
+        "shuffled_logs": int(
+            expected["context_latent_dimension"]
+        ),
+        "raw_context_ridge": int(
+            expected["raw_context_dimension"]
+        ),
+        pca_name: int(expected["pca_context_dimension"]),
+    }
+    representations = dict(transfer.get("representations", {}))
+    if set(representations) != set(dimensions):
+        raise ValueError(
+            "frozen representation controls are incomplete"
+        )
+    _, validation_case_ids = _protocol_case_ids(protocol)
+    expected_families = {
+        f"f{_case_family_index(case_id):02d}"
+        for case_id in validation_case_ids
+    }
+    for name, expected_dimension in dimensions.items():
+        representation = dict(representations[name])
+        if (
+            representation.get("context_dimension")
+            != expected_dimension
+            or not isinstance(
+                representation.get("completed_target_count"),
+                int,
+            )
+            or isinstance(
+                representation.get("completed_target_count"),
+                bool,
+            )
+        ):
+            raise ValueError(
+                f"frozen representation summary is invalid: {name}"
+            )
+        target_results = dict(representation.get("targets", {}))
+        if set(target_results) != set(expected["targets"]):
+            raise ValueError(
+                f"frozen representation targets differ: {name}"
+            )
+        completed = 0
+        normalized_errors = []
+        r_squared_values = []
+        for target_name, raw_target in target_results.items():
+            target = dict(raw_target)
+            status = target.get("status")
+            if status == "insufficient_training_variation":
+                continue
+            if status != "completed":
+                raise ValueError(
+                    f"frozen probe status is invalid: "
+                    f"{name} {target_name}"
+                )
+            completed += 1
+            error = target.get("validation_normalized_mse")
+            r_squared = target.get("validation_r_squared")
+            training_variance = target.get("training_variance")
+            family_errors = dict(
+                target.get("family_normalized_mse", {})
+            )
+            if (
+                not _is_nonnegative_finite_number(error)
+                or not _is_positive_finite_number(
+                    training_variance
+                )
+                or (
+                    r_squared is not None
+                    and not _is_finite_number(r_squared)
+                )
+                or set(family_errors) != expected_families
+                or any(
+                    not _is_nonnegative_finite_number(value)
+                    for value in family_errors.values()
+                )
+            ):
+                raise ValueError(
+                    f"frozen probe metrics are invalid: "
+                    f"{name} {target_name}"
+                )
+            assert isinstance(error, (int, float))
+            assert isinstance(training_variance, (int, float))
+            normalized_errors.append(float(error))
+            if r_squared is not None:
+                r_squared_values.append(float(r_squared))
+        if representation["completed_target_count"] != completed:
+            raise ValueError(
+                f"frozen probe completed count differs: {name}"
+            )
+        expected_mean_error = (
+            sum(normalized_errors) / len(normalized_errors)
+            if normalized_errors
+            else None
+        )
+        expected_mean_r_squared = (
+            sum(r_squared_values) / len(r_squared_values)
+            if r_squared_values
+            else None
+        )
+        if (
+            not _optional_numbers_close(
+                representation.get(
+                    "mean_validation_normalized_mse"
+                ),
+                expected_mean_error,
+            )
+            or not _optional_numbers_close(
+                representation.get("mean_validation_r_squared"),
+                expected_mean_r_squared,
+            )
+        ):
+            raise ValueError(
+                f"frozen probe aggregate differs: {name}"
+            )
+
+
 def _is_finite_number(value: object) -> bool:
     return (
         isinstance(value, (int, float))
         and not isinstance(value, bool)
         and math.isfinite(float(value))
+    )
+
+
+def _is_nonnegative_finite_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and float(value) >= 0.0
+    )
+
+
+def _is_positive_finite_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+        and float(value) > 0.0
+    )
+
+
+def _optional_numbers_close(
+    observed: object,
+    expected: object,
+) -> bool:
+    if observed is None or expected is None:
+        return observed is None and expected is None
+    if not _is_finite_number(observed) or not _is_finite_number(
+        expected
+    ):
+        return False
+    assert isinstance(observed, (int, float))
+    assert isinstance(expected, (int, float))
+    return math.isclose(
+        float(observed),
+        float(expected),
+        rel_tol=1e-12,
+        abs_tol=1e-12,
     )
 
 
@@ -1054,10 +1267,10 @@ def _expected_schedule_by_case_id(
     design = dict(protocol["corpus"])
     schedule_families = list(design["schedule_families"])
     expected: Dict[str, Tuple[int, ...]] = {}
-    for case_id in (
-        list(protocol["training_case_ids"])
-        + list(protocol["validation_case_ids"])
-    ):
+    training_case_ids, validation_case_ids = _protocol_case_ids(
+        protocol
+    )
+    for case_id in training_case_ids + validation_case_ids:
         family_index = _case_family_index(case_id)
         family = dict(schedule_families[family_index - 1])
         expected[str(case_id)] = canonical_request_schedule(
@@ -1106,7 +1319,8 @@ def _validate_schedule_transfer_families(
     training_family_count = int(design["training_family_count"])
     schedules = _expected_schedule_by_case_id(protocol)
     expected: Dict[str, set[str]] = {}
-    for case_id in protocol["validation_case_ids"]:
+    _, validation_case_ids = _protocol_case_ids(protocol)
+    for case_id in validation_case_ids:
         schedule_hash = _schedule_sha256(schedules[str(case_id)])
         expected.setdefault(schedule_hash, set()).add(str(case_id))
         if _case_family_index(str(case_id)) <= training_family_count:
@@ -1148,6 +1362,52 @@ def _alert_rate(
             "alert_rate"
         ]
     )
+
+
+def _protocol_case_ids(
+    protocol: Mapping[str, Any],
+) -> Tuple[Tuple[str, ...], Tuple[str, ...]]:
+    if protocol.get("kind") == CONFIRMATION_PROTOCOL_KIND:
+        return confirmation_case_ids(protocol)
+    return (
+        tuple(str(value) for value in protocol["training_case_ids"]),
+        tuple(
+            str(value) for value in protocol["validation_case_ids"]
+        ),
+    )
+
+
+def _expected_training_config(
+    protocol: Mapping[str, Any],
+    seed: int,
+) -> Mapping[str, Any]:
+    expected = dict(protocol["training_config"])
+    if protocol.get("kind") != CONFIRMATION_PROTOCOL_KIND:
+        return expected
+    allowed = tuple(
+        int(value) for value in protocol["training_seeds"]
+    )
+    if seed not in allowed:
+        raise ValueError("training seed is not preregistered")
+    expected["seed"] = seed
+    return expected
+
+
+def _expected_shuffled_control(
+    protocol: Mapping[str, Any],
+    seed: int,
+) -> Mapping[str, Any]:
+    control = dict(protocol["shuffled_log_control"])
+    if protocol.get("kind") != CONFIRMATION_PROTOCOL_KIND:
+        return control
+    training_offset = int(control.pop("training_seed_offset"))
+    validation_offset = int(control.pop("validation_seed_offset"))
+    return {
+        "kind": control.pop("kind"),
+        "training_seed": seed + training_offset,
+        "validation_seed": seed + validation_offset,
+        **control,
+    }
 
 
 def _canonical_sha256(payload: Mapping[str, Any]) -> str:

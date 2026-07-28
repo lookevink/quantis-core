@@ -72,11 +72,19 @@ def prepare_normal_corpus(
     expected_application_api_request_queue_size: Optional[
         int
     ] = None,
+    training_family_count: int = TRAINING_FAMILY_COUNT,
 ) -> None:
     """Write a fresh normal-only corpus from explicit schedule families."""
 
-    if len(schedule_families) != 10:
-        raise ValueError("normal corpus requires ten schedule families")
+    if (
+        len(schedule_families) < 2
+        or training_family_count < 1
+        or training_family_count >= len(schedule_families)
+    ):
+        raise ValueError(
+            "normal corpus requires nonempty training and validation "
+            "schedule families"
+        )
     manifests_directory = output / "manifests"
     split_path = output / "split.json"
     if manifests_directory.exists() or split_path.exists():
@@ -121,7 +129,7 @@ def prepare_normal_corpus(
             )
             destination = (
                 training_case_ids
-                if family_index <= TRAINING_FAMILY_COUNT
+                if family_index <= training_family_count
                 else validation_case_ids
             )
             destination.append(case_id)

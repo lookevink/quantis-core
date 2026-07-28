@@ -9,6 +9,9 @@ from quantis_core.contextual_multimodal_corpus import (
 from quantis_core.contextual_multimodal_world_model import (
     ContextualMultimodalJepaWorldModelDetector,
 )
+from quantis_core.contextual_representation_transfer import (
+    evaluate_frozen_context_transfer,
+)
 
 
 def test_contextual_jepa_is_conditioned_staged_and_roundtrips() -> None:
@@ -113,8 +116,16 @@ def test_contextual_jepa_is_conditioned_staged_and_roundtrips() -> None:
         )
     )
     actual = restored.score(validation)
+    encoded = first.encode_context(validation)
+    restored_encoded = restored.encode_context(validation)
 
     np.testing.assert_allclose(actual.scores, expected.scores)
+    np.testing.assert_allclose(restored_encoded, encoded)
+    assert encoded.shape == (
+        len(validation.metric_contexts),
+        3,
+        3,
+    )
     np.testing.assert_allclose(
         actual.feature_evidence,
         expected.feature_evidence,
@@ -189,6 +200,74 @@ def test_contextual_jepa_v2_recipe_masks_and_balances_modalities() -> None:
             - unmasked.score(validation).scores
         )
     ) > 1e-6
+
+
+def test_frozen_context_transfer_uses_held_out_families() -> None:
+    training, validation = _contextual_windows()
+
+    def detector(metric_dimension: int, log_dimension: int, seed: int):
+        return ContextualMultimodalJepaWorldModelDetector(
+            metric_latent_dimension=metric_dimension,
+            log_latent_dimension=log_dimension,
+            pretraining_epochs=5,
+            predictor_refinement_epochs=2,
+            seed=seed,
+        ).fit(training)
+
+    models = {
+        "contextual_multimodal": detector(2, 1, 3),
+        "metrics_only": detector(2, 0, 5),
+        "capacity_matched_metrics_only": detector(3, 0, 7),
+        "shuffled_logs": detector(2, 1, 11),
+    }
+    validation_cases = tuple(
+        "confirmation-f13-w1-173"
+        if index < len(validation.metric_contexts) // 2
+        else "confirmation-f14-w1-173"
+        for index in range(len(validation.metric_contexts))
+    )
+    transfer = evaluate_frozen_context_transfer(
+        models,
+        training,
+        validation,
+        training_window_case_ids=tuple(
+            "confirmation-f01-w1-173"
+            for _ in range(len(training.metric_contexts))
+        ),
+        validation_window_case_ids=validation_cases,
+        shuffled_training=training,
+        shuffled_validation=validation,
+        target_names=(
+            "metric.queue",
+            "metric.worker",
+            "log.completion",
+            "log.backlog",
+        ),
+        ridge=0.001,
+        pca_dimension=6,
+    )
+
+    assert transfer["fit_split"] == (
+        "training_schedule_families_only"
+    )
+    assert set(transfer["representations"]) == {
+        "contextual_multimodal",
+        "metrics_only",
+        "capacity_matched_metrics_only",
+        "shuffled_logs",
+        "raw_context_ridge",
+        "pca_6_context_ridge",
+    }
+    contextual = transfer["representations"][
+        "contextual_multimodal"
+    ]
+    assert contextual["context_dimension"] == 9
+    assert contextual["completed_target_count"] == 4
+    assert set(
+        contextual["targets"]["metric.queue"][
+            "family_normalized_mse"
+        ]
+    ) == {"f13", "f14"}
 
 
 def _contextual_windows() -> tuple[

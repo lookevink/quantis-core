@@ -258,3 +258,19 @@ selected bundle under
 final two v2 families are diagnostic only; promotion requires a new untouched
 corpus after the v2 recipe is frozen. See the
 [v2 development specification](docs/specs/contextual-multimodal-jepa-v2-development.md).
+
+The next experiment freezes that recipe and tests a narrower publishable
+claim on 72 untouched runs. It collects through three isolated Docker lanes,
+trains five fixed seeds plus a deterministic repeat, and evaluates frozen
+12-dimensional JEPA states against raw 108-dimensional and PCA baselines:
+
+```bash
+./lab/fault_matrix/run-contextual-multimodal-jepa-confirmation-v2.sh
+```
+
+Positive and negative outcomes are preserved under the same preregistration.
+The assessor also selects the next world-model milestone from the evidence:
+action-conditioned interventions if the claim passes, log-alignment repair if
+only compression transfers, or improved observability if compression fails.
+See the
+[confirmation v2 specification](docs/specs/contextual-multimodal-jepa-confirmation-v2.md).

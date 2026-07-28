@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
+from quantis_core.contextual_confirmation import confirmation_case_ids
+
 
 def verify_preregistration(
     repository: Path,
@@ -30,11 +32,19 @@ def verify_preregistration(
     protocol_path = protocol_path.resolve()
     protocol_bytes = protocol_path.read_bytes()
     protocol = json.loads(protocol_bytes)
-    if (
-        protocol.get("schema_version") != 1
-        or protocol.get("kind")
-        != "contextual_multimodal_jepa_promotion_v1"
-    ):
+    supported = (
+        (
+            protocol.get("schema_version") == 1
+            and protocol.get("kind")
+            == "contextual_multimodal_jepa_promotion_v1"
+        )
+        or (
+            protocol.get("schema_version") == 2
+            and protocol.get("kind")
+            == "contextual_multimodal_jepa_confirmation_v2"
+        )
+    )
+    if not supported:
         raise ValueError("unsupported contextual promotion protocol")
     protocol_relative = str(protocol_path.relative_to(repository))
     if _git_bytes(repository, commit, protocol_relative) != protocol_bytes:
@@ -59,7 +69,7 @@ def verify_preregistration(
             raise ValueError(
                 f"frozen file differs from commit: {relative_path}"
             )
-    return protocol
+    return dict(protocol)
 
 
 def verify_prepared_inputs(
@@ -71,9 +81,14 @@ def verify_prepared_inputs(
     split = json.loads(
         (inputs_directory / "split.json").read_text()
     )
+    expected_training, expected_validation = _case_ids(protocol)
+    expected_by_split = {
+        "training": expected_training,
+        "validation": expected_validation,
+    }
     for split_name in ("training", "validation"):
         observed = list(split[f"{split_name}_case_ids"])
-        expected = list(protocol[f"{split_name}_case_ids"])
+        expected = list(expected_by_split[split_name])
         if observed != expected:
             raise ValueError(
                 f"prepared {split_name} cases differ from protocol"
@@ -91,8 +106,8 @@ def verify_prepared_inputs(
     manifests = sorted(
         (inputs_directory / "manifests").glob("*.json")
     )
-    expected_case_ids = set(protocol["training_case_ids"]) | set(
-        protocol["validation_case_ids"]
+    expected_case_ids = set(expected_training) | set(
+        expected_validation
     )
     if len(manifests) != len(expected_case_ids):
         raise ValueError("prepared manifest count differs from protocol")
@@ -155,6 +170,19 @@ def _git_bytes(repository: Path, commit: str, path: str) -> bytes:
 
 def _sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
+
+
+def _case_ids(
+    protocol: Mapping[str, Any],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    if protocol.get("kind") == (
+        "contextual_multimodal_jepa_confirmation_v2"
+    ):
+        return confirmation_case_ids(protocol)
+    return (
+        tuple(str(value) for value in protocol["training_case_ids"]),
+        tuple(str(value) for value in protocol["validation_case_ids"]),
+    )
 
 
 if __name__ == "__main__":

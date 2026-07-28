@@ -237,6 +237,27 @@ class ContextualMultimodalJepaWorldModelDetector:
             include_log_context,
         )
 
+    def encode_context(
+        self,
+        windows: ContextualMultimodalModelWindows,
+    ) -> NDArray[np.float64]:
+        """Return the frozen per-patch context state used by the predictor."""
+
+        self._validate_fitted(windows)
+        (
+            _,
+            _,
+            metric_context,
+            log_context,
+            _,
+            _,
+            _,
+        ) = self._representations(windows)
+        return np.concatenate(
+            (metric_context, log_context),
+            axis=2,
+        )
+
     def _initialize(
         self,
         windows: ContextualMultimodalModelWindows,
