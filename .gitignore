@@ -17,3 +17,4 @@ artifacts/*
 !artifacts/fault-matrix/**
 !artifacts/demand-conditioned-v2/
 !artifacts/demand-conditioned-v2/**
+*.DS_Store
