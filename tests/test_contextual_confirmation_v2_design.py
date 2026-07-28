@@ -190,7 +190,7 @@ def test_confirmation_preparer_matches_protocol(tmp_path):
     assert len(manifests) == 72
 
 
-def test_confirmation_runner_does_not_consume_corpus_during_design():
+def test_confirmation_runner_collects_explicitly_and_refuses_overwrite():
     repository = _repository()
     runner = (
         repository
@@ -203,9 +203,5 @@ def test_confirmation_runner_does_not_consume_corpus_during_design():
     assert "--parallel-jobs 3" in runner
     assert "train-contextual-confirmation-v2" in runner
     assert "assess-contextual-confirmation-v2" in runner
-    assert not (
-        repository
-        / "artifacts"
-        / "jepa-world-model-v2"
-        / "contextual-confirmation-v2"
-    ).exists()
+    assert "Refusing to overwrite confirmation evidence" in runner
+    assert "--resume-training" in runner

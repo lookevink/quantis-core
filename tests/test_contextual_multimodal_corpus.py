@@ -2,8 +2,10 @@ import hashlib
 import json
 
 import numpy as np
+import pytest
 
 from quantis_core.contextual_multimodal_corpus import (
+    DEPENDENCY_REQUIRED_LOG_FEATURE_NAMES,
     DemandResidualLogTransformer,
     DependencyResidualLogTransformer,
     compile_contextual_multimodal_telemetry_corpus,
@@ -14,6 +16,7 @@ from quantis_core.multimodal_corpus import (
 from quantis_core.otlp_log_windowing import OtlpLogFeatureSpec
 from quantis_core.otlp_logs import LogRecord, OtlpLogCapture
 from quantis_core.telemetry_corpus import TelemetryCorpusSplitSpec
+from quantis_core.windowing import WindowCompiler
 from tests.corpus_test_support import (
     FRESH_CASE_IDS,
     fresh_development_runs,
@@ -214,6 +217,39 @@ def test_v2_log_transformer_keeps_pressure_without_complement_events() -> None:
     assert transformed.feature_names.count(
         "worker_idle_transition_rate"
     ) == 0
+
+
+def test_v2_log_transformer_accepts_zero_after_normalizer_round_trip() -> None:
+    names = tuple(DEPENDENCY_REQUIRED_LOG_FEATURE_NAMES)
+    scalar_counts = np.asarray(
+        [0.0, 8.0, 12.0, 16.0, 20.0]
+    )[:, None]
+    counts = np.repeat(scalar_counts, len(names), axis=1)
+    compiler = WindowCompiler(1).fit(counts)
+    windows = compiler.transform(counts, names)
+    artifact = compiler.to_dict()
+    location = np.asarray(artifact["location"])
+    scale = np.asarray(artifact["scale"])
+    reconstructed = windows.contexts[0] * scale + location
+
+    assert np.min(reconstructed) < 0.0
+    transformed = DependencyResidualLogTransformer().transform(
+        reconstructed,
+        names,
+        np.ones(len(reconstructed)),
+    )
+
+    assert np.all(transformed.values >= 0.0)
+    reconstructed[0, 0] = -1e-6
+    with pytest.raises(
+        ValueError,
+        match="application event counts cannot be negative",
+    ):
+        DependencyResidualLogTransformer().transform(
+            reconstructed,
+            names,
+            np.ones(len(reconstructed)),
+        )
 
 
 def test_contextual_corpus_builds_conditioned_multihorizon_blocks() -> None:

@@ -339,6 +339,21 @@ def test_confirmation_validates_parallel_collection_attestation():
         attestation,
         protocol,
     )
+    original_collection = copy.deepcopy(attestation)
+    original_collection["protocol_sha256"] = protocol["amendments"][0][
+        "collection_protocol_sha256"
+    ]
+    validate_confirmation_collection_attestation(
+        original_collection,
+        protocol,
+    )
+    unrelated_protocol = copy.deepcopy(attestation)
+    unrelated_protocol["protocol_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="differs from protocol"):
+        validate_confirmation_collection_attestation(
+            unrelated_protocol,
+            protocol,
+        )
     invalid = copy.deepcopy(attestation)
     invalid["cases"][0]["lane"] = 2
     with pytest.raises(ValueError, match="lane plan"):

@@ -7,7 +7,10 @@ import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
-from quantis_core.contextual_confirmation import confirmation_case_ids
+from quantis_core.contextual_confirmation import (
+    confirmation_case_ids,
+    validate_confirmation_collection_attestation,
+)
 
 
 def verify_preregistration(
@@ -144,6 +147,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--protocol", type=Path, required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--inputs", type=Path)
+    parser.add_argument("--collection-attestation", type=Path)
     parsed = parser.parse_args(arguments)
     protocol = verify_preregistration(
         parsed.repository,
@@ -152,6 +156,13 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
     )
     if parsed.inputs is not None:
         verify_prepared_inputs(parsed.inputs, protocol)
+    if parsed.collection_attestation is not None:
+        validate_confirmation_collection_attestation(
+            json.loads(
+                parsed.collection_attestation.read_text()
+            ),
+            protocol,
+        )
     print(
         f"Verified contextual JEPA promotion protocol at "
         f"{parsed.commit}"

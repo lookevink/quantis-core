@@ -81,6 +81,7 @@ DEPENDENCY_REQUIRED_LOG_FEATURE_NAMES = (
     "checkout_queue_wait_elevated_count",
     "checkout_queue_wait_slow_count",
 )
+EVENT_COUNT_ROUND_TRIP_ATOL = 1e-12
 
 
 @dataclass(frozen=True)
@@ -102,7 +103,9 @@ class DemandResidualLogTransformer:
         feature_names: Sequence[str],
         request_demand: NDArray[np.float64],
     ) -> SemanticLogTelemetry:
-        logs = np.asarray(values, dtype=np.float64)
+        logs = _snap_event_count_round_trip(
+            np.asarray(values, dtype=np.float64),
+        )
         demand = np.asarray(request_demand, dtype=np.float64)
         names = tuple(feature_names)
         if (
@@ -257,7 +260,9 @@ class DependencyResidualLogTransformer:
         feature_names: Sequence[str],
         request_demand: NDArray[np.float64],
     ) -> SemanticLogTelemetry:
-        logs = np.asarray(values, dtype=np.float64)
+        logs = _snap_event_count_round_trip(
+            np.asarray(values, dtype=np.float64),
+        )
         demand = np.asarray(request_demand, dtype=np.float64)
         names = tuple(feature_names)
         if (
@@ -481,6 +486,18 @@ class _RunValues:
     metric: NDArray[np.float64]
     logs: NDArray[np.float64]
     controls: NDArray[np.float64]
+
+
+def _snap_event_count_round_trip(
+    values: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    nearest_integer = np.rint(values)
+    return np.where(
+        np.abs(values - nearest_integer)
+        <= EVENT_COUNT_ROUND_TRIP_ATOL,
+        nearest_integer,
+        values,
+    )
 
 
 def compile_contextual_multimodal_telemetry_corpus(

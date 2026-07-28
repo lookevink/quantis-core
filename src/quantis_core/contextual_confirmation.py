@@ -619,6 +619,9 @@ def assess_contextual_confirmation(
         {
             "claim": protocol["claim"],
             "evidence_boundary": protocol["evidence_boundary"],
+            "protocol_amendments": list(
+                protocol.get("amendments", ())
+            ),
             "preregistered_git_commit": preregistered_git_commit,
             "collection_attestation_sha256": hashlib.sha256(
                 collection_attestation_path.read_bytes()
@@ -681,9 +684,26 @@ def write_contextual_confirmation_assessment(
         "",
         str(assessment["evidence_boundary"]),
         "",
-        "## Preregistered gates",
+        "## Protocol amendments",
         "",
     ]
+    amendments = list(assessment["protocol_amendments"])
+    if amendments:
+        for amendment in amendments:
+            raw_amendment = dict(amendment)
+            lines.append(
+                f"- `{raw_amendment['id']}` — "
+                f"{raw_amendment['change']}"
+            )
+    else:
+        lines.append("- None")
+    lines.extend(
+        [
+            "",
+            "## Preregistered gates",
+            "",
+        ]
+    )
     for name, raw_gate in dict(assessment["gates"]).items():
         gate = dict(raw_gate)
         lines.append(
@@ -911,6 +931,31 @@ def _validate_confirmation_protocol_shape(
         raise ValueError(
             "contextual confirmation corpus design is incomplete"
         )
+    amendments = protocol.get("amendments", ())
+    if not isinstance(amendments, list):
+        raise ValueError(
+            "contextual confirmation amendments must be a list"
+        )
+    for amendment in amendments:
+        if not isinstance(amendment, Mapping):
+            raise ValueError(
+                "contextual confirmation amendment is invalid"
+            )
+        collection_sha256 = amendment.get(
+            "collection_protocol_sha256"
+        )
+        if (
+            not isinstance(collection_sha256, str)
+            or len(collection_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in collection_sha256
+            )
+        ):
+            raise ValueError(
+                "contextual confirmation amendment collection hash "
+                "is invalid"
+            )
 
 
 def validate_confirmation_collection_attestation(
@@ -938,7 +983,7 @@ def validate_confirmation_collection_attestation(
         or not isinstance(attestation.get("application_image_id"), str)
         or not attestation.get("application_image_id")
         or attestation.get("protocol_sha256")
-        != _canonical_sha256(protocol)
+        not in _accepted_collection_protocol_sha256s(protocol)
         or len(cases) != len(plans)
     ):
         raise ValueError(
@@ -1024,6 +1069,17 @@ def validate_confirmation_collection_attestation(
             raise ValueError(
                 "confirmation collection batches overlap"
             )
+
+
+def _accepted_collection_protocol_sha256s(
+    protocol: Mapping[str, Any],
+) -> set[str]:
+    accepted = {_canonical_sha256(protocol)}
+    accepted.update(
+        str(amendment["collection_protocol_sha256"])
+        for amendment in protocol.get("amendments", ())
+    )
+    return accepted
 
 
 def _canonical_sha256(value: Mapping[str, Any]) -> str:

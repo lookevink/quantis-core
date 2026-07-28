@@ -302,9 +302,21 @@
     "compression_only": "repair_log_alignment_before_dynamics",
     "unsupported_claim": "improve_state_observability_before_dynamics"
   },
+  "amendments": [
+    {
+      "id": "pretraining-numerical-round-trip-fix-1",
+      "status": "accepted_after_collection_before_model_fit",
+      "original_preregistered_git_commit": "0dccd7974ff622d0519fb1a4446425ea806d12d3",
+      "collection_protocol_sha256": "47ef16575a9a504eb86fa9897a8b37bae8ebe0bcc709e7d1b9677b7a5029935c",
+      "trigger": "The first seed-89 corpus compilation stopped before model fitting because inverse normalization reconstructed a raw zero application-event count as -1.7763568394002505e-15.",
+      "change": "Snap inverse-normalized application-event counts to the nearest integer only when their absolute round-trip difference is at most 1e-12, before finite and nonnegative validation.",
+      "scientific_scope": "No corpus schedules, split membership, captured bytes, feature vocabulary, model configuration, seed, control, threshold, or assessment logic changed. A regression test retains rejection of a meaningful -1e-6 negative count.",
+      "validation_access": "The failure was diagnosed from preprocessing only; no model was fitted and no validation performance or gate result was inspected before this amendment."
+    }
+  ],
   "frozen_files": {
     "pyproject.toml": "cfc9eec60fac4d51ebfaf0b7ed44cd0b8c163db7056d927ce9b41124d1476d2d",
-    "docs/specs/contextual-multimodal-jepa-confirmation-v2.md": "ce5e174f3a190f8916a26091370a69dce4f4f31ccbaf2c164c55da09744702ad",
+    "docs/specs/contextual-multimodal-jepa-confirmation-v2.md": "d1006fc951c3d3531659bc78d659c46604d8943abc9b7a5170f597760495b4b6",
     "lab/fault_matrix/Dockerfile": "c3d1ec3dd8f9bc349920f01ae288ade6c4e3719616a26ef33930c2c0028ba766",
     "lab/fault_matrix/application_logging.py": "97552793d99195a02a0e7e6d5290927065b6e7cc92c90575f8f47edb2b88ed61",
     "lab/fault_matrix/collect_contextual_confirmation.py": "49e658ef9717a47d88d499beefa6d760dbbbbcf477f798fb7995fa4493f23b85",
@@ -316,14 +328,14 @@
     "lab/fault_matrix/prepare_contextual_confirmation_corpus.py": "0134e8b2a3b75f6d6a0ddd94938b44f77fc145a9f2ab938f9503167d738ceca2",
     "lab/fault_matrix/prepare_jepa_normal_corpus.py": "c41865e0ca8c0752d4cc601ecc22f77fbe39137bb3c09e5cff4be7bbcb6a1a73",
     "lab/fault_matrix/requirements.txt": "8f8bf648bd8431e4d7c9129a75491f23507334010d1fa8eadb215e443d1847d5",
-    "lab/fault_matrix/run-contextual-multimodal-jepa-confirmation-v2.sh": "00c805637e01647bb68d297c1d94274d0846458981746259e57392673fbfa6b9",
+    "lab/fault_matrix/run-contextual-multimodal-jepa-confirmation-v2.sh": "89c514b0f4d9e2a88459fd681b2e8cf6d6f34cf05e668f299d5e3e9e55fde053",
     "lab/fault_matrix/run_experiment.py": "e931e66abcac3cbf495ab57fba78df038bcca7c2ba813076a4f0376889a300cc",
     "lab/fault_matrix/service.py": "1ff11cfaafa2095fe101918a0683ee91bbfe22dd1532f8a764650ec2e0f0564f",
-    "lab/fault_matrix/verify_contextual_jepa_promotion.py": "ce18a35204be63bcb5954f5f154e2a281a586072613174dc85ddbc3106f4b90d",
+    "lab/fault_matrix/verify_contextual_jepa_promotion.py": "facf67430c6a8b20b66783af47c39bd35f263837d37df99e2f4516d9fcc162dd",
     "src/quantis_core/__init__.py": "e9f3f683d101cd91f581ca3210df4da24a3830845993ffbf754922f04f267bd0",
     "src/quantis_core/__main__.py": "db3be613c3d3f32aad304a04ed932ad7e05b74cc39984bdabe83972c6d4f8776",
-    "src/quantis_core/contextual_confirmation.py": "c62426bde4ec32dae09618cdb8556f894fa98589aac8224fc94ae5b68b34d868",
-    "src/quantis_core/contextual_multimodal_corpus.py": "fd849586d26eba675d17b4688dbb732f681f103f382a049a7dc93eb1e1cc5caa",
+    "src/quantis_core/contextual_confirmation.py": "be56ef297bd05b6761fd501682feda25c609092482c154e5f1c94093cad3d409",
+    "src/quantis_core/contextual_multimodal_corpus.py": "49226e892f493d915eaa2650f1386aeb0d1b4942a73ac612331044991eeb2586",
     "src/quantis_core/contextual_multimodal_development.py": "7e4ac29c9fdc8c9a8f5adf2870b1b440531b8bbebc08e1a587effad50f8369f8",
     "src/quantis_core/contextual_multimodal_promotion.py": "289989ec4c482bfb0848c6e6f7368edec26b05062eb467c888c270f4c4e6aa59",
     "src/quantis_core/contextual_multimodal_training.py": "7dfa79649738e7fb0be8985749d914cd57dffab7f9f600e0d17f9ce2541fe635",

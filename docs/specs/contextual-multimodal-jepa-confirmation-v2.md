@@ -11,6 +11,28 @@ This is a confirmation of a deliberately narrow representation-learning
 claim. It is not a promotion to production and it is not yet a validated
 world-model claim.
 
+### Pre-training amendment 1
+
+The 72-run collection completed under commit
+`0dccd7974ff622d0519fb1a4446425ea806d12d3` and canonical protocol SHA-256
+`47ef16575a9a504eb86fa9897a8b37bae8ebe0bcc709e7d1b9677b7a5029935c`.
+The first seed-89 corpus compilation then stopped before model fitting:
+inverse normalization reconstructed one raw zero application-event count as
+`-1.7763568394002505e-15`, which the nonnegative count guard rejected.
+
+Before any model was fitted or validation performance was inspected, the
+preprocessor was amended to snap an inverse-normalized event count to its
+nearest integer only when the absolute round-trip difference is at most
+`1e-12`. A public-interface regression test covers the observed zero
+round-trip and confirms that a meaningful `-1e-6` count remains invalid.
+
+No schedule, split, captured byte, vocabulary, model configuration, seed,
+control, threshold, statistic, or assessment rule changed. The amended
+protocol explicitly accepts the original collection protocol hash, and the
+resume path verifies the original collection commit and attestation before
+training. This amendment is therefore a disclosed pre-training numerical
+repair, not post-result model selection.
+
 ## Preregistered claim
 
 Within the fixed Quantis checkout stack, aligned bounded application and
@@ -196,3 +218,15 @@ the committed file hashes, builds the stack once, collects 24 three-case
 batches, trains five seeds plus the deterministic repeat, and writes the final
 assessment under
 `artifacts/jepa-world-model-v2/contextual-confirmation-v2/assessment`.
+
+For the already completed collection covered by pre-training amendment 1:
+
+```bash
+./lab/fault_matrix/run-contextual-multimodal-jepa-confirmation-v2.sh \
+  --resume-training
+```
+
+The resume path refuses existing training outputs, verifies the amended
+commit, prepared inputs, original collection attestation, and original
+collection commit, then runs the same five seeds, deterministic repeat, and
+assessment without recollecting the stack.
