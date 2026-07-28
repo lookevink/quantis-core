@@ -384,7 +384,7 @@ def run_confirmation(
             >= int(thresholds["minimum_seed_wins"])
         ),
         "deterministic_primary_repeat": deterministic,
-        "expected_failure_channels_are_constant": (
+        "expected_nominal_invariants_are_constant": (
             expected_constant <= observed_constant
         ),
         "all_claimed_targets_vary_in_training": (

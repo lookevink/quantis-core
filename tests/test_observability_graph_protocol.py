@@ -101,10 +101,12 @@ def test_graph_training_protocol_is_bound_before_validation() -> None:
             "expected_constant_normal_features"
         ]
     ) == {
+        "log.checkout_rejection_rate",
         "metric.error_rate",
         "metric.redis_enqueue_error_rate",
         "metric.redis_dequeue_error_rate",
         "metric.postgresql_write_error_rate",
+        "metric.worker_active_ratio",
     }
 
 
