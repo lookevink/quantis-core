@@ -44,6 +44,7 @@ class ActionConditionedJepaConfig:
     covariance_weight: float = 0.01
     variance_floor: float = 1e-4
     objective: str = "jepa"
+    zero_initialize_decoder: bool = False
     device: str = "mps"
     seed: int = 89
 
@@ -153,6 +154,9 @@ class ActionConditionedJepaConfig:
             covariance_weight=float(payload["covariance_weight"]),
             variance_floor=float(payload["variance_floor"]),
             objective=str(payload["objective"]),
+            zero_initialize_decoder=bool(
+                payload.get("zero_initialize_decoder", False)
+            ),
             device=str(payload["device"]),
             seed=int(payload["seed"]),
         )
@@ -181,12 +185,37 @@ class ActionConditionedJepaDynamics:
             NDArray[np.float64]
         ] = None
         self._spectral_radius = 0.0
+        self._initial_maximum_absolute_prediction = float("nan")
 
     def fit(
         self, windows: ActionConditionedWindows
     ) -> "ActionConditionedJepaDynamics":
         """Fit masked latent and decoded future prediction."""
 
+        return self.fit_with_decoded_targets(
+            windows,
+            np.asarray(windows.future_states, dtype=np.float64),
+        )
+
+    def fit_with_decoded_targets(
+        self,
+        windows: ActionConditionedWindows,
+        decoded_future_targets: NDArray[Any],
+    ) -> "ActionConditionedJepaDynamics":
+        """Fit full-state JEPA tokens to a separate decoded target.
+
+        This preserves future-state latent semantics while allowing an
+        auxiliary decoder to learn residual corrections.
+        """
+
+        decoded_targets = np.asarray(
+            decoded_future_targets, dtype=np.float64
+        )
+        if (
+            decoded_targets.shape != windows.future_states.shape
+            or not np.all(np.isfinite(decoded_targets))
+        ):
+            raise ValueError("decoded future targets do not match windows")
         torch = _require_torch()
         self.device = _select_device(torch, self.config.device)
         _seed_torch(torch, self.config.seed)
@@ -203,6 +232,21 @@ class ActionConditionedJepaDynamics:
             raise ValueError("transition rank exceeds total latent width")
         self._network = _build_network(torch, self.config, schema)
         self._network.to(self.device)
+        initial_count = min(len(windows.histories), self.config.batch_size)
+        initial_prediction = self._predict_means(
+            np.asarray(
+                windows.histories[:initial_count], dtype=np.float64
+            ),
+            np.asarray(
+                windows.future_controls[:initial_count], dtype=np.float64
+            ),
+            np.asarray(
+                windows.future_actions[:initial_count], dtype=np.float64
+            ),
+        )
+        self._initial_maximum_absolute_prediction = float(
+            np.max(np.abs(initial_prediction))
+        )
         optimizer = torch.optim.AdamW(
             self._network.trainable_parameters(),
             lr=self.config.learning_rate,
@@ -228,7 +272,11 @@ class ActionConditionedJepaDynamics:
                     start : start + self.config.batch_size
                 ]
                 batch = _window_batch(
-                    torch, windows, selection, self.device
+                    torch,
+                    windows,
+                    selection,
+                    self.device,
+                    decoded_targets,
                 )
                 visible = _sample_visible_mask(
                     generator=generator,
@@ -277,7 +325,7 @@ class ActionConditionedJepaDynamics:
         self.training_metrics = tuple(metrics)
         self._spectral_radius = self._network.spectral_radius()
         self._residual_variance = self._estimate_residual_variance(
-            windows
+            windows, decoded_targets
         )
         return self
 
@@ -355,6 +403,68 @@ class ActionConditionedJepaDynamics:
                 )
         return np.concatenate(parts)
 
+    def latent_prediction_errors(
+        self, windows: ActionConditionedWindows
+    ) -> NDArray[np.float64]:
+        """Return per-window, per-horizon JEPA prediction divergence."""
+
+        torch = _require_torch()
+        fitted_graph, state_shape, control_count, action_shape, _ = (
+            self._fitted_values()
+        )
+        validate_edge_rollout(
+            np.asarray(windows.histories, dtype=np.float64),
+            np.asarray(windows.future_controls, dtype=np.float64),
+            np.asarray(windows.future_actions, dtype=np.float64),
+            windows.graph,
+            fitted_graph,
+            state_shape,
+            control_count,
+            action_shape,
+        )
+        if windows.future_states.shape[2:] != state_shape:
+            raise ValueError("future states do not match fitted schema")
+        parts: List[NDArray[np.float64]] = []
+        self._network.eval()
+        with torch.no_grad():
+            for start in range(
+                0, len(windows.histories), self.config.batch_size
+            ):
+                end = start + self.config.batch_size
+                batch = _window_batch(
+                    torch,
+                    windows,
+                    np.arange(
+                        start,
+                        min(end, len(windows.histories)),
+                        dtype=np.int64,
+                    ),
+                    self.device,
+                    np.asarray(
+                        windows.future_states, dtype=np.float64
+                    ),
+                )
+                predicted, target = (
+                    self._network.forward_latent_prediction(batch)
+                )
+                errors = torch.mean(
+                    torch.abs(predicted - target), dim=(2, 3)
+                )
+                parts.append(
+                    np.asarray(
+                        errors.detach().cpu().numpy(),
+                        dtype=np.float64,
+                    )
+                )
+        return np.concatenate(parts)
+
+    @property
+    def initial_maximum_absolute_prediction(self) -> float:
+        """Return decoder output magnitude before the first update."""
+
+        self._fitted_values()
+        return self._initial_maximum_absolute_prediction
+
     @property
     def parameter_count(self) -> int:
         """Return inference-time scalar parameters."""
@@ -399,6 +509,9 @@ class ActionConditionedJepaDynamics:
             "action_shape": list(action_shape),
             "spectral_radius": self.spectral_radius,
             "parameter_count": self.parameter_count,
+            "initial_maximum_absolute_prediction": (
+                self.initial_maximum_absolute_prediction
+            ),
             "training_metrics": [
                 dict(values) for values in self.training_metrics
             ],
@@ -464,6 +577,11 @@ class ActionConditionedJepaDynamics:
         model._network.load_state_dict(restored)
         model._network.to(model.device)
         model._spectral_radius = float(payload["spectral_radius"])
+        model._initial_maximum_absolute_prediction = float(
+            payload.get(
+                "initial_maximum_absolute_prediction", float("nan")
+            )
+        )
         raw_metrics = payload.get("training_metrics", ())
         if not isinstance(raw_metrics, (list, tuple)):
             raise ValueError("JEPA training metrics are malformed")
@@ -568,7 +686,9 @@ class ActionConditionedJepaDynamics:
         return np.concatenate(parts)
 
     def _estimate_residual_variance(
-        self, windows: ActionConditionedWindows
+        self,
+        windows: ActionConditionedWindows,
+        decoded_future_targets: NDArray[np.float64],
     ) -> NDArray[np.float64]:
         prediction = self._predict_means(
             np.asarray(windows.histories, dtype=np.float64),
@@ -576,8 +696,7 @@ class ActionConditionedJepaDynamics:
             np.asarray(windows.future_actions, dtype=np.float64),
         )
         residual = (
-            np.asarray(windows.future_states, dtype=np.float64)
-            - prediction
+            decoded_future_targets - prediction
         )
         return np.asarray(
             np.maximum(
@@ -622,6 +741,7 @@ def _window_batch(
     windows: ActionConditionedWindows,
     selection: NDArray[np.int64],
     device: str,
+    decoded_future_targets: NDArray[np.float64],
 ) -> Mapping[str, Any]:
     return {
         "histories": torch.as_tensor(
@@ -631,6 +751,11 @@ def _window_batch(
         ),
         "future_states": torch.as_tensor(
             np.asarray(windows.future_states[selection]),
+            dtype=torch.float32,
+            device=device,
+        ),
+        "decoded_future_targets": torch.as_tensor(
+            np.asarray(decoded_future_targets[selection]),
             dtype=torch.float32,
             device=device,
         ),
@@ -692,7 +817,8 @@ def _loss_components(
     )
     reconstruction = torch.mean(
         torch.square(
-            output["decoded_future"] - batch["future_states"]
+            output["decoded_future"]
+            - batch["decoded_future_targets"]
         )
     )
     context_reconstruction = torch.mean(
@@ -814,6 +940,9 @@ def _build_network(
             self.decoder = nn.Linear(
                 node_latent, schema["feature_count"]
             )
+            if config.zero_initialize_decoder:
+                nn.init.zeros_(self.decoder.weight)
+                nn.init.zeros_(self.decoder.bias)
 
         def trainable_parameters(self) -> Any:
             return (
@@ -893,6 +1022,37 @@ def _build_network(
                 "decoded_context": self.decoder(context),
                 "context_tokens": context,
             }
+
+        def forward_latent_prediction(
+            self, batch: Mapping[str, Any]
+        ) -> Tuple[Any, Any]:
+            visible = torch.ones(
+                batch["histories"].shape[:-1],
+                dtype=torch.bool,
+                device=batch["histories"].device,
+            )
+            online = self.online(batch["histories"], visible)
+            predicted = self._roll(
+                online[:, -1],
+                batch["future_controls"],
+                batch["future_actions"],
+            )
+            target_values = torch.cat(
+                (
+                    batch["histories"][:, -1:],
+                    batch["future_states"],
+                ),
+                dim=1,
+            )
+            target_visible = torch.ones(
+                target_values.shape[:-1],
+                dtype=torch.bool,
+                device=target_values.device,
+            )
+            target = self.target(
+                target_values, target_visible
+            )[:, 1:]
+            return predicted, target
 
         def forward_prediction(
             self, histories: Any, controls: Any, actions: Any

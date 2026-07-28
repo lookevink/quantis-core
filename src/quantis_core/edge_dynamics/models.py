@@ -691,6 +691,66 @@ class ContractiveLowRankDynamics:
             },
         }
 
+    @classmethod
+    def from_dict(
+        cls, payload: Mapping[str, Any]
+    ) -> "ContractiveLowRankDynamics":
+        """Restore a fitted low-rank model artifact."""
+
+        if (
+            payload.get("schema_version") != 1
+            or payload.get("kind") != cls.kind
+        ):
+            raise ValueError("unsupported low-rank model artifact")
+        config_payload = payload.get("config")
+        graph_payload = payload.get("graph")
+        state_payload = payload.get("state")
+        if (
+            not isinstance(config_payload, Mapping)
+            or not isinstance(graph_payload, Mapping)
+            or not isinstance(state_payload, Mapping)
+        ):
+            raise ValueError("low-rank model artifact is malformed")
+        model = cls(
+            LowRankConfig(
+                rank=int(config_payload["rank"]),
+                maximum_spectral_radius=float(
+                    config_payload["maximum_spectral_radius"]
+                ),
+                ridge=float(config_payload["ridge"]),
+                variance_floor=float(
+                    config_payload["variance_floor"]
+                ),
+            )
+        )
+        model._graph = DeclaredTelemetryGraph.from_dict(
+            dict(graph_payload)
+        )
+        state_shape = tuple(int(value) for value in payload["state_shape"])
+        action_shape = tuple(
+            int(value) for value in payload["action_shape"]
+        )
+        if len(state_shape) != 2 or len(action_shape) != 2:
+            raise ValueError("low-rank model artifact shape is malformed")
+        model._state_shape = (state_shape[0], state_shape[1])
+        model._control_count = int(payload["control_count"])
+        model._action_shape = (action_shape[0], action_shape[1])
+        model._left = np.asarray(
+            state_payload["left"], dtype=np.float64
+        )
+        model._right = np.asarray(
+            state_payload["right"], dtype=np.float64
+        )
+        model._exogenous = np.asarray(
+            state_payload["exogenous"], dtype=np.float64
+        )
+        model._residual_variance = np.asarray(
+            state_payload["residual_variance"], dtype=np.float64
+        )
+        model._spectral_radius = float(payload["spectral_radius"])
+        model._fitted_values()
+        return model
+
     def _fitted_values(
         self,
     ) -> Tuple[
