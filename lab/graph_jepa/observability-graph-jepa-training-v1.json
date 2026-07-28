@@ -77,6 +77,16 @@
     "redis",
     "postgresql"
   ],
+  "training_only_pre_validation_audit": {
+    "status": "frozen_after_partial_training-family_audit",
+    "expected_constant_normal_features": [
+      "metric.error_rate",
+      "metric.redis_enqueue_error_rate",
+      "metric.redis_dequeue_error_rate",
+      "metric.postgresql_write_error_rate"
+    ],
+    "interpretation": "These are negative-control channels in a fault-free schedule-transfer corpus, not evaluated evidence of failure-state prediction. Every other graph-owned feature must vary in the complete training split."
+  },
   "gates": {
     "maximum_raw_one_hop_normalized_mse": 1.0,
     "maximum_critical_group_normalized_mse": 1.0,

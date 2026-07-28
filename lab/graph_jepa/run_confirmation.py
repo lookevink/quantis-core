@@ -277,6 +277,19 @@ def run_confirmation(
         controls["training_mean"]["mean_normalized_mse"]
     )
     compression = _compression(corpus.training, widths)
+    training_variance = _training_feature_variance(
+        corpus.training
+    )
+    expected_constant = set(
+        training_protocol["training_only_pre_validation_audit"][
+            "expected_constant_normal_features"
+        ]
+    )
+    observed_constant = {
+        key
+        for key, variance in training_variance.items()
+        if variance <= 1e-12
+    }
     critical_entities = tuple(
         str(value)
         for value in training_protocol["critical_entities"]
@@ -371,6 +384,12 @@ def run_confirmation(
             >= int(thresholds["minimum_seed_wins"])
         ),
         "deterministic_primary_repeat": deterministic,
+        "expected_failure_channels_are_constant": (
+            expected_constant <= observed_constant
+        ),
+        "all_claimed_targets_vary_in_training": (
+            observed_constant == expected_constant
+        ),
     }
     passed = all(gates.values())
     completed = time.time_ns()
@@ -399,6 +418,13 @@ def run_confirmation(
         "family_wins": family_wins,
         "seed_wins": seed_wins,
         "critical_raw_group_maximum": critical_maximum,
+        "training_feature_variance": training_variance,
+        "expected_constant_normal_features": sorted(
+            expected_constant
+        ),
+        "observed_constant_training_features": sorted(
+            observed_constant
+        ),
         "gates": {
             name: {"passed": value}
             for name, value in gates.items()
@@ -751,6 +777,24 @@ def _compression(
         "active_raw_context_values": raw,
         "latent_context_values": latent,
         "ratio": raw / latent,
+    }
+
+
+def _training_feature_variance(
+    windows: GraphStateWindows,
+) -> Mapping[str, float]:
+    return {
+        feature_key: float(
+            np.var(
+                windows.target_blocks[
+                    :, :, :, entity_position, slot_position
+                ]
+            )
+        )
+        for entity_position, feature_keys in enumerate(
+            windows.local_feature_keys
+        )
+        for slot_position, feature_key in enumerate(feature_keys)
     }
 
 

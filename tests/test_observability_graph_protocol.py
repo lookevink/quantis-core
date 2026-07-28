@@ -96,6 +96,16 @@ def test_graph_training_protocol_is_bound_before_validation() -> None:
         ]
         == 0
     )
+    assert set(
+        training["training_only_pre_validation_audit"][
+            "expected_constant_normal_features"
+        ]
+    ) == {
+        "metric.error_rate",
+        "metric.redis_enqueue_error_rate",
+        "metric.redis_dequeue_error_rate",
+        "metric.postgresql_write_error_rate",
+    }
 
 
 def _preparation_module(repository: Path) -> ModuleType:
