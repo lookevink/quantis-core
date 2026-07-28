@@ -114,10 +114,10 @@ def run_lab_pilot(
     }
 
     smoke = _run_stage(
-        protocol_path=lab / "smoke-protocol-v3.json",
+        protocol_path=lab / "smoke-protocol-v4.json",
         output=smoke_output,
         compose_file=compose_file,
-        project_prefix="quantis-action-smoke-v3",
+        project_prefix="quantis-action-smoke-v4",
         application_image_id=application_image_id,
         build_context_sha256=build_context_sha256,
         image_digests=image_digests,
@@ -131,10 +131,10 @@ def run_lab_pilot(
     if smoke["status"] != "qualified":
         return {"smoke": smoke, "pilot": None}
     pilot = _run_stage(
-        protocol_path=lab / "pilot-protocol-v3.json",
+        protocol_path=lab / "pilot-protocol-v4.json",
         output=pilot_output,
         compose_file=compose_file,
-        project_prefix="quantis-action-pilot-v3",
+        project_prefix="quantis-action-pilot-v4",
         application_image_id=application_image_id,
         build_context_sha256=build_context_sha256,
         image_digests=image_digests,
@@ -332,14 +332,14 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         "--smoke-output",
         type=Path,
         default=Path(
-            "artifacts/action-dynamics/lab-smoke-v3"
+            "artifacts/action-dynamics/lab-smoke-v4"
         ),
     )
     parser.add_argument(
         "--pilot-output",
         type=Path,
         default=Path(
-            "artifacts/action-dynamics/instrumentation-pilot-v3"
+            "artifacts/action-dynamics/instrumentation-pilot-v4"
         ),
     )
     parser.add_argument("--parallel-jobs", type=int, default=6)

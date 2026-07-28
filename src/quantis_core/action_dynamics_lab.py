@@ -474,6 +474,29 @@ class ActionCollectionProtocol:
             raise ValueError(
                 "action scheduling or retry policy is invalid"
             )
+        enqueue_config = _required_mapping(
+            self.action_library, "redis_enqueue_delay"
+        )
+        if (
+            enqueue_config.get("recovery_window_kind")
+            == "post_stop_continuous_workload"
+            and (
+                self.scheduling.get("twin_wave_barrier") is not True
+                or any(
+                    self.gates.get(name) is not True
+                    for name in (
+                        "controller_key_readback_required",
+                        "twin_wave_barrier_required",
+                        "enqueue_continuous_recovery_required",
+                        "enqueue_mechanistic_recovery_required",
+                        "enqueue_restart_liveness_required",
+                    )
+                )
+            )
+        ):
+            raise ValueError(
+                "continuous recovery evidence gates are invalid"
+            )
         for name in (
             "eligible_event_trace_link_rate_min",
             "eligible_completed_checkout_path_rate_min",
@@ -1412,6 +1435,10 @@ def assess_prepared_action_collection(
     requires_count_evidence = (
         prepared_plan.get("schema_version") == 2
     )
+    requires_controller_readback = (
+        protocol.gates.get("controller_key_readback_required")
+        is True
+    )
     for case_id in sorted(manifest_by_case):
         manifest = manifest_by_case[case_id]
         assignment = assignment_by_case[case_id]
@@ -1428,6 +1455,9 @@ def assess_prepared_action_collection(
                 ]
             ),
             requires_count_evidence=requires_count_evidence,
+            requires_controller_readback=(
+                requires_controller_readback
+            ),
         )
         cases[case_id] = capture
         truth_exclusion = truth_exclusion and bool(
@@ -1484,6 +1514,14 @@ def assess_prepared_action_collection(
     )
     enqueue_drain_eligibility = all(
         bool(result["drain_eligible"])
+        for result in pair_results
+    )
+    enqueue_restart_liveness = all(
+        bool(result["restart_probe_live"])
+        for result in pair_results
+    )
+    enqueue_mechanistic_recovery = all(
+        bool(result["mechanistic_recovery_passed"])
         for result in pair_results
     )
     placebo_false_positive_rate = (
@@ -1575,6 +1613,28 @@ def assess_prepared_action_collection(
             gates["count_evidence_consistency"] = (
                 count_evidence_consistency
             )
+        if protocol.scheduling.get("twin_wave_barrier") is True:
+            gates["twin_wave_barrier"] = _twin_wave_barrier(
+                attestation
+            )
+        if (
+            protocol.gates.get(
+                "enqueue_restart_liveness_required"
+            )
+            is True
+        ):
+            gates["enqueue_restart_liveness"] = (
+                enqueue_restart_liveness
+            )
+        if (
+            protocol.gates.get(
+                "enqueue_mechanistic_recovery_required"
+            )
+            is True
+        ):
+            gates["enqueue_mechanistic_recovery"] = (
+                enqueue_mechanistic_recovery
+            )
     qualified = all(gates.values())
     assessment: Dict[str, Any] = {
         "schema_version": 1,
@@ -1642,6 +1702,8 @@ def assess_prepared_action_collection(
                 result["raw_effect_passed"]
                 and result["recovery_passed"]
                 and result["schedule_alignment"]
+                and result["restart_probe_live"]
+                and result["mechanistic_recovery_passed"]
             )
         ],
         "attrition": {
@@ -1972,6 +2034,43 @@ def _validate_action_configuration(
         )
     ):
         raise ValueError(f"invalid action configuration: {kind}")
+    recovery_window_kind = config.get("recovery_window_kind")
+    mechanistic_keys = {
+        "mechanistic_recovery_feature",
+        "mechanistic_minimum_effect",
+        "mechanistic_recovery_feature_floor",
+        "mechanistic_recovery_ratio_max",
+    }
+    if recovery_window_kind is not None and (
+        kind != "redis_enqueue_delay"
+        or recovery_window_kind
+        != "post_stop_continuous_workload"
+        or config.get("recovery_washout_windows") != 2
+        or config.get("recovery_window_count") != 16
+        or config.get("mechanistic_recovery_feature")
+        != "redis_enqueue_latency_ms"
+        or _required_number(
+            config, "mechanistic_minimum_effect"
+        )
+        != 10.0
+        or _required_number(
+            config, "mechanistic_recovery_feature_floor"
+        )
+        != 1.0
+        or _required_number(
+            config, "mechanistic_recovery_ratio_max"
+        )
+        != 0.3
+    ):
+        raise ValueError(
+            f"invalid continuous recovery configuration: {kind}"
+        )
+    if recovery_window_kind is None and any(
+        key in config for key in mechanistic_keys
+    ):
+        raise ValueError(
+            f"orphaned mechanistic recovery configuration: {kind}"
+        )
 
 
 def _validate_design(stage: str, design: Mapping[str, Any]) -> None:
@@ -2138,6 +2237,7 @@ def _assess_capture(
     application_image_id: str,
     application_build_context_sha256: str,
     requires_count_evidence: bool,
+    requires_controller_readback: bool,
 ) -> Mapping[str, Any]:
     required = (
         "capture-manifest.json",
@@ -2200,8 +2300,18 @@ def _assess_capture(
     ) and application_image_id in set(manifest.image_digests.values())
     commands = _action_commands(raw_actions)
     action_command_coverage = _commands_match(
-        commands, manifest, assignment
-    ) and _cleanup_boundary_matches(raw_actions)
+        commands,
+        manifest,
+        assignment,
+        requires_controller_readback=(
+            requires_controller_readback
+        ),
+    ) and _cleanup_boundary_matches(
+        raw_actions,
+        requires_controller_readback=(
+            requires_controller_readback
+        ),
+    )
     trace_records = [
         record
         for record in log_capture.records
@@ -2464,6 +2574,11 @@ def _assess_pairs(
         control_active_requests: int | None = None
         count_resolution_passed = True
         drain_eligible = True
+        restart_probe_live = True
+        recovery_window_kind = "final_protocol_window"
+        mechanistic_effect: float | None = None
+        mechanistic_recovery_ratio: float | None = None
+        mechanistic_recovery_passed = True
         schedule_alignment = (
             treatment.request_schedule == control.request_schedule
             and treatment.action_case.workload_seed
@@ -2533,8 +2648,9 @@ def _assess_pairs(
                 placebo_effect = statistics.median(
                     delta[placebo_start:action.start_index]
                 )
-            raw_recovery_windows = protocol.gates.get(
-                "recovery_window_count", 8
+            raw_recovery_windows = action_config.get(
+                "recovery_window_count",
+                protocol.gates.get("recovery_window_count", 8),
             )
             if not _is_integer(raw_recovery_windows):
                 raise ValueError(
@@ -2545,7 +2661,40 @@ def _assess_pairs(
                 raise ValueError(
                     "recovery window count is outside trajectory"
                 )
-            recovery_delta = delta[-recovery_window_count:]
+            if (
+                action_config.get("recovery_window_kind")
+                == "post_stop_continuous_workload"
+            ):
+                recovery_washout = _required_integer(
+                    action_config, "recovery_washout_windows"
+                )
+                if recovery_washout < 0:
+                    raise ValueError(
+                        "continuous recovery washout is invalid"
+                    )
+                recovery_start = (
+                    action.stop_index + 1 + recovery_washout
+                )
+                recovery_stop = (
+                    recovery_start + recovery_window_count
+                )
+                drain_start = _required_integer(
+                    protocol.workload,
+                    "drain_phase_start_index",
+                )
+                if recovery_stop > drain_start:
+                    raise ValueError(
+                        "continuous recovery overlaps drain"
+                    )
+                recovery_window_kind = (
+                    "post_stop_continuous_workload"
+                )
+            else:
+                recovery_start = len(delta) - recovery_window_count
+                recovery_stop = len(delta)
+            recovery_delta = delta[
+                recovery_start:recovery_stop
+            ]
             recovery_ratio = statistics.median(
                 abs(value) for value in recovery_delta
             ) / max(
@@ -2585,6 +2734,76 @@ def _assess_pairs(
                         control_series,
                     )
                 )
+                probe_start = _required_integer(
+                    protocol.workload,
+                    "probe_phase_start_index",
+                )
+                restart_probe_live = all(
+                    _restart_probe_is_live(
+                        series, probe_start
+                    )
+                    for series in (
+                        treatment_series,
+                        control_series,
+                    )
+                )
+            mechanistic_feature = action_config.get(
+                "mechanistic_recovery_feature"
+            )
+            if isinstance(mechanistic_feature, str):
+                treatment_mechanistic = treatment_series.get(
+                    mechanistic_feature
+                )
+                control_mechanistic = control_series.get(
+                    mechanistic_feature
+                )
+                if (
+                    treatment_mechanistic is None
+                    or control_mechanistic is None
+                ):
+                    mechanistic_recovery_passed = False
+                else:
+                    mechanistic_delta = tuple(
+                        treatment_value - control_value
+                        for treatment_value, control_value in zip(
+                            treatment_mechanistic,
+                            control_mechanistic,
+                        )
+                    )
+                    mechanistic_effect = statistics.median(
+                        mechanistic_delta[
+                            action.start_index
+                            + 1 : action.stop_index
+                            + 1
+                        ]
+                    )
+                    mechanistic_recovery_ratio = (
+                        statistics.median(
+                            abs(value)
+                            for value in mechanistic_delta[
+                                recovery_start:recovery_stop
+                            ]
+                        )
+                        / max(
+                            abs(mechanistic_effect),
+                            _required_number(
+                                action_config,
+                                "mechanistic_recovery_feature_floor",
+                            ),
+                        )
+                    )
+                    mechanistic_recovery_passed = (
+                        mechanistic_effect
+                        >= _required_number(
+                            action_config,
+                            "mechanistic_minimum_effect",
+                        )
+                        and mechanistic_recovery_ratio
+                        <= _required_number(
+                            action_config,
+                            "mechanistic_recovery_ratio_max",
+                        )
+                    )
             signed_placebo = (
                 placebo_effect
                 if action.effect_direction == "increase"
@@ -2618,10 +2837,12 @@ def _assess_pairs(
                     count_resolution_passed
                 ),
                 "drain_eligible": drain_eligible,
+                "restart_probe_live": restart_probe_live,
                 "minimum_effect": action.minimum_effect,
                 "raw_effect_passed": math.isfinite(signed_effect)
                 and signed_effect >= action.minimum_effect,
                 "recovery_ratio": recovery_ratio,
+                "recovery_window_kind": recovery_window_kind,
                 "maximum_recovery_ratio": _required_number(
                     action_config, "recovery_ratio_max"
                 ),
@@ -2631,12 +2852,49 @@ def _assess_pairs(
                     action_config, "recovery_ratio_max"
                 )
                 and drain_eligible,
+                "mechanistic_effect": mechanistic_effect,
+                "mechanistic_recovery_ratio": (
+                    mechanistic_recovery_ratio
+                ),
+                "mechanistic_recovery_passed": (
+                    mechanistic_recovery_passed
+                ),
                 "placebo_false_positive": (
                     placebo_false_positive
                 ),
             }
         )
     return results
+
+
+def _restart_probe_is_live(
+    series: Mapping[str, Sequence[float]],
+    probe_start: int,
+) -> bool:
+    first_probe_state = probe_start + 1
+    requests = series.get("quantis.experiment.request_count")
+    request_rates = series.get("request_rate")
+    latencies = series.get("request_latency_ms")
+    if (
+        requests is None
+        or request_rates is None
+        or latencies is None
+        or not first_probe_state < len(requests)
+        or len(requests) != len(request_rates)
+        or len(requests) != len(latencies)
+    ):
+        return False
+    return all(
+        request_count > 0.0
+        and request_rate > 0.0
+        and math.isfinite(latency)
+        and latency >= 0.0
+        for request_count, request_rate, latency in zip(
+            requests[first_probe_state:],
+            request_rates[first_probe_state:],
+            latencies[first_probe_state:],
+        )
+    )
 
 
 def _pooled_error_rate(
@@ -2722,6 +2980,8 @@ def _commands_match(
     commands: Sequence[Mapping[str, AttributeValue]],
     manifest: LabActionCaptureManifest,
     assignment: CaptureAssignment,
+    *,
+    requires_controller_readback: bool,
 ) -> bool:
     if assignment.role == "control":
         return not commands and not manifest.action_case.actions
@@ -2758,6 +3018,22 @@ def _commands_match(
         ):
             return False
         observed.add((phase, logical_index))
+        if (
+            requires_controller_readback
+            and action.action_kind == "redis_enqueue_delay"
+        ):
+            readback = command.get(
+                "quantis.controller.redis_enqueue_delay_ms"
+            )
+            expected_readback = (
+                action.magnitude if phase == "start" else 0.0
+            )
+            if (
+                isinstance(readback, bool)
+                or not isinstance(readback, (int, float))
+                or float(readback) != expected_readback
+            ):
+                return False
         if action.action_kind == "worker_pause":
             raw_ids = command.get(
                 "quantis.action.realized_worker_ids"
@@ -2799,6 +3075,8 @@ def _commands_match(
 
 def _cleanup_boundary_matches(
     payloads: Sequence[Mapping[str, Any]],
+    *,
+    requires_controller_readback: bool,
 ) -> bool:
     closed = []
     for payload in payloads:
@@ -2820,6 +3098,13 @@ def _cleanup_boundary_matches(
     return len(closed) == 1 and (
         closed[0].get("quantis.run.active_action_count") == 0
         and closed[0].get("quantis.run.cleanup.status") == "clean"
+        and (
+            not requires_controller_readback
+            or closed[0].get(
+                "quantis.run.redis_enqueue_delay_ms"
+            )
+            == 0.0
+        )
     )
 
 
@@ -3016,6 +3301,51 @@ def _cross_case_trace_references(
                 return 1
             owners[trace_id] = owners.get(trace_id, 0) + 1
     return sum(count - 1 for count in owners.values() if count > 1)
+
+
+def _twin_wave_barrier(
+    attestation: Mapping[str, Any],
+) -> bool:
+    raw_cases = attestation.get("cases")
+    if not isinstance(raw_cases, list) or not raw_cases:
+        return False
+    by_batch: Dict[int, Dict[int, list[Mapping[str, Any]]]] = {}
+    for raw in raw_cases:
+        if not isinstance(raw, dict):
+            return False
+        batch = raw.get("batch")
+        order = raw.get("order_in_pair")
+        started = raw.get("started_unix_nano")
+        completed = raw.get("completed_unix_nano")
+        if (
+            isinstance(batch, bool)
+            or not isinstance(batch, int)
+            or isinstance(order, bool)
+            or not isinstance(order, int)
+            or order not in {0, 1}
+            or isinstance(started, bool)
+            or not isinstance(started, int)
+            or isinstance(completed, bool)
+            or not isinstance(completed, int)
+            or started >= completed
+        ):
+            return False
+        by_batch.setdefault(int(batch), {0: [], 1: []})[
+            int(order)
+        ].append(raw)
+    return all(
+        waves[0]
+        and waves[1]
+        and max(
+            int(case["completed_unix_nano"])
+            for case in waves[0]
+        )
+        <= min(
+            int(case["started_unix_nano"])
+            for case in waves[1]
+        )
+        for waves in by_batch.values()
+    )
 
 
 def _lane_isolation(

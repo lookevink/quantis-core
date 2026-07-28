@@ -222,6 +222,229 @@ def test_v3_smoke_freezes_api_resolution_and_enqueue_drain_probe() -> None:
     )
 
 
+def test_v4_smoke_freezes_continuous_recovery_and_twin_barrier() -> None:
+    repository = Path(__file__).resolve().parents[1]
+    protocol = ActionCollectionProtocol.from_dict(
+        json.loads(
+            (
+                repository
+                / "lab"
+                / "action_dynamics"
+                / "smoke-protocol-v4.json"
+            ).read_text()
+        )
+    )
+    v3 = ActionCollectionProtocol.from_dict(
+        json.loads(
+            (
+                repository
+                / "lab"
+                / "action_dynamics"
+                / "smoke-protocol-v3.json"
+            ).read_text()
+        )
+    )
+    enqueue = protocol.action_library["redis_enqueue_delay"]
+
+    assert protocol.scheduling["twin_wave_barrier"] is True
+    assert protocol.gates["controller_key_readback_required"] is True
+    assert (
+        enqueue["recovery_window_kind"]
+        == "post_stop_continuous_workload"
+    )
+    assert enqueue["recovery_washout_windows"] == 2
+    assert enqueue["recovery_window_count"] == 16
+    assert (
+        enqueue["mechanistic_recovery_feature"]
+        == "redis_enqueue_latency_ms"
+    )
+    assert enqueue["mechanistic_recovery_ratio_max"] == 0.3
+    assert {
+        cell["workload_seed"] for cell in protocol.design["cells"]
+    }.isdisjoint(
+        cell["workload_seed"] for cell in v3.design["cells"]
+    )
+    assert {
+        cell["intervention_seed"]
+        for cell in protocol.design["cells"]
+    }.isdisjoint(
+        cell["intervention_seed"] for cell in v3.design["cells"]
+    )
+
+
+def test_v4_enqueue_recovery_excludes_cold_restart_probe(
+    tmp_path: Path,
+) -> None:
+    repository = Path(__file__).resolve().parents[1]
+    protocol = ActionCollectionProtocol.from_dict(
+        json.loads(
+            (
+                repository
+                / "lab"
+                / "action_dynamics"
+                / "smoke-protocol-v4.json"
+            ).read_text()
+        )
+    )
+    prepared = tmp_path / "inputs"
+    write_prepared_action_collection(
+        protocol,
+        prepared,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
+    )
+    _, manifests, assignments = load_prepared_action_collection(
+        prepared
+    )
+    captures = tmp_path / "cases"
+    _write_qualified_captures(captures, manifests)
+    treatment = next(
+        manifest
+        for manifest in manifests
+        if manifest.action_case.actions
+        and manifest.action_case.actions[0].action_kind
+        == "redis_enqueue_delay"
+    )
+    metrics_path = (
+        captures
+        / treatment.action_case.case_id
+        / "collector-metrics.jsonl"
+    )
+    metrics = json.loads(metrics_path.read_text())
+    request_latency = next(
+        metric
+        for metric in metrics["resourceMetrics"][0][
+            "scopeMetrics"
+        ][0]["metrics"]
+        if metric["name"] == "request_latency_ms"
+    )
+    points = request_latency["gauge"]["dataPoints"]
+    for point in points[-8:]:
+        point["asDouble"] = 104.0
+    metrics_path.write_text(json.dumps(metrics) + "\n")
+    attestation = tmp_path / "collection-attestation.json"
+    attestation.write_text(
+        _pretty(_attestation(prepared, assignments))
+    )
+
+    cold_restart_noisy = assess_prepared_action_collection(
+        prepared, captures, attestation
+    )
+
+    assert cold_restart_noisy["status"] == "qualified"
+    enqueue_pair = next(
+        pair
+        for pair in cold_restart_noisy["pairs"]
+        if pair["pair_id"]
+        == treatment.action_case.matched_pair_id
+    )
+    assert enqueue_pair["recovery_window_kind"] == (
+        "post_stop_continuous_workload"
+    )
+    assert enqueue_pair["mechanistic_recovery_passed"] is True
+
+    action = treatment.action_case.actions[0]
+    for index in range(action.stop_index + 3, action.stop_index + 19):
+        points[index]["asDouble"] = 104.0
+    metrics_path.write_text(json.dumps(metrics) + "\n")
+
+    continuous_recovery_bad = assess_prepared_action_collection(
+        prepared, captures, attestation
+    )
+
+    assert continuous_recovery_bad["status"] == "failed"
+    assert continuous_recovery_bad["gates"]["recovery"] is False
+    assert treatment.action_case.matched_pair_id in (
+        continuous_recovery_bad["failed_pair_ids"]
+    )
+
+    for index in range(action.stop_index + 3, action.stop_index + 19):
+        points[index]["asDouble"] = 4.0
+    direct_enqueue = next(
+        metric
+        for metric in metrics["resourceMetrics"][0][
+            "scopeMetrics"
+        ][0]["metrics"]
+        if metric["name"] == "redis_enqueue_latency_ms"
+    )
+    for index in range(action.stop_index + 3, action.stop_index + 19):
+        direct_enqueue["gauge"]["dataPoints"][index][
+            "asDouble"
+        ] = 104.0
+    metrics_path.write_text(json.dumps(metrics) + "\n")
+
+    mechanistic_recovery_bad = assess_prepared_action_collection(
+        prepared, captures, attestation
+    )
+
+    assert mechanistic_recovery_bad["status"] == "failed"
+    assert mechanistic_recovery_bad["gates"][
+        "enqueue_mechanistic_recovery"
+    ] is False
+    assert treatment.action_case.matched_pair_id in (
+        mechanistic_recovery_bad["failed_pair_ids"]
+    )
+
+    for index in range(action.stop_index + 3, action.stop_index + 19):
+        direct_enqueue["gauge"]["dataPoints"][index][
+            "asDouble"
+        ] = 4.0
+    metrics_path.write_text(json.dumps(metrics) + "\n")
+    points[-1]["asDouble"] = -1.0
+    metrics_path.write_text(json.dumps(metrics) + "\n")
+
+    restart_liveness_bad = assess_prepared_action_collection(
+        prepared, captures, attestation
+    )
+
+    assert restart_liveness_bad["status"] == "failed"
+    assert restart_liveness_bad["gates"][
+        "enqueue_restart_liveness"
+    ] is False
+    assert treatment.action_case.matched_pair_id in (
+        restart_liveness_bad["failed_pair_ids"]
+    )
+
+    points[-1]["asDouble"] = 104.0
+    metrics_path.write_text(json.dumps(metrics) + "\n")
+    actions_path = (
+        captures
+        / treatment.action_case.case_id
+        / "collector-actions.jsonl"
+    )
+    action_payload = json.loads(actions_path.read_text())
+    records = action_payload["resourceLogs"][0]["scopeLogs"][0][
+        "logRecords"
+    ]
+    closed = next(
+        record
+        for record in records
+        if any(
+            attribute["key"] == "quantis.run.phase"
+            and attribute["value"].get("stringValue") == "closed"
+            for attribute in record["attributes"]
+        )
+    )
+    readback = next(
+        attribute
+        for attribute in closed["attributes"]
+        if attribute["key"]
+        == "quantis.run.redis_enqueue_delay_ms"
+    )
+    readback["value"]["doubleValue"] = 1.0
+    actions_path.write_text(json.dumps(action_payload) + "\n")
+
+    stale_controller_key = assess_prepared_action_collection(
+        prepared, captures, attestation
+    )
+
+    assert stale_controller_key["status"] == "failed"
+    assert stale_controller_key["gates"][
+        "action_command_coverage"
+    ] is False
+
+
 def test_v3_assessment_requires_api_counts_and_enqueue_drain(
     tmp_path: Path,
 ) -> None:
@@ -963,6 +1186,11 @@ def _write_metrics(
             )
         if metric_name == feature:
             return values[index]
+        if (
+            feature == "request_latency_ms"
+            and metric_name == "redis_enqueue_latency_ms"
+        ):
+            return values[index]
         return 0.0
 
     payload = {
@@ -1175,6 +1403,23 @@ def _write_actions(
                         },
                         {
                             "key": (
+                                "quantis.controller."
+                                "redis_enqueue_delay_ms"
+                            ),
+                            "value": {
+                                "doubleValue": (
+                                    action.magnitude
+                                    if (
+                                        action.action_kind
+                                        == "redis_enqueue_delay"
+                                        and phase == "start"
+                                    )
+                                    else 0.0
+                                )
+                            },
+                        },
+                        {
+                            "key": (
                                 "quantis.action.realized_worker_count"
                             ),
                             "value": {
@@ -1229,6 +1474,10 @@ def _write_actions(
                 {
                     "key": "quantis.run.cleanup.status",
                     "value": {"stringValue": "clean"},
+                },
+                {
+                    "key": "quantis.run.redis_enqueue_delay_ms",
+                    "value": {"doubleValue": 0.0},
                 },
             ],
         }
@@ -1320,8 +1569,12 @@ def _attestation(
                         / f"{item['case_id']}.json"
                     ).read_bytes()
                 ).hexdigest(),
-                "started_unix_nano": 1,
-                "completed_unix_nano": 2,
+                "started_unix_nano": (
+                    1 + int(item["order_in_pair"]) * 2
+                ),
+                "completed_unix_nano": (
+                    2 + int(item["order_in_pair"]) * 2
+                ),
             }
             for item in raw_assignments
         ],

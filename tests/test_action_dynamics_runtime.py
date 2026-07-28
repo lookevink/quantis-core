@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
@@ -29,6 +30,7 @@ def _load(name: str):
 telemetry = _load("application_telemetry")
 interventions = _load("interventions")
 capture = _load("run_capture")
+collection = _load("collect_pilot")
 
 
 class FakeRedis:
@@ -222,8 +224,97 @@ def test_intervention_controller_applies_and_reverses_all_actions() -> None:
     assert "quantis.action" in action_stream
     assert "action.command" in action_stream
     assert "action.run.boundary" in action_stream
+    assert "quantis.run.redis_enqueue_delay_ms" in action_stream
     assert "action-worker_pause:start" in action_stream
     assert "opaque-case" in action_stream
+
+
+def test_collection_places_a_barrier_between_twin_waves(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    protocol_path = tmp_path / "protocol.json"
+    plan_path = tmp_path / "plan.json"
+    manifests = tmp_path / "manifests"
+    captures = tmp_path / "captures"
+    attestation_path = tmp_path / "attestation.json"
+    manifests.mkdir()
+    assignments = [
+        {
+            "pair_id": f"pair-{lane}",
+            "case_id": f"case-{lane}-{order}",
+            "role": "treatment" if order == 0 else "control",
+            "lane": lane,
+            "batch": 1,
+            "order_in_pair": order,
+            "worker_replicas": 3,
+        }
+        for lane in (1, 2)
+        for order in (0, 1)
+    ]
+    protocol_path.write_text(
+        json.dumps({"collection": {"parallel_jobs": 6}})
+    )
+    plan_path.write_text(json.dumps({"assignments": assignments}))
+    for assignment in assignments:
+        (manifests / f"{assignment['case_id']}.json").write_text(
+            "{}"
+        )
+    completed_first_wave: set[int] = set()
+
+    def fake_collect_case(**kwargs: Any) -> Mapping[str, Any]:
+        assignment = kwargs["assignment"]
+        order = int(assignment["order_in_pair"])
+        lane = int(assignment["lane"])
+        started = time.time_ns()
+        if order == 0 and lane == 2:
+            time.sleep(0.05)
+        if order == 1:
+            assert completed_first_wave == {1, 2}
+        else:
+            completed_first_wave.add(lane)
+        return {
+            **dict(assignment),
+            "compose_project": f"test-lane-{lane}",
+            "manifest_sha256": "a" * 64,
+            "started_unix_nano": started,
+            "completed_unix_nano": time.time_ns(),
+        }
+
+    monkeypatch.setattr(
+        collection, "_collect_case", fake_collect_case
+    )
+    monkeypatch.setattr(
+        collection,
+        "_clean_all_lanes",
+        lambda *args, **kwargs: None,
+    )
+
+    attestation = collection.collect_action_cases(
+        protocol_path=protocol_path,
+        plan_path=plan_path,
+        manifests_directory=manifests,
+        captures_directory=captures,
+        compose_file=tmp_path / "compose.yaml",
+        project_prefix="test",
+        application_image_id="sha256:" + "a" * 64,
+        application_build_context_sha256="b" * 64,
+        parallel_jobs=6,
+        attestation_path=attestation_path,
+    )
+
+    first = [
+        case
+        for case in attestation["cases"]
+        if case["order_in_pair"] == 0
+    ]
+    second = [
+        case
+        for case in attestation["cases"]
+        if case["order_in_pair"] == 1
+    ]
+    assert max(case["completed_unix_nano"] for case in first) <= min(
+        case["started_unix_nano"] for case in second
+    )
 
 
 def test_action_schedule_applies_transition_t_before_state_t_plus_one() -> None:

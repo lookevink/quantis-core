@@ -113,29 +113,43 @@ def collect_action_cases(
                 raise ValueError(
                     f"collection batch {batch} has invalid width"
                 )
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=parallel_jobs
-            ) as executor:
-                futures = [
-                    executor.submit(
-                        _collect_pair,
-                        assignments=pair_assignments,
-                        manifests=manifests,
-                        manifests_directory=manifests_directory,
-                        captures_directory=captures_directory,
-                        compose_file=compose_file,
-                        project_prefix=project_prefix,
-                        application_image_id=application_image_id,
-                        application_build_context_sha256=(
-                            application_build_context_sha256
-                        ),
-                    )
-                    for pair_assignments in batch_pairs
-                ]
-                for future in concurrent.futures.as_completed(
-                    futures
-                ):
-                    completed_cases.extend(future.result())
+            for order_in_pair in (0, 1):
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=parallel_jobs
+                ) as executor:
+                    futures = [
+                        executor.submit(
+                            _collect_case,
+                            assignment=pair_assignments[
+                                order_in_pair
+                            ],
+                            manifest_path=manifests[
+                                _required_text(
+                                    pair_assignments[
+                                        order_in_pair
+                                    ],
+                                    "case_id",
+                                )
+                            ],
+                            manifests_directory=(
+                                manifests_directory
+                            ),
+                            captures_directory=captures_directory,
+                            compose_file=compose_file,
+                            project_prefix=project_prefix,
+                            application_image_id=(
+                                application_image_id
+                            ),
+                            application_build_context_sha256=(
+                                application_build_context_sha256
+                            ),
+                        )
+                        for pair_assignments in batch_pairs
+                    ]
+                    for future in concurrent.futures.as_completed(
+                        futures
+                    ):
+                        completed_cases.append(future.result())
     finally:
         _clean_all_lanes(
             compose_file, project_prefix, parallel_jobs
@@ -179,38 +193,6 @@ def collect_action_cases(
         + "\n"
     )
     return attestation
-
-
-def _collect_pair(
-    *,
-    assignments: Sequence[Mapping[str, Any]],
-    manifests: Mapping[str, Path],
-    manifests_directory: Path,
-    captures_directory: Path,
-    compose_file: Path,
-    project_prefix: str,
-    application_image_id: str,
-    application_build_context_sha256: str,
-) -> list[Mapping[str, Any]]:
-    completed = []
-    for assignment in assignments:
-        completed.append(
-            _collect_case(
-                assignment=assignment,
-                manifest_path=manifests[
-                    _required_text(assignment, "case_id")
-                ],
-                manifests_directory=manifests_directory,
-                captures_directory=captures_directory,
-                compose_file=compose_file,
-                project_prefix=project_prefix,
-                application_image_id=application_image_id,
-                application_build_context_sha256=(
-                    application_build_context_sha256
-                ),
-            )
-        )
-    return completed
 
 
 def _collect_case(

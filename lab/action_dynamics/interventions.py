@@ -41,6 +41,9 @@ class RedisControlClient(Protocol):
     def delete(self, *keys: str) -> object:
         ...
 
+    def get(self, key: str) -> Optional[str]:
+        ...
+
     def zrange(
         self, key: str, start: int, stop: int
     ) -> Sequence[str]:
@@ -243,6 +246,9 @@ class ReversibleInterventionController:
                 "quantis.run.cleanup.status": (
                     "clean" if phase == "closed" else "pending"
                 ),
+                "quantis.run.redis_enqueue_delay_ms": (
+                    self._control_value(ENQUEUE_DELAY_MS)
+                ),
             },
             body="action run boundary",
         )
@@ -354,12 +360,24 @@ class ReversibleInterventionController:
             "quantis.action.realized_worker_ids": ",".join(
                 evidence.realized_worker_ids
             ),
+            "quantis.controller.redis_enqueue_delay_ms": (
+                self._control_value(ENQUEUE_DELAY_MS)
+            ),
         }
         self._post_record(
             evidence.applied_unix_nano,
             attributes,
             body="action command",
         )
+
+    def _control_value(self, key: str) -> float:
+        raw = self.redis_client.get(key)
+        if raw is None:
+            return 0.0
+        value = float(raw)
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError("controller key readback is invalid")
+        return value
 
     def _post_record(
         self,
