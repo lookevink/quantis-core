@@ -174,6 +174,9 @@ def collect_action_cases(
         "qualifying_smoke_sha256": plan.get(
             "qualifying_smoke_sha256"
         ),
+        "qualifying_pilot_sha256": plan.get(
+            "qualifying_pilot_sha256"
+        ),
         "cases": sorted(
             completed_cases,
             key=lambda case: (

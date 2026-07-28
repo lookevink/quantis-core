@@ -1,0 +1,269 @@
+{
+  "schema_version": 1,
+  "kind": "action_dynamics_collection_protocol",
+  "stage": "development",
+  "evidence_boundary": "Open development evidence only. These 120 fresh matched pairs are split by whole pair into 90 training pairs and 30 development-validation pairs. The qualifying smoke and instrumentation pilot are authorization evidence only and are forbidden from fitting, model selection, validation, or confirmation. A qualified development result is not confirmation evidence or a world-model claim.",
+  "generator_seed": 26072841,
+  "collection": {
+    "pair_count": 120,
+    "expected_capture_count": 240,
+    "parallel_jobs": 6,
+    "overwrite": false
+  },
+  "capture": {
+    "require_resolved_image_digests": true,
+    "require_observation_schema_sha256": true,
+    "case_ids": "opaque_uuid",
+    "pair_ids": "opaque_uuid",
+    "fresh_compose_project_per_capture": true,
+    "shared_named_volumes_allowed": false,
+    "host_ports_allowed": false
+  },
+  "trajectory": {
+    "point_count": 108,
+    "sample_period_seconds": 0.25,
+    "minimum_clean_context_windows": 20,
+    "onset_index_min": 28,
+    "onset_index_max": 39,
+    "duration_min": 8,
+    "duration_max": 20,
+    "minimum_recovery_windows": 48,
+    "action_at_t_predicts_state": "t+1"
+  },
+  "workload": {
+    "schedule_kind": "seeded_explicit_uniform_integer",
+    "minimum_requests_per_window": 6,
+    "maximum_requests_per_window": 10,
+    "api_request_queue_size": 128,
+    "api_rejection_requests_per_window": 12,
+    "drain_phase_start_index": 84,
+    "drain_phase_stop_index": 92,
+    "probe_phase_start_index": 92,
+    "probe_requests_per_window": 8,
+    "twins_share_exact_schedule": true,
+    "schedule_is_materialized_before_capture": true
+  },
+  "action_library": {
+    "worker_pause": {
+      "target_entity": "worker_pool",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "worker_fraction",
+      "severity_values": [
+        1.0
+      ],
+      "effect_feature": "worker_rate",
+      "effect_direction": "decrease",
+      "minimum_effect": 1.0,
+      "recovery_feature_floor": 0.25,
+      "recovery_ratio_max": 0.3
+    },
+    "postgres_lock": {
+      "target_entity": "worker_writes_postgresql",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "lock_boolean",
+      "severity_values": [
+        1.0
+      ],
+      "effect_feature": "db_write_rate",
+      "effect_direction": "decrease",
+      "minimum_effect": 1.0,
+      "recovery_feature_floor": 0.25,
+      "recovery_ratio_max": 0.3
+    },
+    "redis_enqueue_delay": {
+      "target_entity": "api_enqueues_queue",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "milliseconds",
+      "severity_values": [
+        20.0,
+        40.0,
+        60.0
+      ],
+      "effect_feature": "request_latency_ms",
+      "effect_direction": "increase",
+      "minimum_effect": 10.0,
+      "recovery_feature_floor": 1.0,
+      "recovery_ratio_max": 0.3,
+      "requires_drain_probe": true,
+      "recovery_window_kind": "post_stop_continuous_workload",
+      "recovery_washout_windows": 2,
+      "recovery_window_count": 16,
+      "mechanistic_recovery_feature": "redis_enqueue_latency_ms",
+      "mechanistic_minimum_effect": 10.0,
+      "mechanistic_recovery_feature_floor": 1.0,
+      "mechanistic_recovery_ratio_max": 0.3
+    },
+    "redis_dequeue_delay": {
+      "target_entity": "queue_dequeues_to_worker",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "milliseconds",
+      "severity_values": [
+        20.0,
+        40.0,
+        60.0
+      ],
+      "effect_feature": "redis_dequeue_latency_ms",
+      "effect_direction": "increase",
+      "minimum_effect": 10.0,
+      "recovery_feature_floor": 1.0,
+      "recovery_ratio_max": 0.3
+    },
+    "api_rejection": {
+      "target_entity": "api",
+      "parameter_schema_version": 1,
+      "magnitude_unit": "probability",
+      "severity_values": [
+        0.25,
+        0.5,
+        0.75
+      ],
+      "effect_feature": "error_rate",
+      "effect_direction": "increase",
+      "minimum_effect": 0.15,
+      "recovery_feature_floor": 0.05,
+      "recovery_ratio_max": 0.3,
+      "effect_statistic": "pooled_error_count_rate_difference",
+      "fixed_duration": 20,
+      "fixed_active_requests_per_window": 12,
+      "minimum_active_request_count": 240
+    }
+  },
+  "design": {
+    "design_kind": "complete_action_topology_factorial",
+    "action_kinds": [
+      "worker_pause",
+      "postgres_lock",
+      "redis_enqueue_delay",
+      "redis_dequeue_delay",
+      "api_rejection"
+    ],
+    "worker_replica_values": [
+      1,
+      2,
+      3
+    ],
+    "replicates_per_cell": 8,
+    "pair_count": 120,
+    "severity_assignment": "For actions with three severities, severity_index=(topology_index+replicate_index) mod 3, where topology_index is 0,1,2 and replicate_index is 0 through 7. Singleton-severity actions always use 1.0.",
+    "onset_duration_assignment": "Draw independently without replacement within each action family from the inclusive protocol ranges using generator_seed before capture; API rejection uses fixed duration 20; reject and redraw only combinations leaving fewer than 48 recovery windows.",
+    "request_schedule_assignment": "Materialize one explicit 108-value schedule before capture and copy it byte-for-byte to both twins; API rejection uses exactly 12 requests per transition, and enqueue delay uses the frozen drain and probe tail.",
+    "split_assignment": "replicates 0-5 training; replicates 6-7 validation",
+    "factor_order_before_randomization": [
+      "action_kind",
+      "worker_replicas",
+      "replicate"
+    ]
+  },
+  "scheduling": {
+    "lane_count": 6,
+    "batch_count": 20,
+    "pairs_per_batch": 6,
+    "lane_assignment": "After deterministic seeded permutation, pair ordinal modulo 6.",
+    "batch_assignment": "After deterministic seeded permutation, floor(pair ordinal divided by 6).",
+    "twins_run_sequentially_in_lane": true,
+    "twin_wave_barrier": true,
+    "treatment_first_for_even_pair_ordinal": true,
+    "fresh_project_between_twins": true,
+    "application_image_built_once_before_collection": true,
+    "action_and_topology_balance_checked_before_capture": true
+  },
+  "retry_policy": {
+    "max_attempts_per_pair": 1,
+    "automatic_retry": false,
+    "failed_effect_is_retryable": false,
+    "failed_recovery_is_retryable": false,
+    "failed_trace_gate_is_retryable": false,
+    "all_failures_remain_in_denominator": true,
+    "manual_rerun_requires_new_protocol_version": true
+  },
+  "gates": {
+    "smoke_assessment_must_be_supported": true,
+    "pilot_assessment_must_be_supported": true,
+    "smoke_protocol_sha256_must_be_bound": true,
+    "smoke_execution_plan_sha256_must_be_bound": true,
+    "smoke_assessment_sha256_must_be_bound": true,
+    "expected_pair_count": 120,
+    "expected_capture_count": 240,
+    "metric_windows_per_capture": 108,
+    "exactly_one_treatment_and_control_per_pair": true,
+    "twin_schedule_and_topology_identity": true,
+    "manifest_and_build_identity_required": true,
+    "final_execution_plan_sha256_must_be_bound": true,
+    "exact_api_count_evidence_required": true,
+    "enqueue_drain_probe_required": true,
+    "treatment_start_command_count": 1,
+    "treatment_stop_command_count": 1,
+    "control_action_command_count": 0,
+    "duplicate_action_ids_allowed": false,
+    "cleanup_must_show_no_active_action": true,
+    "controller_key_readback_required": true,
+    "twin_wave_barrier_required": true,
+    "logical_action_index_tolerance_windows": 0,
+    "eligible_event_trace_link_rate_min": 0.95,
+    "eligible_completed_checkout_path_rate_min": 0.95,
+    "cross_case_trace_reference_count_max": 0,
+    "truth_exclusion_required": true,
+    "forbidden_observation_fields": [
+      "action_id",
+      "action_kind",
+      "fault_kind",
+      "matched_pair_id",
+      "target_entity",
+      "action_phase",
+      "action_magnitude",
+      "intervention_seed"
+    ],
+    "every_intervention_must_pass_effect": true,
+    "recovery_window_count": 8,
+    "enqueue_continuous_recovery_required": true,
+    "enqueue_mechanistic_recovery_required": true,
+    "enqueue_restart_liveness_required": true,
+    "every_intervention_must_pass_recovery": true,
+    "placebo_false_positive_rate_max": 0.1,
+    "all_lanes_must_be_observed": true,
+    "shared_project_network_or_volume_count_max": 0
+  },
+  "analysis": {
+    "authorization_identity": {
+      "smoke_protocol_sha256": "67bc1ee48a48290144993d3d17eaa8a283e7c910c2b088d0bf923041e1f8b0a7",
+      "smoke_execution_plan_sha256": "559514b26509f10d01854ae8895e6e5c4e469851582c59c4f98b2a44bdbdacb2",
+      "pilot_protocol_sha256": "eba673eccfd7ff69c3b93cdafd73075421e7d55ff4a7e5ee0e607a0d0dcc2cea",
+      "pilot_execution_plan_sha256": "a9be10d4fc6633ace04aafbd2d533292ddf34b1693606951a5cd6e96c69acac6",
+      "qualifying_smoke_sha256": "d8a3281432fe2c930812ffc3abf33fffbebc8eb31fc22f59a700fe45a62853b2",
+      "application_build_context_sha256": "0512db6c63db20c8ff45db0b1fbd382b176b9903d47e324a6269f18dcefe2e7e"
+    },
+    "authoritative_corpus_role": "development",
+    "whole_pair_split": {
+      "training_pairs_per_cell": 6,
+      "development_validation_pairs_per_cell": 2,
+      "training_pair_count": 90,
+      "development_validation_pair_count": 30
+    },
+    "primary_unit": "matched_pair",
+    "active_effect_statistic": "median_paired_treatment_minus_control_except_api_rejection_uses_pooled_exact_count_rate_difference",
+    "effect_sign_is_applied_before_threshold": true,
+    "recovery_statistic": "non_enqueue_actions_use_final_eight_states; enqueue_delay_uses_median_absolute_paired_delta_over_sixteen_continuous_workload_states_after_two_post_stop_washout_states_divided_by_max_absolute_active_effect_or_feature_floor",
+    "cold_restart_probe_role": "diagnostic_and_liveness_only_not_intervention_recovery",
+    "confidence_interval_method": "action_stratified_matched_pair_bootstrap",
+    "window_level_resampling_allowed": false,
+    "topology_cell_results": "descriptive_only_because_n_equals_2",
+    "model_training_allowed_during_collection": false,
+    "model_training_allowed_only_after_all_collection_gates_qualify": true,
+    "training_fit_split": "training_only",
+    "model_selection_and_reporting_split": "development_validation_only",
+    "pilot_pairs_may_enter_model_fitting_or_evaluation": false,
+    "development_pairs_may_enter_later_model_confirmation": false
+  },
+  "claim": {
+    "supported": "On the fixed Quantis checkout lab, a fresh content-addressed 120-pair corpus provides whole-pair-separated development training and development validation data across five predeclared reversible intervention/location families and one-, two-, and three-worker topologies, after every instrumentation, identity, effect, recovery, trace, count, and isolation gate qualifies.",
+    "excluded": [
+      "confirmation or publication-grade forecasting skill",
+      "confirmation or publication-grade independent target localization",
+      "graph topology benefit",
+      "causal attribution outside the finite randomized intervention library",
+      "production transfer",
+      "a software world model"
+    ],
+    "failure_outcome": "A failed gate is retained in the denominator and blocks all model fitting. Repair requires a new protocol version and a fresh development corpus."
+  }
+}

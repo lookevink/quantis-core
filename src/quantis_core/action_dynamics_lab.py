@@ -166,7 +166,7 @@ class LabActionCaptureManifest:
 
     def __post_init__(self) -> None:
         if (
-            self.schema_version not in {1, 2}
+            self.schema_version not in {1, 2, 3}
             or isinstance(self.sample_period_seconds, bool)
             or not math.isfinite(self.sample_period_seconds)
             or self.sample_period_seconds <= 0.0
@@ -192,7 +192,7 @@ class LabActionCaptureManifest:
             or self.graph_observation_schema_sha256
             != self.observation_schema_sha256
             or self.corpus_role
-            not in {"smoke", "instrumentation_pilot"}
+            not in {"smoke", "instrumentation_pilot", "development"}
             or (
                 self.schema_version == 1
                 and self.qualifying_smoke_sha256 is not None
@@ -208,6 +208,16 @@ class LabActionCaptureManifest:
                 == "instrumentation_pilot"
                 and (
                     self.qualifying_smoke_sha256 is None
+                    or not _HEX_SHA256.fullmatch(
+                        self.qualifying_smoke_sha256
+                    )
+                )
+            )
+            or (
+                self.schema_version == 3
+                and (
+                    self.corpus_role != "development"
+                    or self.qualifying_smoke_sha256 is None
                     or not _HEX_SHA256.fullmatch(
                         self.qualifying_smoke_sha256
                     )
@@ -250,7 +260,7 @@ class LabActionCaptureManifest:
             ),
             "corpus_role": self.corpus_role,
         }
-        if self.schema_version == 2:
+        if self.schema_version in {2, 3}:
             payload["qualifying_smoke_sha256"] = (
                 self.qualifying_smoke_sha256
             )
@@ -270,7 +280,7 @@ class LabActionCaptureManifest:
         raw_schedule = payload["request_schedule"]
         raw_images = payload["image_digests"]
         if (
-            payload["schema_version"] not in {1, 2}
+            payload["schema_version"] not in {1, 2, 3}
             or payload["kind"] != "lab_action_capture_manifest"
             or not isinstance(payload["action_case"], dict)
             or isinstance(payload["sample_period_seconds"], bool)
@@ -368,12 +378,17 @@ class ActionCollectionProtocol:
     def __post_init__(self) -> None:
         if (
             self.schema_version != 1
-            or self.stage not in {"smoke", "instrumentation_pilot"}
+            or self.stage
+            not in {"smoke", "instrumentation_pilot", "development"}
             or not self.evidence_boundary
             or not _is_integer(self.generator_seed)
         ):
             raise ValueError("action collection protocol is invalid")
-        expected_pairs = 6 if self.stage == "smoke" else 30
+        expected_pairs = {
+            "smoke": 6,
+            "instrumentation_pilot": 30,
+            "development": 120,
+        }[self.stage]
         if (
             _required_integer(self.collection, "pair_count")
             != expected_pairs
@@ -532,6 +547,8 @@ class ActionCollectionProtocol:
                     raise ValueError(
                         "smoke cell intervention is outside protocol"
                     )
+        if self.stage == "development":
+            _development_authorization_identity(self)
         _validate_capture_requirements(self.capture)
 
     @property
@@ -831,7 +848,15 @@ def prepare_action_collection(
             action_case = ActionConditionedCaseManifest(
                 case_id=case_id,
                 matched_pair_id=pair_id,
-                split="validation",
+                split=(
+                    (
+                        "training"
+                        if replicate < 6
+                        else "validation"
+                    )
+                    if protocol.stage == "development"
+                    else "validation"
+                ),
                 point_count=protocol.point_count,
                 logical_window_period_nano=int(
                     _required_number(
@@ -893,6 +918,7 @@ def write_prepared_action_collection(
     observation_schema_sha256: str | None = None,
     application_build_context_sha256: str,
     qualifying_smoke_directory: Path | None = None,
+    qualifying_pilot_directory: Path | None = None,
 ) -> Mapping[str, Any]:
     """Persist the exact protocol, plan, and manifests once."""
 
@@ -925,6 +951,40 @@ def write_prepared_action_collection(
         if qualifying_smoke_directory is not None
         else None
     )
+    authorization_identity = (
+        _development_authorization_identity(protocol)
+        if protocol.stage == "development"
+        else None
+    )
+    if (
+        authorization_identity is not None
+        and (
+            authorization_identity[
+                "application_build_context_sha256"
+            ]
+            != application_build_context_sha256
+            or not _authorized_smoke_qualification(
+                output,
+                qualifying_smoke_sha256,
+                authorization_identity,
+            )
+        )
+    ):
+        raise ValueError(
+            "qualifying smoke or stack identity is not authorized by "
+            "the development protocol"
+        )
+    qualifying_pilot_sha256 = (
+        _write_pilot_qualification(
+            Path(qualifying_pilot_directory),
+            output,
+            qualifying_smoke_sha256,
+            application_build_context_sha256,
+            authorization_identity,
+        )
+        if qualifying_pilot_directory is not None
+        else None
+    )
     if (
         protocol.stage == "instrumentation_pilot"
         and qualifying_smoke_sha256 is None
@@ -934,13 +994,40 @@ def write_prepared_action_collection(
         )
     if (
         protocol.stage == "smoke"
-        and qualifying_smoke_sha256 is not None
+        and (
+            qualifying_smoke_sha256 is not None
+            or qualifying_pilot_sha256 is not None
+        )
     ):
         raise ValueError(
             "smoke preparation cannot bind prior smoke evidence"
         )
-    plan = {
-        "schema_version": 2,
+    if (
+        protocol.stage == "instrumentation_pilot"
+        and qualifying_pilot_sha256 is not None
+    ):
+        raise ValueError(
+            "pilot preparation cannot bind prior pilot evidence"
+        )
+    if protocol.stage == "development" and (
+        qualifying_smoke_sha256 is None
+        or qualifying_pilot_sha256 is None
+    ):
+        raise ValueError(
+            "development preparation requires qualifying smoke "
+            "and pilot evidence"
+        )
+    if (
+        protocol.stage != "development"
+        and qualifying_pilot_sha256 is not None
+    ):
+        raise ValueError(
+            "only development preparation can bind pilot evidence"
+        )
+    plan: Dict[str, Any] = {
+        "schema_version": (
+            3 if protocol.stage == "development" else 2
+        ),
         "kind": "action_dynamics_execution_plan",
         "protocol_sha256": _canonical_sha256(protocol_payload),
         "application_build_context_sha256": (
@@ -960,6 +1047,13 @@ def write_prepared_action_collection(
             assignment.to_dict() for assignment in assignments
         ],
     }
+    if protocol.stage == "development":
+        plan["qualifying_pilot_sha256"] = (
+            qualifying_pilot_sha256
+        )
+        plan["split_summary"] = _development_split_summary(
+            manifests
+        )
     plan_sha256 = _canonical_sha256(plan)
     bound_manifests = tuple(
         replace(
@@ -968,7 +1062,9 @@ def write_prepared_action_collection(
             qualifying_smoke_sha256=(
                 qualifying_smoke_sha256
             ),
-            schema_version=2,
+            schema_version=(
+                3 if protocol.stage == "development" else 2
+            ),
         )
         for manifest in manifests
     )
@@ -988,7 +1084,9 @@ def write_prepared_action_collection(
         _pretty_json(manifest_index)
     )
     return {
-        "schema_version": 2,
+        "schema_version": (
+            3 if protocol.stage == "development" else 2
+        ),
         "kind": "prepared_action_collection",
         "protocol_sha256": protocol.canonical_sha256(),
         "plan_sha256": plan_sha256,
@@ -1023,7 +1121,8 @@ def load_prepared_action_collection(
         return _load_legacy_prepared_action_collection(
             prepared, protocol_payload, plan
         )
-    if set(plan) != {
+    plan_version = plan.get("schema_version")
+    base_plan_keys = {
         "schema_version",
         "kind",
         "protocol_sha256",
@@ -1031,10 +1130,17 @@ def load_prepared_action_collection(
         "qualifying_smoke_sha256",
         "case_specs",
         "assignments",
-    }:
+    }
+    expected_plan_keys = (
+        base_plan_keys
+        | {"qualifying_pilot_sha256", "split_summary"}
+        if plan_version == 3
+        else base_plan_keys
+    )
+    if set(plan) != expected_plan_keys:
         raise ValueError("prepared collection plan schema is invalid")
     if (
-        plan["schema_version"] != 2
+        plan_version not in {2, 3}
         or plan["kind"] != "action_dynamics_execution_plan"
         or plan["protocol_sha256"]
         != _canonical_sha256(protocol_payload)
@@ -1066,11 +1172,56 @@ def load_prepared_action_collection(
     if not isinstance(raw_manifest_sha256s, dict):
         raise AssertionError("validated manifest index changed type")
     protocol = ActionCollectionProtocol.from_dict(protocol_payload)
+    if (
+        (plan_version == 3) != (protocol.stage == "development")
+        or (
+            plan_version == 3
+            and plan.get("split_summary")
+            != {
+                "split_unit": "matched_pair",
+                "training_pair_count": 90,
+                "validation_pair_count": 30,
+                "training_capture_count": 180,
+                "validation_capture_count": 60,
+            }
+        )
+    ):
+        raise ValueError(
+            "prepared collection stage or split summary is invalid"
+        )
     if not _valid_smoke_qualification(
         prepared, protocol, plan["qualifying_smoke_sha256"]
     ):
         raise ValueError(
             "prepared qualifying smoke evidence is invalid"
+        )
+    if protocol.stage == "development":
+        authorization_identity = (
+            _development_authorization_identity(protocol)
+        )
+        if (
+            plan["application_build_context_sha256"]
+            != authorization_identity[
+                "application_build_context_sha256"
+            ]
+            or not _authorized_smoke_qualification(
+                prepared,
+                plan["qualifying_smoke_sha256"],
+                authorization_identity,
+            )
+        ):
+            raise ValueError(
+                "prepared development authorization is invalid"
+            )
+    if not _valid_pilot_qualification(
+        prepared,
+        protocol,
+        plan.get("qualifying_pilot_sha256"),
+        plan["qualifying_smoke_sha256"],
+        plan["application_build_context_sha256"],
+    ):
+        raise ValueError(
+            "prepared qualifying pilot evidence is invalid"
         )
     assignments = tuple(
         CaptureAssignment.from_dict(raw)
@@ -1102,8 +1253,8 @@ def load_prepared_action_collection(
             manifests[0].observation_schema_sha256
         ),
     )
-    expected_plan = {
-        "schema_version": 2,
+    expected_plan: Dict[str, Any] = {
+        "schema_version": plan_version,
         "kind": "action_dynamics_execution_plan",
         "protocol_sha256": _canonical_sha256(protocol_payload),
         "application_build_context_sha256": plan[
@@ -1126,6 +1277,13 @@ def load_prepared_action_collection(
             for assignment in expected_assignments
         ],
     }
+    if plan_version == 3:
+        expected_plan["qualifying_pilot_sha256"] = plan[
+            "qualifying_pilot_sha256"
+        ]
+        expected_plan["split_summary"] = (
+            _development_split_summary(expected_manifests)
+        )
     plan_sha256 = _canonical_sha256(plan)
     expected_bound_manifests = tuple(
         sorted(
@@ -1136,7 +1294,9 @@ def load_prepared_action_collection(
                     qualifying_smoke_sha256=plan[
                         "qualifying_smoke_sha256"
                     ],
-                    schema_version=2,
+                    schema_version=(
+                        3 if plan_version == 3 else 2
+                    ),
                 )
                 for manifest in expected_manifests
             ),
@@ -1165,6 +1325,128 @@ def _manifest_plan_spec(
     payload = manifest.to_dict()
     del payload["prepared_plan_sha256"]
     return payload
+
+
+def _development_split_summary(
+    manifests: Sequence[LabActionCaptureManifest],
+) -> Mapping[str, Any]:
+    pair_splits: Dict[str, set[str]] = {}
+    for manifest in manifests:
+        pair_splits.setdefault(
+            manifest.action_case.matched_pair_id, set()
+        ).add(manifest.action_case.split)
+    if any(len(splits) != 1 for splits in pair_splits.values()):
+        raise ValueError("development split crosses a matched pair")
+    training_pairs = sum(
+        splits == {"training"} for splits in pair_splits.values()
+    )
+    validation_pairs = sum(
+        splits == {"validation"} for splits in pair_splits.values()
+    )
+    return {
+        "split_unit": "matched_pair",
+        "training_pair_count": training_pairs,
+        "validation_pair_count": validation_pairs,
+        "training_capture_count": training_pairs * 2,
+        "validation_capture_count": validation_pairs * 2,
+    }
+
+
+def _valid_development_split(
+    manifests: Sequence[LabActionCaptureManifest],
+) -> bool:
+    pairs: Dict[str, list[LabActionCaptureManifest]] = {}
+    cell_splits: Dict[Tuple[str, int], list[str]] = {}
+    for manifest in manifests:
+        pairs.setdefault(
+            manifest.action_case.matched_pair_id, []
+        ).append(manifest)
+        if manifest.action_case.actions:
+            action = manifest.action_case.actions[0]
+            cell_splits.setdefault(
+                (
+                    action.action_kind,
+                    manifest.action_case.worker_replicas,
+                ),
+                [],
+            ).append(manifest.action_case.split)
+    expected_cells = {
+        (kind, workers)
+        for kind in ACTION_KINDS
+        for workers in (1, 2, 3)
+    }
+    if (
+        len(pairs) != 120
+        or set(cell_splits) != expected_cells
+        or any(
+            len(items) != 2
+            or {item.action_case.split for item in items}
+            not in ({"training"}, {"validation"})
+            or sum(bool(item.action_case.actions) for item in items)
+            != 1
+            for items in pairs.values()
+        )
+    ):
+        return False
+    pair_splits = [
+        items[0].action_case.split for items in pairs.values()
+    ]
+    return (
+        pair_splits.count("training") == 90
+        and pair_splits.count("validation") == 30
+        and all(
+            splits.count("training") == 6
+            and splits.count("validation") == 2
+            for splits in cell_splits.values()
+        )
+    )
+
+
+def _development_authorization_identity(
+    protocol: ActionCollectionProtocol,
+) -> Mapping[str, str]:
+    raw = protocol.analysis.get("authorization_identity")
+    expected_keys = {
+        "smoke_protocol_sha256",
+        "smoke_execution_plan_sha256",
+        "pilot_protocol_sha256",
+        "pilot_execution_plan_sha256",
+        "qualifying_smoke_sha256",
+        "application_build_context_sha256",
+    }
+    if (
+        not isinstance(raw, dict)
+        or set(raw) != expected_keys
+        or any(
+            not isinstance(raw.get(name), str)
+            or not _HEX_SHA256.fullmatch(str(raw.get(name)))
+            for name in expected_keys
+        )
+    ):
+        raise ValueError(
+            "development authorization identity is invalid"
+        )
+    return {name: str(raw[name]) for name in expected_keys}
+
+
+def _authorized_smoke_qualification(
+    prepared: Path,
+    raw_sha256: str | None,
+    authorization: Mapping[str, str],
+) -> bool:
+    path = prepared / "smoke-qualification.json"
+    if (
+        raw_sha256 != authorization["qualifying_smoke_sha256"]
+        or not path.is_file()
+    ):
+        return False
+    qualification = _read_object(path)
+    return (
+        qualification.get("smoke_protocol_sha256")
+        == authorization["smoke_protocol_sha256"]
+        and qualification.get("smoke_execution_plan_sha256")
+        == authorization["smoke_execution_plan_sha256"]
+    )
 
 
 def _write_smoke_qualification(
@@ -1255,6 +1537,143 @@ def _write_smoke_qualification(
     return _file_sha256(path)
 
 
+def _write_pilot_qualification(
+    pilot: Path,
+    output: Path,
+    expected_smoke_sha256: str | None,
+    expected_build_context_sha256: str,
+    authorization_identity: Mapping[str, str] | None,
+) -> str:
+    if expected_smoke_sha256 is None:
+        raise ValueError(
+            "qualifying pilot requires the same qualifying smoke"
+        )
+    sources = {
+        "protocol.json": pilot / "inputs" / "protocol.json",
+        "plan.json": pilot / "inputs" / "plan.json",
+        "smoke-qualification.json": (
+            pilot / "inputs" / "smoke-qualification.json"
+        ),
+        "data-quality.json": pilot / "data-quality.json",
+        "artifact-manifest.json": pilot / "artifact-manifest.json",
+        "collection-attestation.json": (
+            pilot / "collection-attestation.json"
+        ),
+    }
+    if any(not path.is_file() for path in sources.values()):
+        raise ValueError(
+            "qualifying pilot evidence is incomplete"
+        )
+    protocol_payload = _read_object(sources["protocol.json"])
+    protocol = ActionCollectionProtocol.from_dict(protocol_payload)
+    plan = _read_object(sources["plan.json"])
+    assessment = _read_object(sources["data-quality.json"])
+    artifact_manifest = _read_object(
+        sources["artifact-manifest.json"]
+    )
+    raw_artifact_sha256s = artifact_manifest.get("sha256")
+    recomputed_assessment = assess_prepared_action_collection(
+        pilot / "inputs",
+        pilot / "cases",
+        pilot / "collection-attestation.json",
+    )
+    expected_artifact_sha256s = {
+        str(path.relative_to(pilot)): _file_sha256(path)
+        for path in sorted(pilot.rglob("*"))
+        if path.is_file()
+        and path != sources["artifact-manifest.json"]
+    }
+    if (
+        protocol.stage != "instrumentation_pilot"
+        or not _is_v4_qualification_protocol(protocol)
+        or plan.get("kind") != "action_dynamics_execution_plan"
+        or plan.get("schema_version") != 2
+        or plan.get("qualifying_smoke_sha256")
+        != expected_smoke_sha256
+        or plan.get("application_build_context_sha256")
+        != expected_build_context_sha256
+        or authorization_identity is None
+        or _canonical_sha256(protocol_payload)
+        != authorization_identity["pilot_protocol_sha256"]
+        or _canonical_sha256(plan)
+        != authorization_identity["pilot_execution_plan_sha256"]
+        or expected_smoke_sha256
+        != authorization_identity["qualifying_smoke_sha256"]
+        or expected_build_context_sha256
+        != authorization_identity[
+            "application_build_context_sha256"
+        ]
+        or recomputed_assessment != assessment
+        or assessment.get("status") != "qualified"
+        or assessment.get("decision")
+        != "freeze_development_generator"
+        or not isinstance(assessment.get("gates"), dict)
+        or not all(assessment["gates"].values())
+        or set(artifact_manifest)
+        != {"schema_version", "kind", "sha256"}
+        or artifact_manifest.get("schema_version") != 1
+        or artifact_manifest.get("kind")
+        != "action_dynamics_artifact_manifest"
+        or not isinstance(raw_artifact_sha256s, dict)
+        or raw_artifact_sha256s != expected_artifact_sha256s
+    ):
+        raise ValueError(
+            "qualifying pilot assessment, identity, or artifact "
+            "hashes failed"
+        )
+    evidence_directory = output / "qualifying-pilot-evidence"
+    evidence_directory.mkdir()
+    evidence_sha256s = {}
+    for name, source in sources.items():
+        target = evidence_directory / name
+        shutil.copyfile(source, target)
+        evidence_sha256s[name] = _file_sha256(target)
+    qualification = {
+        "schema_version": 1,
+        "kind": "action_dynamics_pilot_qualification",
+        "status": "qualified",
+        "pilot_protocol_sha256": _canonical_sha256(
+            protocol_payload
+        ),
+        "pilot_execution_plan_sha256": _canonical_sha256(plan),
+        "pilot_assessment_sha256": evidence_sha256s[
+            "data-quality.json"
+        ],
+        "pilot_artifact_manifest_sha256": evidence_sha256s[
+            "artifact-manifest.json"
+        ],
+        "pilot_collection_attestation_sha256": evidence_sha256s[
+            "collection-attestation.json"
+        ],
+        "qualifying_smoke_sha256": expected_smoke_sha256,
+        "application_build_context_sha256": (
+            expected_build_context_sha256
+        ),
+        "artifact_file_count": len(raw_artifact_sha256s),
+        "artifact_hash_mismatch_count": 0,
+        "gates": dict(assessment["gates"]),
+        "evidence_file_sha256s": dict(
+            sorted(evidence_sha256s.items())
+        ),
+    }
+    path = output / "pilot-qualification.json"
+    path.write_text(_pretty_json(qualification))
+    return _file_sha256(path)
+
+
+def _is_v4_qualification_protocol(
+    protocol: ActionCollectionProtocol,
+) -> bool:
+    enqueue = protocol.action_library.get("redis_enqueue_delay")
+    return (
+        protocol.point_count == 108
+        and protocol.scheduling.get("twin_wave_barrier") is True
+        and isinstance(enqueue, dict)
+        and enqueue.get("recovery_window_kind")
+        == "post_stop_continuous_workload"
+    )
+
+
 def _valid_smoke_qualification(
     prepared: Path,
     protocol: ActionCollectionProtocol,
@@ -1310,6 +1729,109 @@ def _valid_smoke_qualification(
         == "advance_to_instrumentation_pilot"
         and isinstance(smoke_assessment.get("gates"), dict)
         and all(smoke_assessment["gates"].values())
+    )
+
+
+def _valid_pilot_qualification(
+    prepared: Path,
+    protocol: ActionCollectionProtocol,
+    raw_sha256: Any,
+    expected_smoke_sha256: Any,
+    expected_build_context_sha256: Any,
+) -> bool:
+    path = prepared / "pilot-qualification.json"
+    if protocol.stage != "development":
+        return raw_sha256 is None and not path.exists()
+    if (
+        not isinstance(raw_sha256, str)
+        or not _HEX_SHA256.fullmatch(raw_sha256)
+        or not isinstance(expected_smoke_sha256, str)
+        or not _HEX_SHA256.fullmatch(expected_smoke_sha256)
+        or not isinstance(expected_build_context_sha256, str)
+        or not _HEX_SHA256.fullmatch(
+            expected_build_context_sha256
+        )
+        or not path.is_file()
+        or _file_sha256(path) != raw_sha256
+    ):
+        return False
+    qualification = _read_object(path)
+    evidence = prepared / "qualifying-pilot-evidence"
+    raw_files = qualification.get("evidence_file_sha256s")
+    raw_gates = qualification.get("gates")
+    required_files = {
+        "protocol.json",
+        "plan.json",
+        "smoke-qualification.json",
+        "data-quality.json",
+        "artifact-manifest.json",
+        "collection-attestation.json",
+    }
+    if (
+        qualification.get("schema_version") != 1
+        or qualification.get("kind")
+        != "action_dynamics_pilot_qualification"
+        or qualification.get("status") != "qualified"
+        or qualification.get("qualifying_smoke_sha256")
+        != expected_smoke_sha256
+        or qualification.get(
+            "application_build_context_sha256"
+        )
+        != expected_build_context_sha256
+        or qualification.get("artifact_hash_mismatch_count") != 0
+        or not isinstance(raw_files, dict)
+        or set(raw_files) != required_files
+        or not isinstance(raw_gates, dict)
+        or not raw_gates
+        or not all(raw_gates.values())
+        or any(
+            not isinstance(expected, str)
+            or not (evidence / name).is_file()
+            or _file_sha256(evidence / name) != expected
+            for name, expected in raw_files.items()
+        )
+        or _file_sha256(evidence / "smoke-qualification.json")
+        != expected_smoke_sha256
+    ):
+        return False
+    pilot_protocol_payload = _read_object(
+        evidence / "protocol.json"
+    )
+    pilot_protocol = ActionCollectionProtocol.from_dict(
+        pilot_protocol_payload
+    )
+    pilot_plan = _read_object(evidence / "plan.json")
+    pilot_assessment = _read_object(
+        evidence / "data-quality.json"
+    )
+    authorization = _development_authorization_identity(protocol)
+    return (
+        pilot_protocol.stage == "instrumentation_pilot"
+        and _is_v4_qualification_protocol(pilot_protocol)
+        and pilot_plan.get("schema_version") == 2
+        and pilot_plan.get("qualifying_smoke_sha256")
+        == expected_smoke_sha256
+        and pilot_plan.get("application_build_context_sha256")
+        == expected_build_context_sha256
+        and _canonical_sha256(pilot_protocol_payload)
+        == authorization["pilot_protocol_sha256"]
+        and _canonical_sha256(pilot_plan)
+        == authorization["pilot_execution_plan_sha256"]
+        and expected_smoke_sha256
+        == authorization["qualifying_smoke_sha256"]
+        and expected_build_context_sha256
+        == authorization["application_build_context_sha256"]
+        and qualification.get("pilot_protocol_sha256")
+        == _canonical_sha256(pilot_protocol_payload)
+        and qualification.get("pilot_execution_plan_sha256")
+        == _canonical_sha256(pilot_plan)
+        and qualification.get("pilot_assessment_sha256")
+        == _file_sha256(evidence / "data-quality.json")
+        and pilot_assessment.get("status") == "qualified"
+        and pilot_assessment.get("decision")
+        == "freeze_development_generator"
+        and isinstance(pilot_assessment.get("gates"), dict)
+        and all(pilot_assessment["gates"].values())
     )
 
 
@@ -1432,9 +1954,9 @@ def assess_prepared_action_collection(
     trace_link_denominator = 0
     complete_trace_numerator = 0
     complete_trace_denominator = 0
-    requires_count_evidence = (
-        prepared_plan.get("schema_version") == 2
-    )
+    requires_count_evidence = prepared_plan.get(
+        "schema_version"
+    ) in {2, 3}
     requires_controller_readback = (
         protocol.gates.get("controller_key_readback_required")
         is True
@@ -1578,7 +2100,7 @@ def assess_prepared_action_collection(
             attestation, protocol.parallel_jobs
         ),
     }
-    if prepared_plan.get("schema_version") == 2:
+    if prepared_plan.get("schema_version") in {2, 3}:
         plan_sha256 = _canonical_sha256(prepared_plan)
         gates["final_plan_binding"] = all(
             manifest.prepared_plan_sha256 == plan_sha256
@@ -1586,7 +2108,10 @@ def assess_prepared_action_collection(
             == prepared_plan.get("qualifying_smoke_sha256")
             for manifest in manifests
         )
-        if protocol.stage == "instrumentation_pilot":
+        if protocol.stage in {
+            "instrumentation_pilot",
+            "development",
+        }:
             gates["qualifying_smoke_binding"] = (
                 attestation.get("qualifying_smoke_sha256")
                 == prepared_plan.get(
@@ -1597,6 +2122,29 @@ def assess_prepared_action_collection(
                     protocol,
                     prepared_plan.get(
                         "qualifying_smoke_sha256"
+                    ),
+                )
+            )
+        if protocol.stage == "development":
+            gates["whole_pair_split"] = (
+                _valid_development_split(manifests)
+            )
+            gates["qualifying_pilot_binding"] = (
+                attestation.get("qualifying_pilot_sha256")
+                == prepared_plan.get(
+                    "qualifying_pilot_sha256"
+                )
+                and _valid_pilot_qualification(
+                    Path(prepared_directory),
+                    protocol,
+                    prepared_plan.get(
+                        "qualifying_pilot_sha256"
+                    ),
+                    prepared_plan.get(
+                        "qualifying_smoke_sha256"
+                    ),
+                    prepared_plan.get(
+                        "application_build_context_sha256"
                     ),
                 )
             )
@@ -1644,9 +2192,13 @@ def assess_prepared_action_collection(
         "status": "qualified" if qualified else "failed",
         "decision": (
             (
-                "advance_to_instrumentation_pilot"
-                if protocol.stage == "smoke"
-                else "freeze_development_generator"
+                (
+                    "advance_to_instrumentation_pilot"
+                    if protocol.stage == "smoke"
+                    else "freeze_development_generator"
+                )
+                if protocol.stage != "development"
+                else "freeze_training_corpus"
             )
             if qualified
             else "stop_and_repair_instrumentation"
@@ -1724,7 +2276,7 @@ def assess_prepared_action_collection(
             "not evidence for a world-model claim",
         ],
     }
-    if prepared_plan.get("schema_version") == 2:
+    if prepared_plan.get("schema_version") in {2, 3}:
         assessment["identity"] = {
             "protocol_sha256": _canonical_sha256(
                 _read_object(
@@ -1741,6 +2293,10 @@ def assess_prepared_action_collection(
                 "qualifying_smoke_sha256"
             ),
         }
+        if prepared_plan.get("schema_version") == 3:
+            assessment["identity"][
+                "qualifying_pilot_sha256"
+            ] = prepared_plan.get("qualifying_pilot_sha256")
     return assessment
 
 
@@ -1785,20 +2341,31 @@ def write_action_collection_assessment(
 def _design_cells(
     protocol: ActionCollectionProtocol,
 ) -> Tuple[Tuple[str, int, int], ...]:
-    if protocol.stage == "instrumentation_pilot":
+    if protocol.stage in {
+        "instrumentation_pilot",
+        "development",
+    }:
+        replicate_count = (
+            8 if protocol.stage == "development" else 2
+        )
         cells = tuple(
             (kind, workers, replicate)
             for kind in ACTION_KINDS
             for workers in (1, 2, 3)
-            for replicate in range(2)
+            for replicate in range(replicate_count)
         )
         return tuple(
             sorted(
                 cells,
                 key=lambda cell: _derived_int(
                     protocol.generator_seed,
-                    "pilot-permutation:"
-                    f"{cell[0]}:{cell[1]}:{cell[2]}",
+                    (
+                        "pilot-permutation:"
+                        if protocol.stage
+                        == "instrumentation_pilot"
+                        else "development-permutation:"
+                    )
+                    + f"{cell[0]}:{cell[1]}:{cell[2]}",
                 ),
             )
         )
@@ -1995,6 +2562,10 @@ def _pilot_action_schedule(
             f"schedule:{kind}:{value[0]}:{value[1]}",
         ),
     )
+    if protocol.stage == "development":
+        return ordered[
+            ((workers - 1) * 8 + replicate) % len(ordered)
+        ]
     return ordered[(workers - 1) * 2 + replicate]
 
 
@@ -2074,16 +2645,26 @@ def _validate_action_configuration(
 
 
 def _validate_design(stage: str, design: Mapping[str, Any]) -> None:
-    if stage == "instrumentation_pilot":
+    if stage in {"instrumentation_pilot", "development"}:
+        expected_replicates = 8 if stage == "development" else 2
+        expected_pairs = 120 if stage == "development" else 30
         if (
             design.get("design_kind")
             != "complete_action_topology_factorial"
             or tuple(design.get("action_kinds", ())) != ACTION_KINDS
             or design.get("worker_replica_values") != [1, 2, 3]
-            or design.get("replicates_per_cell") != 2
-            or design.get("pair_count") != 30
+            or design.get("replicates_per_cell")
+            != expected_replicates
+            or design.get("pair_count") != expected_pairs
+            or (
+                stage == "development"
+                and design.get("split_assignment")
+                != "replicates 0-5 training; replicates 6-7 validation"
+            )
         ):
-            raise ValueError("pilot design is not the frozen factorial")
+            raise ValueError(
+                f"{stage} design is not the frozen factorial"
+            )
         return
     cells = design.get("cells")
     if (
@@ -2163,12 +2744,17 @@ def _validate_attestation(
         or attestation.get("plan_sha256")
         != _canonical_sha256(plan)
         or (
-            plan.get("schema_version") == 2
+            plan.get("schema_version") in {2, 3}
             and attestation.get("qualifying_smoke_sha256")
             != plan.get("qualifying_smoke_sha256")
         )
         or (
-            plan.get("schema_version") == 2
+            plan.get("schema_version") == 3
+            and attestation.get("qualifying_pilot_sha256")
+            != plan.get("qualifying_pilot_sha256")
+        )
+        or (
+            plan.get("schema_version") in {2, 3}
             and attestation.get(
                 "application_build_context_sha256"
             )
@@ -3405,6 +3991,12 @@ def _assessment_report(assessment: Mapping[str, Any]) -> str:
     identity = assessment.get("identity")
     identity_section = ""
     if isinstance(identity, dict):
+        pilot_identity = (
+            "- qualifying-pilot SHA-256: "
+            f"`{identity['qualifying_pilot_sha256']}`\n"
+            if "qualifying_pilot_sha256" in identity
+            else ""
+        )
         identity_section = (
             "## Identity\n\n"
             f"- protocol SHA-256: `{identity['protocol_sha256']}`\n"
@@ -3412,7 +4004,8 @@ def _assessment_report(assessment: Mapping[str, Any]) -> str:
             "- application build-context SHA-256: "
             f"`{identity['application_build_context_sha256']}`\n"
             "- qualifying-smoke SHA-256: "
-            f"`{identity['qualifying_smoke_sha256']}`\n\n"
+            f"`{identity['qualifying_smoke_sha256']}`\n"
+            f"{pilot_identity}\n"
         )
     return (
         "# Action-dynamics collection assessment\n\n"

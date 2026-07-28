@@ -1,6 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -760,6 +761,148 @@ def test_pilot_preparation_binds_qualified_smoke_evidence(
         )
 
 
+def test_development_plan_is_complete_pair_split_factorial() -> None:
+    protocol = _development_protocol()
+
+    manifests, assignments = prepare_action_collection(
+        protocol,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+    )
+
+    assert len(manifests) == 240
+    assert len(assignments) == 240
+    pair_splits: dict[str, set[str]] = {}
+    cell_splits: dict[tuple[str, int], list[str]] = {}
+    for manifest in manifests:
+        pair_id = manifest.action_case.matched_pair_id
+        split = manifest.action_case.split
+        pair_splits.setdefault(pair_id, set()).add(split)
+        if manifest.action_case.actions:
+            action = manifest.action_case.actions[0]
+            cell_splits.setdefault(
+                (
+                    action.action_kind,
+                    manifest.action_case.worker_replicas,
+                ),
+                [],
+            ).append(split)
+
+    assert len(pair_splits) == 120
+    assert all(len(splits) == 1 for splits in pair_splits.values())
+    assert sum(splits == {"training"} for splits in pair_splits.values()) == 90
+    assert sum(splits == {"validation"} for splits in pair_splits.values()) == 30
+    assert set(cell_splits) == {
+        (kind, workers)
+        for kind in ACTION_KINDS
+        for workers in (1, 2, 3)
+    }
+    assert all(
+        splits.count("training") == 6
+        and splits.count("validation") == 2
+        for splits in cell_splits.values()
+    )
+
+
+def test_development_binds_qualified_v4_smoke_and_pilot(
+    tmp_path: Path,
+) -> None:
+    smoke, pilot = _qualified_v4_smoke_and_pilot(tmp_path)
+    authorization = _qualification_authorization(smoke, pilot)
+    frozen_authorization = _development_protocol().analysis[
+        "authorization_identity"
+    ]
+    assert isinstance(frozen_authorization, dict)
+    with pytest.raises(ValueError, match="not authorized"):
+        write_prepared_action_collection(
+            _development_protocol(),
+            tmp_path / "lookalike-v4" / "inputs",
+            image_digests=_IMAGES,
+            observation_schema_sha256=_OBSERVATION_SCHEMA,
+            application_build_context_sha256=str(
+                frozen_authorization[
+                    "application_build_context_sha256"
+                ]
+            ),
+            qualifying_smoke_directory=smoke,
+            qualifying_pilot_directory=pilot,
+        )
+    with pytest.raises(ValueError, match="identity"):
+        write_prepared_action_collection(
+            _development_protocol(authorization),
+            tmp_path / "wrong-stack" / "inputs",
+            image_digests=_IMAGES,
+            observation_schema_sha256=_OBSERVATION_SCHEMA,
+            application_build_context_sha256="c" * 64,
+            qualifying_smoke_directory=smoke,
+            qualifying_pilot_directory=pilot,
+        )
+    development = tmp_path / "development"
+    inputs = development / "inputs"
+
+    written = write_prepared_action_collection(
+        _development_protocol(authorization),
+        inputs,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
+        qualifying_smoke_directory=smoke,
+        qualifying_pilot_directory=pilot,
+    )
+    protocol, manifests, assignments = (
+        load_prepared_action_collection(inputs)
+    )
+    plan = json.loads((inputs / "plan.json").read_text())
+
+    assert protocol.stage == "development"
+    assert plan["schema_version"] == 3
+    assert _HEX(plan["qualifying_smoke_sha256"])
+    assert _HEX(plan["qualifying_pilot_sha256"])
+    assert plan["split_summary"] == {
+        "split_unit": "matched_pair",
+        "training_pair_count": 90,
+        "validation_pair_count": 30,
+        "training_capture_count": 180,
+        "validation_capture_count": 60,
+    }
+    assert all(
+        manifest.schema_version == 3
+        and manifest.corpus_role == "development"
+        and manifest.prepared_plan_sha256 == written["plan_sha256"]
+        and manifest.qualifying_smoke_sha256
+        == plan["qualifying_smoke_sha256"]
+        for manifest in manifests
+    )
+
+    captures = development / "cases"
+    _write_qualified_captures(captures, manifests)
+    attestation = development / "collection-attestation.json"
+    invalid_attestation = _attestation(inputs, assignments)
+    invalid_attestation["qualifying_pilot_sha256"] = "d" * 64
+    attestation.write_text(_pretty(invalid_attestation))
+    with pytest.raises(
+        ValueError, match="collection attestation"
+    ):
+        assess_prepared_action_collection(
+            inputs, captures, attestation
+        )
+    attestation.write_text(
+        _pretty(_attestation(inputs, assignments))
+    )
+    assessment = assess_prepared_action_collection(
+        inputs, captures, attestation
+    )
+
+    assert assessment["status"] == "qualified"
+    assert assessment["decision"] == "freeze_training_corpus"
+    assert assessment["gates"]["whole_pair_split"] is True
+    assert assessment["gates"]["qualifying_smoke_binding"] is True
+    assert assessment["gates"]["qualifying_pilot_binding"] is True
+    assert assessment["identity"]["qualifying_pilot_sha256"] == (
+        plan["qualifying_pilot_sha256"]
+    )
+
+
 def test_assessment_recomputes_smoke_evidence(
     tmp_path: Path,
 ) -> None:
@@ -1095,6 +1238,149 @@ def _protocol(stage: str) -> ActionCollectionProtocol:
             },
         }
     )
+
+
+def _development_protocol(
+    authorization_identity: Optional[dict[str, str]] = None,
+) -> ActionCollectionProtocol:
+    repository = Path(__file__).resolve().parents[1]
+    payload = json.loads(
+        (
+            repository
+            / "lab"
+            / "action_dynamics"
+            / "development-protocol-v1.json"
+        ).read_text()
+    )
+    if authorization_identity is not None:
+        payload["analysis"]["authorization_identity"] = (
+            authorization_identity
+        )
+    return ActionCollectionProtocol.from_dict(payload)
+
+
+def _qualified_v4_smoke_and_pilot(
+    root: Path,
+) -> tuple[Path, Path]:
+    repository = Path(__file__).resolve().parents[1]
+    smoke = root / "qualifying-smoke"
+    smoke_protocol = ActionCollectionProtocol.from_dict(
+        json.loads(
+            (
+                repository
+                / "lab"
+                / "action_dynamics"
+                / "smoke-protocol-v4.json"
+            ).read_text()
+        )
+    )
+    smoke_inputs = smoke / "inputs"
+    write_prepared_action_collection(
+        smoke_protocol,
+        smoke_inputs,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
+    )
+    _, smoke_manifests, smoke_assignments = (
+        load_prepared_action_collection(smoke_inputs)
+    )
+    _write_qualified_captures(smoke / "cases", smoke_manifests)
+    smoke_attestation = smoke / "collection-attestation.json"
+    smoke_attestation.write_text(
+        _pretty(_attestation(smoke_inputs, smoke_assignments))
+    )
+    write_action_collection_assessment(
+        smoke_inputs,
+        smoke / "cases",
+        smoke_attestation,
+        smoke,
+    )
+
+    pilot = root / "qualifying-pilot"
+    pilot_protocol = ActionCollectionProtocol.from_dict(
+        json.loads(
+            (
+                repository
+                / "lab"
+                / "action_dynamics"
+                / "pilot-protocol-v4.json"
+            ).read_text()
+        )
+    )
+    pilot_inputs = pilot / "inputs"
+    write_prepared_action_collection(
+        pilot_protocol,
+        pilot_inputs,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+        application_build_context_sha256=_BUILD_CONTEXT_SHA256,
+        qualifying_smoke_directory=smoke,
+    )
+    _, pilot_manifests, pilot_assignments = (
+        load_prepared_action_collection(pilot_inputs)
+    )
+    _write_qualified_captures(pilot / "cases", pilot_manifests)
+    pilot_attestation = pilot / "collection-attestation.json"
+    pilot_attestation.write_text(
+        _pretty(_attestation(pilot_inputs, pilot_assignments))
+    )
+    write_action_collection_assessment(
+        pilot_inputs,
+        pilot / "cases",
+        pilot_attestation,
+        pilot,
+    )
+    return smoke, pilot
+
+
+def _HEX(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and set(value) <= set("0123456789abcdef")
+    )
+
+
+def _qualification_authorization(
+    smoke: Path, pilot: Path
+) -> dict[str, str]:
+    smoke_protocol = json.loads(
+        (smoke / "inputs" / "protocol.json").read_text()
+    )
+    smoke_plan = json.loads(
+        (smoke / "inputs" / "plan.json").read_text()
+    )
+    pilot_protocol = json.loads(
+        (pilot / "inputs" / "protocol.json").read_text()
+    )
+    pilot_plan = json.loads(
+        (pilot / "inputs" / "plan.json").read_text()
+    )
+    return {
+        "smoke_protocol_sha256": _canonical_sha256(
+            smoke_protocol
+        ),
+        "smoke_execution_plan_sha256": _canonical_sha256(
+            smoke_plan
+        ),
+        "pilot_protocol_sha256": _canonical_sha256(
+            pilot_protocol
+        ),
+        "pilot_execution_plan_sha256": _canonical_sha256(
+            pilot_plan
+        ),
+        "qualifying_smoke_sha256": hashlib.sha256(
+            (
+                pilot
+                / "inputs"
+                / "smoke-qualification.json"
+            ).read_bytes()
+        ).hexdigest(),
+        "application_build_context_sha256": str(
+            pilot_plan["application_build_context_sha256"]
+        ),
+    }
 
 
 def _write_qualified_captures(
@@ -1557,6 +1843,9 @@ def _attestation(
         "plan_sha256": _canonical_sha256(plan),
         "qualifying_smoke_sha256": plan.get(
             "qualifying_smoke_sha256"
+        ),
+        "qualifying_pilot_sha256": plan.get(
+            "qualifying_pilot_sha256"
         ),
         "cases": [
             {
