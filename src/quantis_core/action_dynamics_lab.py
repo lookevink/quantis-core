@@ -6,9 +6,10 @@ import hashlib
 import json
 import math
 import re
+import shutil
 import statistics
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Sequence, Tuple
 
@@ -55,6 +56,9 @@ _MANIFEST_KEYS = {
     "prepared_plan_sha256",
     "graph_observation_schema_sha256",
     "corpus_role",
+}
+_MANIFEST_V2_KEYS = _MANIFEST_KEYS | {
+    "qualifying_smoke_sha256"
 }
 _ASSIGNMENT_KEYS = {
     "pair_id",
@@ -104,7 +108,14 @@ _ACTION_LAB_FEATURE_NAMES = (
     "postgresql_write_event_age_ms",
     "postgresql_write_busy_age_max_ms",
 )
+_ACTION_LAB_EVIDENCE_METRIC_NAMES = (
+    "quantis.experiment.request_count",
+    "quantis.experiment.error_count",
+)
 ACTION_LAB_FEATURE_NAMES = _ACTION_LAB_FEATURE_NAMES
+ACTION_LAB_EVIDENCE_METRIC_NAMES = (
+    _ACTION_LAB_EVIDENCE_METRIC_NAMES
+)
 _SPAN_ENTITY_OWNERS = {
     "api.admission": "api",
     "redis.enqueue": "api_enqueues_queue",
@@ -150,20 +161,22 @@ class LabActionCaptureManifest:
     prepared_plan_sha256: str
     graph_observation_schema_sha256: str
     corpus_role: str
+    qualifying_smoke_sha256: str | None = None
     schema_version: int = 1
 
     def __post_init__(self) -> None:
         if (
-            self.schema_version != 1
+            self.schema_version not in {1, 2}
             or isinstance(self.sample_period_seconds, bool)
             or not math.isfinite(self.sample_period_seconds)
             or self.sample_period_seconds <= 0.0
             or len(self.request_schedule)
             != self.action_case.point_count
             or any(
-                isinstance(value, bool) or value < 1
+                isinstance(value, bool) or value < 0
                 for value in self.request_schedule
             )
+            or max(self.request_schedule, default=0) < 1
             or isinstance(self.api_request_queue_size, bool)
             or self.api_request_queue_size < max(self.request_schedule)
             or not _HEX_SHA256.fullmatch(
@@ -180,6 +193,26 @@ class LabActionCaptureManifest:
             != self.observation_schema_sha256
             or self.corpus_role
             not in {"smoke", "instrumentation_pilot"}
+            or (
+                self.schema_version == 1
+                and self.qualifying_smoke_sha256 is not None
+            )
+            or (
+                self.schema_version == 2
+                and self.corpus_role == "smoke"
+                and self.qualifying_smoke_sha256 is not None
+            )
+            or (
+                self.schema_version == 2
+                and self.corpus_role
+                == "instrumentation_pilot"
+                and (
+                    self.qualifying_smoke_sha256 is None
+                    or not _HEX_SHA256.fullmatch(
+                        self.qualifying_smoke_sha256
+                    )
+                )
+            )
         ):
             raise ValueError("lab action capture manifest is invalid")
         if (
@@ -199,7 +232,7 @@ class LabActionCaptureManifest:
     def to_dict(self) -> Dict[str, Any]:
         """Return a canonical JSON-compatible representation."""
 
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "kind": "lab_action_capture_manifest",
             "action_case": self.action_case.to_dict(),
@@ -217,6 +250,11 @@ class LabActionCaptureManifest:
             ),
             "corpus_role": self.corpus_role,
         }
+        if self.schema_version == 2:
+            payload["qualifying_smoke_sha256"] = (
+                self.qualifying_smoke_sha256
+            )
+        return payload
 
     @classmethod
     def from_dict(
@@ -224,12 +262,15 @@ class LabActionCaptureManifest:
     ) -> "LabActionCaptureManifest":
         """Restore a manifest without coercing malformed field types."""
 
-        if set(payload) != _MANIFEST_KEYS:
+        if frozenset(payload) not in {
+            frozenset(_MANIFEST_KEYS),
+            frozenset(_MANIFEST_V2_KEYS),
+        }:
             raise ValueError("lab action manifest schema is invalid")
         raw_schedule = payload["request_schedule"]
         raw_images = payload["image_digests"]
         if (
-            payload["schema_version"] != 1
+            payload["schema_version"] not in {1, 2}
             or payload["kind"] != "lab_action_capture_manifest"
             or not isinstance(payload["action_case"], dict)
             or isinstance(payload["sample_period_seconds"], bool)
@@ -256,6 +297,13 @@ class LabActionCaptureManifest:
                 payload["graph_observation_schema_sha256"], str
             )
             or not isinstance(payload["corpus_role"], str)
+            or (
+                "qualifying_smoke_sha256" in payload
+                and payload["qualifying_smoke_sha256"] is not None
+                and not isinstance(
+                    payload["qualifying_smoke_sha256"], str
+                )
+            )
         ):
             raise ValueError(
                 "lab action manifest field types are invalid"
@@ -285,6 +333,9 @@ class LabActionCaptureManifest:
                 "graph_observation_schema_sha256"
             ],
             corpus_role=payload["corpus_role"],
+            qualifying_smoke_sha256=payload.get(
+                "qualifying_smoke_sha256"
+            ),
             schema_version=payload["schema_version"],
         )
 
@@ -361,7 +412,7 @@ class ActionCollectionProtocol:
             self.trajectory, "sample_period_seconds"
         )
         if (
-            point_count != 84
+            point_count not in {84, 108}
             or sample_period != 0.25
             or not 0 <= onset_min <= onset_max
             or not 1 <= duration_min <= duration_max
@@ -385,6 +436,23 @@ class ActionCollectionProtocol:
             is not True
         ):
             raise ValueError("action workload protocol is invalid")
+        if point_count == 108 and (
+            self.workload.get(
+                "api_rejection_requests_per_window"
+            )
+            != 12
+            or self.workload.get("drain_phase_start_index")
+            != 84
+            or self.workload.get("drain_phase_stop_index")
+            != 92
+            or self.workload.get("probe_phase_start_index")
+            != 92
+            or self.workload.get("probe_requests_per_window")
+            != 8
+        ):
+            raise ValueError(
+                "v3 workload drain and probe schedule is invalid"
+            )
         if set(self.action_library) != set(ACTION_KINDS):
             raise ValueError("action library coverage is invalid")
         for kind in ACTION_KINDS:
@@ -677,9 +745,6 @@ def prepare_action_collection(
                 protocol.generator_seed, f"{pair_id}:intervention"
             )
         )
-        request_schedule = _request_schedule(
-            protocol, workload_seed
-        )
         action_config = _required_mapping(
             protocol.action_library, kind
         )
@@ -700,6 +765,11 @@ def prepare_action_collection(
             else severity_values[
                 ((workers - 1) + replicate) % len(severity_values)
             ]
+        )
+        request_schedule = _request_schedule(
+            protocol,
+            workload_seed,
+            action_kind=kind,
         )
         action = InterventionAction(
             action_id=_opaque_id(
@@ -798,6 +868,7 @@ def write_prepared_action_collection(
     *,
     image_digests: Mapping[str, str] | None = None,
     observation_schema_sha256: str | None = None,
+    qualifying_smoke_directory: Path | None = None,
 ) -> Mapping[str, Any]:
     """Persist the exact protocol, plan, and manifests once."""
 
@@ -817,28 +888,78 @@ def write_prepared_action_collection(
     protocol_payload = protocol.to_dict()
     protocol_path = output / "protocol.json"
     protocol_path.write_text(_pretty_json(protocol_payload))
-    manifest_sha256s = {}
-    for manifest in manifests:
-        case_id = manifest.action_case.case_id
-        path = manifests_directory / f"{case_id}.json"
-        path.write_text(_pretty_json(manifest.to_dict()))
-        manifest_sha256s[case_id] = _file_sha256(path)
+    qualifying_smoke_sha256 = (
+        _write_smoke_qualification(
+            Path(qualifying_smoke_directory), output
+        )
+        if qualifying_smoke_directory is not None
+        else None
+    )
+    if (
+        protocol.stage == "instrumentation_pilot"
+        and qualifying_smoke_sha256 is None
+    ):
+        raise ValueError(
+            "pilot preparation requires qualifying smoke evidence"
+        )
+    if (
+        protocol.stage == "smoke"
+        and qualifying_smoke_sha256 is not None
+    ):
+        raise ValueError(
+            "smoke preparation cannot bind prior smoke evidence"
+        )
     plan = {
-        "schema_version": 1,
-        "kind": "action_dynamics_collection_plan",
+        "schema_version": 2,
+        "kind": "action_dynamics_execution_plan",
         "protocol_sha256": _canonical_sha256(protocol_payload),
-        "manifest_sha256s": dict(sorted(manifest_sha256s.items())),
+        "qualifying_smoke_sha256": qualifying_smoke_sha256,
+        "case_specs": {
+            manifest.action_case.case_id: _manifest_plan_spec(
+                manifest
+            )
+            for manifest in sorted(
+                manifests,
+                key=lambda value: value.action_case.case_id,
+            )
+        },
         "assignments": [
             assignment.to_dict() for assignment in assignments
         ],
     }
-    (output / "plan.json").write_text(_pretty_json(plan))
-    return {
+    plan_sha256 = _canonical_sha256(plan)
+    bound_manifests = tuple(
+        replace(
+            manifest,
+            prepared_plan_sha256=plan_sha256,
+            qualifying_smoke_sha256=(
+                qualifying_smoke_sha256
+            ),
+            schema_version=2,
+        )
+        for manifest in manifests
+    )
+    manifest_sha256s = {}
+    for manifest in bound_manifests:
+        case_id = manifest.action_case.case_id
+        path = manifests_directory / f"{case_id}.json"
+        path.write_text(_pretty_json(manifest.to_dict()))
+        manifest_sha256s[case_id] = _file_sha256(path)
+    manifest_index = {
         "schema_version": 1,
+        "kind": "action_dynamics_manifest_index",
+        "manifest_sha256s": dict(sorted(manifest_sha256s.items())),
+    }
+    (output / "plan.json").write_text(_pretty_json(plan))
+    (output / "manifest-index.json").write_text(
+        _pretty_json(manifest_index)
+    )
+    return {
+        "schema_version": 2,
         "kind": "prepared_action_collection",
         "protocol_sha256": protocol.canonical_sha256(),
-        "plan_sha256": _canonical_sha256(plan),
-        "manifest_count": len(manifests),
+        "plan_sha256": plan_sha256,
+        "manifest_count": len(bound_manifests),
         "assignment_count": len(assignments),
     }
 
@@ -855,24 +976,62 @@ def load_prepared_action_collection(
     prepared = Path(prepared_directory)
     protocol_payload = _read_object(prepared / "protocol.json")
     plan = _read_object(prepared / "plan.json")
+    if (
+        plan.get("schema_version") == 1
+        and set(plan)
+        == {
+            "schema_version",
+            "kind",
+            "protocol_sha256",
+            "manifest_sha256s",
+            "assignments",
+        }
+    ):
+        return _load_legacy_prepared_action_collection(
+            prepared, protocol_payload, plan
+        )
     if set(plan) != {
         "schema_version",
         "kind",
         "protocol_sha256",
-        "manifest_sha256s",
+        "qualifying_smoke_sha256",
+        "case_specs",
         "assignments",
     }:
         raise ValueError("prepared collection plan schema is invalid")
     if (
-        plan["schema_version"] != 1
-        or plan["kind"] != "action_dynamics_collection_plan"
+        plan["schema_version"] != 2
+        or plan["kind"] != "action_dynamics_execution_plan"
         or plan["protocol_sha256"]
         != _canonical_sha256(protocol_payload)
-        or not isinstance(plan["manifest_sha256s"], dict)
+        or not isinstance(plan["case_specs"], dict)
         or not isinstance(plan["assignments"], list)
     ):
         raise ValueError("prepared collection plan is invalid")
+    manifest_index = _read_object(
+        prepared / "manifest-index.json"
+    )
+    if (
+        set(manifest_index)
+        != {"schema_version", "kind", "manifest_sha256s"}
+        or manifest_index.get("schema_version") != 1
+        or manifest_index.get("kind")
+        != "action_dynamics_manifest_index"
+        or not isinstance(
+            manifest_index.get("manifest_sha256s"), dict
+        )
+    ):
+        raise ValueError("prepared manifest index is invalid")
+    raw_manifest_sha256s = manifest_index["manifest_sha256s"]
+    if not isinstance(raw_manifest_sha256s, dict):
+        raise AssertionError("validated manifest index changed type")
     protocol = ActionCollectionProtocol.from_dict(protocol_payload)
+    if not _valid_smoke_qualification(
+        prepared, protocol, plan["qualifying_smoke_sha256"]
+    ):
+        raise ValueError(
+            "prepared qualifying smoke evidence is invalid"
+        )
     assignments = tuple(
         CaptureAssignment.from_dict(raw)
         for raw in plan["assignments"]
@@ -890,7 +1049,7 @@ def load_prepared_action_collection(
         )
         if path.stem != manifest.action_case.case_id:
             raise ValueError("prepared manifest filename drifted")
-        expected_sha = plan["manifest_sha256s"].get(path.stem)
+        expected_sha = raw_manifest_sha256s.get(path.stem)
         if expected_sha != _file_sha256(path):
             raise ValueError("prepared manifest hash drifted")
         manifests.append(manifest)
@@ -903,15 +1062,49 @@ def load_prepared_action_collection(
             manifests[0].observation_schema_sha256
         ),
     )
-    if (
-        tuple(manifests) != tuple(
-            sorted(
+    expected_plan = {
+        "schema_version": 2,
+        "kind": "action_dynamics_execution_plan",
+        "protocol_sha256": _canonical_sha256(protocol_payload),
+        "qualifying_smoke_sha256": plan[
+            "qualifying_smoke_sha256"
+        ],
+        "case_specs": {
+            manifest.action_case.case_id: _manifest_plan_spec(
+                manifest
+            )
+            for manifest in sorted(
                 expected_manifests,
                 key=lambda value: value.action_case.case_id,
             )
+        },
+        "assignments": [
+            assignment.to_dict()
+            for assignment in expected_assignments
+        ],
+    }
+    plan_sha256 = _canonical_sha256(plan)
+    expected_bound_manifests = tuple(
+        sorted(
+            (
+                replace(
+                    manifest,
+                    prepared_plan_sha256=plan_sha256,
+                    qualifying_smoke_sha256=plan[
+                        "qualifying_smoke_sha256"
+                    ],
+                    schema_version=2,
+                )
+                for manifest in expected_manifests
+            ),
+            key=lambda value: value.action_case.case_id,
         )
+    )
+    if (
+        plan != expected_plan
+        or tuple(manifests) != expected_bound_manifests
         or assignments != expected_assignments
-        or set(plan["manifest_sha256s"])
+        or set(raw_manifest_sha256s)
         != {
             manifest.action_case.case_id
             for manifest in expected_manifests
@@ -919,6 +1112,224 @@ def load_prepared_action_collection(
     ):
         raise ValueError(
             "prepared collection differs from deterministic generator"
+        )
+    return protocol, tuple(manifests), assignments
+
+
+def _manifest_plan_spec(
+    manifest: LabActionCaptureManifest,
+) -> Mapping[str, Any]:
+    payload = manifest.to_dict()
+    del payload["prepared_plan_sha256"]
+    return payload
+
+
+def _write_smoke_qualification(
+    smoke: Path, output: Path
+) -> str:
+    sources = {
+        "protocol.json": smoke / "inputs" / "protocol.json",
+        "plan.json": smoke / "inputs" / "plan.json",
+        "data-quality.json": smoke / "data-quality.json",
+        "artifact-manifest.json": smoke / "artifact-manifest.json",
+        "collection-attestation.json": (
+            smoke / "collection-attestation.json"
+        ),
+    }
+    if any(not path.is_file() for path in sources.values()):
+        raise ValueError(
+            "qualifying smoke evidence is incomplete"
+        )
+    protocol = _read_object(sources["protocol.json"])
+    plan = _read_object(sources["plan.json"])
+    assessment = _read_object(sources["data-quality.json"])
+    artifact_manifest = _read_object(
+        sources["artifact-manifest.json"]
+    )
+    raw_artifact_sha256s = artifact_manifest.get("sha256")
+    if (
+        ActionCollectionProtocol.from_dict(protocol).stage
+        != "smoke"
+        or plan.get("kind") != "action_dynamics_execution_plan"
+        or assessment.get("status") != "qualified"
+        or assessment.get("decision")
+        != "advance_to_instrumentation_pilot"
+        or not isinstance(assessment.get("gates"), dict)
+        or not all(assessment["gates"].values())
+        or not isinstance(raw_artifact_sha256s, dict)
+        or any(
+            not isinstance(relative, str)
+            or not isinstance(expected, str)
+            or not (smoke / relative).is_file()
+            or _file_sha256(smoke / relative) != expected
+            for relative, expected in raw_artifact_sha256s.items()
+        )
+    ):
+        raise ValueError(
+            "qualifying smoke assessment or artifact hashes failed"
+        )
+    evidence_directory = output / "qualifying-smoke-evidence"
+    evidence_directory.mkdir()
+    evidence_sha256s = {}
+    for name, source in sources.items():
+        target = evidence_directory / name
+        shutil.copyfile(source, target)
+        evidence_sha256s[name] = _file_sha256(target)
+    qualification = {
+        "schema_version": 1,
+        "kind": "action_dynamics_smoke_qualification",
+        "status": "qualified",
+        "smoke_protocol_sha256": _canonical_sha256(protocol),
+        "smoke_execution_plan_sha256": _canonical_sha256(plan),
+        "smoke_assessment_sha256": evidence_sha256s[
+            "data-quality.json"
+        ],
+        "smoke_artifact_manifest_sha256": evidence_sha256s[
+            "artifact-manifest.json"
+        ],
+        "smoke_collection_attestation_sha256": evidence_sha256s[
+            "collection-attestation.json"
+        ],
+        "artifact_file_count": len(raw_artifact_sha256s),
+        "artifact_hash_mismatch_count": 0,
+        "gates": dict(assessment["gates"]),
+        "evidence_file_sha256s": dict(
+            sorted(evidence_sha256s.items())
+        ),
+    }
+    path = output / "smoke-qualification.json"
+    path.write_text(_pretty_json(qualification))
+    return _file_sha256(path)
+
+
+def _valid_smoke_qualification(
+    prepared: Path,
+    protocol: ActionCollectionProtocol,
+    raw_sha256: Any,
+) -> bool:
+    path = prepared / "smoke-qualification.json"
+    if protocol.stage == "smoke":
+        return raw_sha256 is None and not path.exists()
+    if (
+        not isinstance(raw_sha256, str)
+        or not _HEX_SHA256.fullmatch(raw_sha256)
+        or not path.is_file()
+        or _file_sha256(path) != raw_sha256
+    ):
+        return False
+    qualification = _read_object(path)
+    evidence = prepared / "qualifying-smoke-evidence"
+    raw_files = qualification.get("evidence_file_sha256s")
+    raw_gates = qualification.get("gates")
+    if (
+        qualification.get("schema_version") != 1
+        or qualification.get("kind")
+        != "action_dynamics_smoke_qualification"
+        or qualification.get("status") != "qualified"
+        or qualification.get("artifact_hash_mismatch_count") != 0
+        or not isinstance(raw_files, dict)
+        or not isinstance(raw_gates, dict)
+        or not raw_gates
+        or not all(raw_gates.values())
+        or any(
+            not isinstance(name, str)
+            or not isinstance(expected, str)
+            or not (evidence / name).is_file()
+            or _file_sha256(evidence / name) != expected
+            for name, expected in raw_files.items()
+        )
+    ):
+        return False
+    smoke_protocol = _read_object(evidence / "protocol.json")
+    smoke_plan = _read_object(evidence / "plan.json")
+    smoke_assessment = _read_object(
+        evidence / "data-quality.json"
+    )
+    return (
+        qualification.get("smoke_protocol_sha256")
+        == _canonical_sha256(smoke_protocol)
+        and qualification.get("smoke_execution_plan_sha256")
+        == _canonical_sha256(smoke_plan)
+        and qualification.get("smoke_assessment_sha256")
+        == _file_sha256(evidence / "data-quality.json")
+        and smoke_assessment.get("status") == "qualified"
+        and smoke_assessment.get("decision")
+        == "advance_to_instrumentation_pilot"
+        and isinstance(smoke_assessment.get("gates"), dict)
+        and all(smoke_assessment["gates"].values())
+    )
+
+
+def _load_legacy_prepared_action_collection(
+    prepared: Path,
+    protocol_payload: Mapping[str, Any],
+    plan: Mapping[str, Any],
+) -> Tuple[
+    ActionCollectionProtocol,
+    Tuple[LabActionCaptureManifest, ...],
+    Tuple[CaptureAssignment, ...],
+]:
+    if (
+        plan.get("kind") != "action_dynamics_collection_plan"
+        or plan.get("protocol_sha256")
+        != _canonical_sha256(protocol_payload)
+        or not isinstance(plan.get("manifest_sha256s"), dict)
+        or not isinstance(plan.get("assignments"), list)
+    ):
+        raise ValueError("legacy prepared collection plan is invalid")
+    raw_assignments = plan["assignments"]
+    raw_sha256s = plan["manifest_sha256s"]
+    if not isinstance(raw_assignments, list) or not isinstance(
+        raw_sha256s, dict
+    ):
+        raise AssertionError("validated legacy plan changed type")
+    protocol = ActionCollectionProtocol.from_dict(protocol_payload)
+    assignments = tuple(
+        CaptureAssignment.from_dict(raw)
+        for raw in raw_assignments
+        if isinstance(raw, dict)
+    )
+    if len(assignments) != len(raw_assignments):
+        raise ValueError("legacy prepared assignments are invalid")
+    manifests = []
+    for path in sorted((prepared / "manifests").glob("*.json")):
+        manifest = LabActionCaptureManifest.from_dict(
+            _read_object(path)
+        )
+        if (
+            path.stem != manifest.action_case.case_id
+            or raw_sha256s.get(path.stem) != _file_sha256(path)
+        ):
+            raise ValueError("legacy prepared manifest drifted")
+        manifests.append(manifest)
+    if not manifests:
+        raise ValueError("legacy prepared collection has no manifests")
+    expected_manifests, expected_assignments = (
+        prepare_action_collection(
+            protocol,
+            image_digests=manifests[0].image_digests,
+            observation_schema_sha256=(
+                manifests[0].observation_schema_sha256
+            ),
+        )
+    )
+    if (
+        tuple(manifests)
+        != tuple(
+            sorted(
+                expected_manifests,
+                key=lambda value: value.action_case.case_id,
+            )
+        )
+        or assignments != expected_assignments
+        or set(raw_sha256s)
+        != {
+            manifest.action_case.case_id
+            for manifest in expected_manifests
+        }
+    ):
+        raise ValueError(
+            "legacy prepared collection differs from generator"
         )
     return protocol, tuple(manifests), assignments
 
@@ -932,6 +1343,9 @@ def assess_prepared_action_collection(
 
     protocol, manifests, assignments = (
         load_prepared_action_collection(prepared_directory)
+    )
+    prepared_plan = _read_object(
+        Path(prepared_directory) / "plan.json"
     )
     manifest_by_case = {
         manifest.action_case.case_id: manifest
@@ -963,6 +1377,9 @@ def assess_prepared_action_collection(
     trace_link_denominator = 0
     complete_trace_numerator = 0
     complete_trace_denominator = 0
+    requires_count_evidence = (
+        prepared_plan.get("schema_version") == 2
+    )
     for case_id in sorted(manifest_by_case):
         manifest = manifest_by_case[case_id]
         assignment = assignment_by_case[case_id]
@@ -978,6 +1395,7 @@ def assess_prepared_action_collection(
                     "application_build_context_sha256"
                 ]
             ),
+            requires_count_evidence=requires_count_evidence,
         )
         cases[case_id] = capture
         truth_exclusion = truth_exclusion and bool(
@@ -1018,6 +1436,14 @@ def assess_prepared_action_collection(
     )
     recovery = all(
         bool(result["recovery_passed"])
+        for result in pair_results
+    )
+    api_count_resolution = all(
+        bool(result["count_resolution_passed"])
+        for result in pair_results
+    )
+    enqueue_drain_eligibility = all(
+        bool(result["drain_eligible"])
         for result in pair_results
     )
     placebo_false_positive_rate = (
@@ -1074,6 +1500,35 @@ def assess_prepared_action_collection(
             attestation, protocol.parallel_jobs
         ),
     }
+    if prepared_plan.get("schema_version") == 2:
+        plan_sha256 = _canonical_sha256(prepared_plan)
+        gates["final_plan_binding"] = all(
+            manifest.prepared_plan_sha256 == plan_sha256
+            and manifest.qualifying_smoke_sha256
+            == prepared_plan.get("qualifying_smoke_sha256")
+            for manifest in manifests
+        )
+        if protocol.stage == "instrumentation_pilot":
+            gates["qualifying_smoke_binding"] = (
+                attestation.get("qualifying_smoke_sha256")
+                == prepared_plan.get(
+                    "qualifying_smoke_sha256"
+                )
+                and _valid_smoke_qualification(
+                    Path(prepared_directory),
+                    protocol,
+                    prepared_plan.get(
+                        "qualifying_smoke_sha256"
+                    ),
+                )
+            )
+        if protocol.point_count == 108:
+            gates["api_count_resolution"] = (
+                api_count_resolution
+            )
+            gates["enqueue_drain_eligibility"] = (
+                enqueue_drain_eligibility
+            )
     qualified = all(gates.values())
     return {
         "schema_version": 1,
@@ -1237,6 +1692,8 @@ def _design_cells(
 def _request_schedule(
     protocol: ActionCollectionProtocol,
     workload_seed: int,
+    *,
+    action_kind: str,
 ) -> Tuple[int, ...]:
     minimum = _required_integer(
         protocol.workload, "minimum_requests_per_window"
@@ -1244,12 +1701,52 @@ def _request_schedule(
     maximum = _required_integer(
         protocol.workload, "maximum_requests_per_window"
     )
-    return tuple(
+    schedule = [
         _bounded_derived(
             workload_seed, f"request:{index}", minimum, maximum
         )
         for index in range(protocol.point_count)
+    ]
+    action_config = _required_mapping(
+        protocol.action_library, action_kind
     )
+    fixed_requests = action_config.get(
+        "fixed_active_requests_per_window"
+    )
+    if fixed_requests is not None:
+        if not _is_integer(fixed_requests) or fixed_requests < 1:
+            raise ValueError(
+                "fixed action request count is invalid"
+            )
+        schedule = [int(fixed_requests)] * protocol.point_count
+    if action_config.get("requires_drain_probe") is True:
+        drain_start = _required_integer(
+            protocol.workload, "drain_phase_start_index"
+        )
+        drain_stop = _required_integer(
+            protocol.workload, "drain_phase_stop_index"
+        )
+        probe_start = _required_integer(
+            protocol.workload, "probe_phase_start_index"
+        )
+        probe_requests = _required_integer(
+            protocol.workload, "probe_requests_per_window"
+        )
+        if not (
+            0 <= drain_start < drain_stop == probe_start
+            < protocol.point_count - 1
+            and probe_requests > 0
+        ):
+            raise ValueError(
+                "action drain and probe schedule is invalid"
+            )
+        schedule[drain_start:drain_stop] = [0] * (
+            drain_stop - drain_start
+        )
+        schedule[probe_start : protocol.point_count - 1] = [
+            probe_requests
+        ] * (protocol.point_count - 1 - probe_start)
+    return tuple(schedule)
 
 
 def _validate_capture_requirements(
@@ -1346,6 +1843,15 @@ def _pilot_action_schedule(
     duration_max = _required_integer(
         protocol.trajectory, "duration_max"
     )
+    action_config = _required_mapping(
+        protocol.action_library, kind
+    )
+    fixed_duration = action_config.get("fixed_duration")
+    if fixed_duration is not None and (
+        not _is_integer(fixed_duration)
+        or not duration_min <= fixed_duration <= duration_max
+    ):
+        raise ValueError("fixed action duration is invalid")
     recovery = _required_integer(
         protocol.trajectory, "minimum_recovery_windows"
     )
@@ -1353,6 +1859,7 @@ def _pilot_action_schedule(
         (onset, duration)
         for onset in range(onset_min, onset_max + 1)
         for duration in range(duration_min, duration_max + 1)
+        if fixed_duration is None or duration == fixed_duration
         if onset + duration + recovery <= protocol.point_count
     ]
     ordered = sorted(
@@ -1368,6 +1875,10 @@ def _pilot_action_schedule(
 def _validate_action_configuration(
     kind: str, config: Mapping[str, Any]
 ) -> None:
+    effect_statistic = config.get(
+        "effect_statistic",
+        "median_paired_treatment_minus_control",
+    )
     if (
         kind not in ACTION_KINDS
         or not _required_text(config, "target_entity")
@@ -1382,6 +1893,19 @@ def _validate_action_configuration(
         <= _required_number(config, "recovery_ratio_max")
         <= 1.0
         or not _number_sequence(config, "severity_values")
+        or effect_statistic
+        not in {
+            "median_paired_treatment_minus_control",
+            "pooled_error_count_rate_difference",
+        }
+        or (
+            effect_statistic
+            == "pooled_error_count_rate_difference"
+            and (
+                kind != "api_rejection"
+                or config.get("effect_feature") != "error_rate"
+            )
+        )
     ):
         raise ValueError(f"invalid action configuration: {kind}")
 
@@ -1475,6 +1999,11 @@ def _validate_attestation(
         != _canonical_sha256(protocol)
         or attestation.get("plan_sha256")
         != _canonical_sha256(plan)
+        or (
+            plan.get("schema_version") == 2
+            and attestation.get("qualifying_smoke_sha256")
+            != plan.get("qualifying_smoke_sha256")
+        )
         or attestation.get("case_count") != len(assignments)
         or attestation.get("pair_count") != len(assignments) // 2
         or attestation.get("parallel_jobs") != 6
@@ -1535,6 +2064,7 @@ def _assess_capture(
     *,
     application_image_id: str,
     application_build_context_sha256: str,
+    requires_count_evidence: bool,
 ) -> Mapping[str, Any]:
     required = (
         "capture-manifest.json",
@@ -1638,7 +2168,12 @@ def _assess_capture(
     observed_metric_names = {
         point.metric_name for point in metric_capture.points
     }
-    allowed_metric_names = set(_ACTION_LAB_FEATURE_NAMES) | {
+    required_metric_names = set(_ACTION_LAB_FEATURE_NAMES)
+    if requires_count_evidence:
+        required_metric_names.update(
+            _ACTION_LAB_EVIDENCE_METRIC_NAMES
+        )
+    allowed_metric_names = required_metric_names | {
         "quantis.experiment.window.closed_unix_nano"
     }
     for metric_name in observed_metric_names:
@@ -1665,11 +2200,11 @@ def _assess_capture(
             )
     required_timestamps = {
         metric_timestamps.get(name)
-        for name in _ACTION_LAB_FEATURE_NAMES
+        for name in required_metric_names
     }
     metric_completeness = (
         observed_metric_names == allowed_metric_names
-        and set(_ACTION_LAB_FEATURE_NAMES) <= set(metric_series)
+        and required_metric_names <= set(metric_series)
         and len(required_timestamps) == 1
         and None not in required_timestamps
     )
@@ -1739,6 +2274,16 @@ def _assess_pairs(
         feature = action.effect_feature
         treatment_values = treatment_series.get(feature)
         control_values = control_series.get(feature)
+        effect_statistic = str(
+            action_config.get(
+                "effect_statistic",
+                "median_paired_treatment_minus_control",
+            )
+        )
+        treatment_active_requests: int | None = None
+        control_active_requests: int | None = None
+        count_resolution_passed = True
+        drain_eligible = True
         schedule_alignment = (
             treatment.request_schedule == control.request_schedule
             and treatment.action_case.workload_seed
@@ -1759,10 +2304,68 @@ def _assess_pairs(
                     treatment_values, control_values
                 )
             )
-            active_effect = statistics.median(
-                delta[action.start_index + 1 : action.stop_index + 1]
+            if (
+                effect_statistic
+                == "pooled_error_count_rate_difference"
+            ):
+                treatment_rate, treatment_active_requests = (
+                    _pooled_error_rate(
+                        treatment_series,
+                        action.start_index + 1,
+                        action.stop_index + 1,
+                    )
+                )
+                control_rate, control_active_requests = (
+                    _pooled_error_rate(
+                        control_series,
+                        action.start_index + 1,
+                        action.stop_index + 1,
+                    )
+                )
+                active_effect = treatment_rate - control_rate
+                placebo_start = (
+                    action.start_index - action.duration + 1
+                )
+                treatment_placebo, _ = _pooled_error_rate(
+                    treatment_series,
+                    placebo_start,
+                    action.start_index + 1,
+                )
+                control_placebo, _ = _pooled_error_rate(
+                    control_series,
+                    placebo_start,
+                    action.start_index + 1,
+                )
+                placebo_effect = (
+                    treatment_placebo - control_placebo
+                )
+            else:
+                active_effect = statistics.median(
+                    delta[
+                        action.start_index
+                        + 1 : action.stop_index
+                        + 1
+                    ]
+                )
+                placebo_start = max(
+                    0, action.start_index - action.duration
+                )
+                placebo_effect = statistics.median(
+                    delta[placebo_start:action.start_index]
+                )
+            raw_recovery_windows = protocol.gates.get(
+                "recovery_window_count", 8
             )
-            recovery_delta = delta[-8:]
+            if not _is_integer(raw_recovery_windows):
+                raise ValueError(
+                    "recovery window count must be an integer"
+                )
+            recovery_window_count = int(raw_recovery_windows)
+            if not 1 <= recovery_window_count <= len(delta):
+                raise ValueError(
+                    "recovery window count is outside trajectory"
+                )
+            recovery_delta = delta[-recovery_window_count:]
             recovery_ratio = statistics.median(
                 abs(value) for value in recovery_delta
             ) / max(
@@ -1771,12 +2374,37 @@ def _assess_pairs(
                     action_config, "recovery_feature_floor"
                 ),
             )
-            placebo_start = max(
-                0, action.start_index - action.duration
-            )
-            placebo_effect = statistics.median(
-                delta[placebo_start:action.start_index]
-            )
+            if (
+                effect_statistic
+                == "pooled_error_count_rate_difference"
+            ):
+                required_active_requests = action_config.get(
+                    "minimum_active_request_count"
+                )
+                count_resolution_passed = (
+                    _is_integer(required_active_requests)
+                    and treatment_active_requests
+                    == required_active_requests
+                    and control_active_requests
+                    == required_active_requests
+                )
+            if (
+                action_config.get("requires_drain_probe")
+                is True
+            ):
+                drain_stop = _required_integer(
+                    protocol.workload,
+                    "drain_phase_stop_index",
+                )
+                drain_eligible = all(
+                    _four_clean_drain_states(
+                        series, drain_stop
+                    )
+                    for series in (
+                        treatment_series,
+                        control_series,
+                    )
+                )
             signed_placebo = (
                 placebo_effect
                 if action.effect_direction == "increase"
@@ -1799,8 +2427,17 @@ def _assess_pairs(
                     treatment.action_case.worker_replicas
                 ),
                 "effect_feature": feature,
+                "effect_statistic": effect_statistic,
                 "schedule_alignment": schedule_alignment,
                 "active_effect": active_effect,
+                "treatment_active_requests": (
+                    treatment_active_requests
+                ),
+                "control_active_requests": control_active_requests,
+                "count_resolution_passed": (
+                    count_resolution_passed
+                ),
+                "drain_eligible": drain_eligible,
                 "minimum_effect": action.minimum_effect,
                 "raw_effect_passed": math.isfinite(signed_effect)
                 and signed_effect >= action.minimum_effect,
@@ -1812,13 +2449,74 @@ def _assess_pairs(
                 and recovery_ratio
                 <= _required_number(
                     action_config, "recovery_ratio_max"
-                ),
+                )
+                and drain_eligible,
                 "placebo_false_positive": (
                     placebo_false_positive
                 ),
             }
         )
     return results
+
+
+def _pooled_error_rate(
+    series: Mapping[str, Sequence[float]],
+    start: int,
+    stop: int,
+) -> Tuple[float, int]:
+    requests = series.get(
+        "quantis.experiment.request_count"
+    )
+    errors = series.get("quantis.experiment.error_count")
+    if (
+        requests is None
+        or errors is None
+        or not 0 <= start < stop <= len(requests)
+        or len(requests) != len(errors)
+    ):
+        return float("nan"), 0
+    request_slice = requests[start:stop]
+    error_slice = errors[start:stop]
+    if any(
+        not math.isfinite(request_count)
+        or not math.isfinite(error_count)
+        or request_count < 0.0
+        or error_count < 0.0
+        or error_count > request_count
+        or not request_count.is_integer()
+        or not error_count.is_integer()
+        for request_count, error_count in zip(
+            request_slice, error_slice
+        )
+    ):
+        return float("nan"), 0
+    total_requests = int(sum(request_slice))
+    if total_requests <= 0:
+        return float("nan"), 0
+    return sum(error_slice) / total_requests, total_requests
+
+
+def _four_clean_drain_states(
+    series: Mapping[str, Sequence[float]],
+    drain_stop: int,
+) -> bool:
+    start = drain_stop - 3
+    stop = drain_stop + 1
+    if start < 0:
+        return False
+    for name in (
+        "queue_depth",
+        "api_inflight_current",
+        "worker_busy_count",
+    ):
+        values = series.get(name)
+        if (
+            values is None
+            or stop > len(values)
+            or any(value != 0.0 for value in values[start:stop])
+        ):
+            return False
+    return True
 
 
 def _action_commands(

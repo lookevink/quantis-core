@@ -12,6 +12,7 @@ from quantis_core.action_dynamics_lab import (
     assess_prepared_action_collection,
     load_prepared_action_collection,
     prepare_action_collection,
+    write_action_collection_assessment,
     write_prepared_action_collection,
 )
 
@@ -20,6 +21,10 @@ _IMAGES = {
     "redis": "redis@sha256:" + "b" * 64,
 }
 _OBSERVATION_SCHEMA = "c" * 64
+_EVIDENCE_METRIC_NAMES = (
+    "quantis.experiment.request_count",
+    "quantis.experiment.error_count",
+)
 
 
 def test_lab_manifest_round_trip_is_strict() -> None:
@@ -162,6 +167,114 @@ def test_frozen_protocols_prepare_with_resolved_identities(
         prepare_action_collection(protocol)
 
 
+def test_v3_smoke_freezes_api_resolution_and_enqueue_drain_probe() -> None:
+    repository = Path(__file__).resolve().parents[1]
+    protocol = ActionCollectionProtocol.from_dict(
+        json.loads(
+            (
+                repository
+                / "lab"
+                / "action_dynamics"
+                / "smoke-protocol-v3.json"
+            ).read_text()
+        )
+    )
+
+    manifests, _ = prepare_action_collection(
+        protocol,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+    )
+    treatments = [
+        manifest
+        for manifest in manifests
+        if manifest.action_case.actions
+    ]
+    api = next(
+        manifest
+        for manifest in treatments
+        if manifest.action_case.actions[0].action_kind
+        == "api_rejection"
+    )
+    api_action = api.action_case.actions[0]
+    enqueue = [
+        manifest
+        for manifest in treatments
+        if manifest.action_case.actions[0].action_kind
+        == "redis_enqueue_delay"
+    ]
+
+    assert protocol.point_count == 108
+    assert api_action.magnitude == 0.25
+    assert api_action.duration == 20
+    assert api.request_schedule[
+        api_action.start_index : api_action.stop_index
+    ] == (12,) * 20
+    assert len(enqueue) == 2
+    assert all(
+        manifest.action_case.worker_replicas == 3
+        and manifest.action_case.actions[0].magnitude == 20.0
+        and manifest.action_case.actions[0].duration == 20
+        and manifest.request_schedule[84:92] == (0,) * 8
+        and manifest.request_schedule[92:107] == (8,) * 15
+        for manifest in enqueue
+    )
+
+
+def test_v3_assessment_requires_api_counts_and_enqueue_drain(
+    tmp_path: Path,
+) -> None:
+    repository = Path(__file__).resolve().parents[1]
+    protocol = ActionCollectionProtocol.from_dict(
+        json.loads(
+            (
+                repository
+                / "lab"
+                / "action_dynamics"
+                / "smoke-protocol-v3.json"
+            ).read_text()
+        )
+    )
+    prepared = tmp_path / "inputs"
+    write_prepared_action_collection(
+        protocol,
+        prepared,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+    )
+    _, manifests, assignments = load_prepared_action_collection(
+        prepared
+    )
+    captures = tmp_path / "cases"
+    _write_qualified_captures(captures, manifests)
+    attestation = tmp_path / "collection-attestation.json"
+    attestation.write_text(
+        _pretty(_attestation(prepared, assignments))
+    )
+
+    assessment = assess_prepared_action_collection(
+        prepared, captures, attestation
+    )
+    api = next(
+        pair
+        for pair in assessment["pairs"]
+        if pair["action_kind"] == "api_rejection"
+    )
+    enqueue = [
+        pair
+        for pair in assessment["pairs"]
+        if pair["action_kind"] == "redis_enqueue_delay"
+    ]
+
+    assert assessment["status"] == "qualified"
+    assert assessment["gates"]["api_count_resolution"] is True
+    assert assessment["gates"]["enqueue_drain_eligibility"] is True
+    assert api["treatment_active_requests"] == 240
+    assert api["control_active_requests"] == 240
+    assert len(enqueue) == 2
+    assert all(pair["drain_eligible"] for pair in enqueue)
+
+
 def test_prepared_collection_round_trip_recomputes_plan(
     tmp_path: Path,
 ) -> None:
@@ -179,6 +292,14 @@ def test_prepared_collection_round_trip_recomputes_plan(
     )
 
     assert written["manifest_count"] == 12
+    assert all(
+        manifest.prepared_plan_sha256 == written["plan_sha256"]
+        for manifest in manifests
+    )
+    assert json.loads((prepared / "plan.json").read_text())[
+        "kind"
+    ] == "action_dynamics_execution_plan"
+    assert (prepared / "manifest-index.json").is_file()
     assert restored_protocol == protocol
     assert len(manifests) == 12
     assert len(assignments) == 12
@@ -192,6 +313,79 @@ def test_prepared_collection_round_trip_recomputes_plan(
             image_digests=_IMAGES,
             observation_schema_sha256=_OBSERVATION_SCHEMA,
         )
+
+
+def test_pilot_preparation_binds_qualified_smoke_evidence(
+    tmp_path: Path,
+) -> None:
+    smoke = tmp_path / "smoke"
+    smoke_inputs = smoke / "inputs"
+    smoke_protocol = _protocol("smoke")
+    write_prepared_action_collection(
+        smoke_protocol,
+        smoke_inputs,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+    )
+    _, smoke_manifests, smoke_assignments = (
+        load_prepared_action_collection(smoke_inputs)
+    )
+    smoke_captures = smoke / "cases"
+    _write_qualified_captures(
+        smoke_captures, smoke_manifests
+    )
+    smoke_attestation = smoke / "collection-attestation.json"
+    smoke_attestation.write_text(
+        _pretty(_attestation(smoke_inputs, smoke_assignments))
+    )
+    write_action_collection_assessment(
+        smoke_inputs,
+        smoke_captures,
+        smoke_attestation,
+        smoke,
+    )
+    pilot_inputs = tmp_path / "pilot" / "inputs"
+
+    written = write_prepared_action_collection(
+        _protocol("instrumentation_pilot"),
+        pilot_inputs,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+        qualifying_smoke_directory=smoke,
+    )
+    _, manifests, assignments = load_prepared_action_collection(
+        pilot_inputs
+    )
+    plan = json.loads((pilot_inputs / "plan.json").read_text())
+    qualification = pilot_inputs / "smoke-qualification.json"
+
+    assert qualification.is_file()
+    assert plan["qualifying_smoke_sha256"] == hashlib.sha256(
+        qualification.read_bytes()
+    ).hexdigest()
+    assert all(
+        manifest.prepared_plan_sha256 == written["plan_sha256"]
+        for manifest in manifests
+    )
+    assert all(
+        manifest.qualifying_smoke_sha256
+        == plan["qualifying_smoke_sha256"]
+        for manifest in manifests
+    )
+    pilot_captures = pilot_inputs.parent / "cases"
+    _write_qualified_captures(pilot_captures, manifests)
+    pilot_attestation = (
+        pilot_inputs.parent / "collection-attestation.json"
+    )
+    pilot_attestation.write_text(
+        _pretty(_attestation(pilot_inputs, assignments))
+    )
+    assessment = assess_prepared_action_collection(
+        pilot_inputs, pilot_captures, pilot_attestation
+    )
+    assert assessment["gates"][
+        "qualifying_smoke_binding"
+    ] is True
 
 
 def test_assessment_recomputes_smoke_evidence(
@@ -226,6 +420,20 @@ def test_assessment_recomputes_smoke_evidence(
         "treatment_count": 6,
         "control_count": 6,
     }
+    assert assessment["gates"]["final_plan_binding"] is True
+    api_pair = next(
+        pair
+        for pair in assessment["pairs"]
+        if pair["action_kind"] == "api_rejection"
+    )
+    assert api_pair["effect_statistic"] == (
+        "pooled_error_count_rate_difference"
+    )
+    assert api_pair["treatment_active_requests"] > 0
+    assert api_pair["treatment_active_requests"] == (
+        api_pair["control_active_requests"]
+    )
+    assert api_pair["active_effect"] >= 0.4
     assert all(assessment["gates"].values())
 
 
@@ -334,7 +542,6 @@ def test_assessment_rejects_incomplete_metrics_and_broken_trace_chain(
     assert (
         assessment["gates"]["complete_trace_coverage"] is False
     )
-
 
 def _protocol(stage: str) -> ActionCollectionProtocol:
     pair_count = 6 if stage == "smoke" else 30
@@ -446,6 +653,9 @@ def _protocol(stage: str) -> ActionCollectionProtocol:
             "minimum_effect": 0.15,
             "recovery_feature_floor": 0.15,
             "recovery_ratio_max": 0.3,
+            "effect_statistic": (
+                "pooled_error_count_rate_difference"
+            ),
         },
     }
     return ActionCollectionProtocol.from_dict(
@@ -575,6 +785,34 @@ def _write_metrics(
             },
         ]
     )
+
+    def metric_value(metric_name: str, index: int) -> float:
+        request_count = (
+            0
+            if index == 0
+            else manifest.request_schedule[index - 1]
+        )
+        error_count = (
+            round(request_count * 0.5)
+            if feature == "error_rate" and values[index] > 4.0
+            else 0
+        )
+        if metric_name == "quantis.experiment.request_count":
+            return float(request_count)
+        if metric_name == "quantis.experiment.error_count":
+            return float(error_count)
+        if metric_name == "request_rate":
+            return request_count / manifest.sample_period_seconds
+        if metric_name == "error_rate":
+            return (
+                error_count / request_count
+                if request_count
+                else 0.0
+            )
+        if metric_name == feature:
+            return values[index]
+        return 0.0
+
     payload = {
         "resourceMetrics": [
             {
@@ -592,18 +830,17 @@ def _write_metrics(
                                                 (index + 1)
                                                 * 1_000_000_000
                                             ),
-                                            "asDouble": (
-                                                value
-                                                if metric_name == feature
-                                                else 0.0
+                                            "asDouble": metric_value(
+                                                metric_name, index
                                             ),
                                         }
-                                        for index, value in enumerate(values)
+                                        for index, _ in enumerate(values)
                                     ]
                                 },
                             }
                             for metric_name in (
                                 *ACTION_LAB_FEATURE_NAMES,
+                                *_EVIDENCE_METRIC_NAMES,
                                 "quantis.experiment.window.closed_unix_nano",
                             )
                         ],
@@ -917,6 +1154,9 @@ def _attestation(
         "application_build_context_sha256": "b" * 64,
         "protocol_sha256": _canonical_sha256(protocol),
         "plan_sha256": _canonical_sha256(plan),
+        "qualifying_smoke_sha256": plan.get(
+            "qualifying_smoke_sha256"
+        ),
         "cases": [
             {
                 **item,

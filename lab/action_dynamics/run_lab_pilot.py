@@ -114,10 +114,10 @@ def run_lab_pilot(
     }
 
     smoke = _run_stage(
-        protocol_path=lab / "smoke-protocol.json",
+        protocol_path=lab / "smoke-protocol-v3.json",
         output=smoke_output,
         compose_file=compose_file,
-        project_prefix="quantis-action-smoke-v2",
+        project_prefix="quantis-action-smoke-v3",
         application_image_id=application_image_id,
         build_context_sha256=build_context_sha256,
         image_digests=image_digests,
@@ -126,14 +126,15 @@ def run_lab_pilot(
             observation_schema_sha256
         ),
         parallel_jobs=parallel_jobs,
+        qualifying_smoke_directory=None,
     )
     if smoke["status"] != "qualified":
         return {"smoke": smoke, "pilot": None}
     pilot = _run_stage(
-        protocol_path=lab / "pilot-protocol.json",
+        protocol_path=lab / "pilot-protocol-v3.json",
         output=pilot_output,
         compose_file=compose_file,
-        project_prefix="quantis-action-pilot-v2",
+        project_prefix="quantis-action-pilot-v3",
         application_image_id=application_image_id,
         build_context_sha256=build_context_sha256,
         image_digests=image_digests,
@@ -142,6 +143,7 @@ def run_lab_pilot(
             observation_schema_sha256
         ),
         parallel_jobs=parallel_jobs,
+        qualifying_smoke_directory=smoke_output,
     )
     return {"smoke": smoke, "pilot": pilot}
 
@@ -158,6 +160,7 @@ def _run_stage(
     observation_schema: Mapping[str, Any],
     observation_schema_sha256: str,
     parallel_jobs: int,
+    qualifying_smoke_directory: Optional[Path],
 ) -> Mapping[str, Any]:
     protocol_payload = json.loads(protocol_path.read_text())
     if not isinstance(protocol_payload, dict):
@@ -174,6 +177,9 @@ def _run_stage(
         image_digests=image_digests,
         observation_schema_sha256=(
             observation_schema_sha256
+        ),
+        qualifying_smoke_directory=(
+            qualifying_smoke_directory
         ),
     )
     (output / "observation-schema.json").write_text(
@@ -215,10 +221,19 @@ def _observation_schema(lab: Path) -> Mapping[str, Any]:
         lab / "run_capture.py",
     )
     feature_names = getattr(module, "FEATURE_NAMES")
+    evidence_metric_names = getattr(
+        module, "EVIDENCE_METRIC_NAMES"
+    )
     if (
         not isinstance(feature_names, tuple)
         or not feature_names
         or any(not isinstance(name, str) for name in feature_names)
+        or not isinstance(evidence_metric_names, tuple)
+        or not evidence_metric_names
+        or any(
+            not isinstance(name, str)
+            for name in evidence_metric_names
+        )
     ):
         raise RuntimeError(
             "action runtime feature vocabulary is invalid"
@@ -227,6 +242,7 @@ def _observation_schema(lab: Path) -> Mapping[str, Any]:
         "schema_version": 1,
         "kind": "action_dynamics_observation_schema",
         "feature_names": list(feature_names),
+        "evidence_metric_names": list(evidence_metric_names),
         "trace_span_names": [
             "api.admission",
             "redis.enqueue",
@@ -313,14 +329,14 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         "--smoke-output",
         type=Path,
         default=Path(
-            "artifacts/action-dynamics/lab-smoke-v2"
+            "artifacts/action-dynamics/lab-smoke-v3"
         ),
     )
     parser.add_argument(
         "--pilot-output",
         type=Path,
         default=Path(
-            "artifacts/action-dynamics/instrumentation-pilot-v2"
+            "artifacts/action-dynamics/instrumentation-pilot-v3"
         ),
     )
     parser.add_argument("--parallel-jobs", type=int, default=6)

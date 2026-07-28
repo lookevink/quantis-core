@@ -157,6 +157,9 @@ def collect_action_cases(
         ),
         "protocol_sha256": _canonical_sha256(protocol),
         "plan_sha256": _canonical_sha256(plan),
+        "qualifying_smoke_sha256": plan.get(
+            "qualifying_smoke_sha256"
+        ),
         "cases": sorted(
             completed_cases,
             key=lambda case: (

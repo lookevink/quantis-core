@@ -112,6 +112,10 @@ FEATURE_NAMES = (
     "postgresql_write_event_age_ms",
     "postgresql_write_busy_age_max_ms",
 )
+EVIDENCE_METRIC_NAMES = (
+    "quantis.experiment.request_count",
+    "quantis.experiment.error_count",
+)
 
 
 @dataclass(frozen=True)
@@ -199,7 +203,7 @@ def main() -> None:
     if (
         sample_period_seconds <= 0.0
         or len(request_schedule) < point_count - 1
-        or min(request_schedule[: point_count - 1]) < 1
+        or min(request_schedule[: point_count - 1]) < 0
     ):
         raise ValueError("lab workload schedule is invalid")
     if int(action_case["worker_replicas"]) != WORKER_REPLICAS:
@@ -632,8 +636,12 @@ def _sample(
             LAST_POSTGRESQL_WRITE_UNIX_NANO
         ),
         "postgresql_write_busy_age_max_ms": postgresql_busy_age,
+        "quantis.experiment.request_count": float(requests),
+        "quantis.experiment.error_count": float(
+            delta("api_errors")
+        ),
     }
-    if tuple(values) != FEATURE_NAMES:
+    if tuple(values) != (*FEATURE_NAMES, *EVIDENCE_METRIC_NAMES):
         raise AssertionError("runtime metric schema changed")
     redis_client.set(
         API_INFLIGHT_PEAK,
@@ -663,7 +671,7 @@ def _emit_metrics(
                 ]
             },
         }
-        for name in FEATURE_NAMES
+        for name in (*FEATURE_NAMES, *EVIDENCE_METRIC_NAMES)
     ]
     metrics.append(
         {
