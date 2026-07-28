@@ -6,13 +6,13 @@ from quantis_core.action_conditioned_dynamics import (
     ActionTrajectoryCompiler,
 )
 from quantis_core.action_dynamics_synthetic import synthetic_action_runs
-from quantis_core.edge_dynamics_evaluation import (
+from quantis_core.edge_dynamics.evaluation import (
     CountMinSketch,
     audit_streaming_log_templates,
     conformal_sequential_detection,
     forecast_objective,
 )
-from quantis_core.edge_dynamics_models import (
+from quantis_core.edge_dynamics.models import (
     BoundedGraphResidualDynamics,
     ContractiveLowRankDynamics,
     EchoStateActionDynamics,
@@ -20,7 +20,7 @@ from quantis_core.edge_dynamics_models import (
     GraphResidualConfig,
     LowRankConfig,
 )
-from quantis_core.edge_temporal_convolution import (
+from quantis_core.edge_dynamics.temporal_convolution import (
     DirectTemporalConvDynamics,
     TemporalConvConfig,
 )

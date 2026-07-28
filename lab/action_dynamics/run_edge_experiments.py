@@ -8,22 +8,25 @@ from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple
 from quantis_core.action_dynamics_corpus import (
     load_action_dynamics_development_corpus,
 )
-from quantis_core.edge_dynamics_data import (
+from quantis_core.edge_dynamics.data import (
     PreparedEdgeDynamicsData,
     load_edge_dynamics_cache,
     prepare_edge_dynamics_data,
+    source_artifact_manifest_sha256,
+    validate_edge_cache_source,
     write_edge_dynamics_cache,
 )
-from quantis_core.edge_dynamics_evaluation import (
+from quantis_core.edge_dynamics.evaluation import (
     audit_streaming_log_templates,
     benchmark_event_sketch,
     conformal_sequential_detection,
     forecast_objective,
     persistence_scores,
     score_edge_model,
+    sketch_event_predictor_effect,
     write_edge_experiment_artifacts,
 )
-from quantis_core.edge_dynamics_models import (
+from quantis_core.edge_dynamics.models import (
     BoundedGraphResidualDynamics,
     ContractiveLowRankDynamics,
     DenseVarxAdapter,
@@ -34,7 +37,7 @@ from quantis_core.edge_dynamics_models import (
     LowRankConfig,
     MaskedInputDynamics,
 )
-from quantis_core.edge_temporal_convolution import (
+from quantis_core.edge_dynamics.temporal_convolution import (
     DirectTemporalConvDynamics,
     TemporalConvConfig,
 )
@@ -55,15 +58,21 @@ def run_edge_experiments(
         raise FileExistsError(
             f"refusing to overwrite edge results: {output_directory}"
         )
-    if cache_directory.exists():
-        prepared = load_edge_dynamics_cache(cache_directory)
+    source_manifest_sha256 = source_artifact_manifest_sha256(
+        corpus_directory
+    )
+    addressed_cache = cache_directory / source_manifest_sha256
+    if addressed_cache.exists():
+        prepared = load_edge_dynamics_cache(addressed_cache)
+        validate_edge_cache_source(prepared, corpus_directory)
         cache_reused = True
     else:
         corpus = load_action_dynamics_development_corpus(
             corpus_directory
         )
         prepared = prepare_edge_dynamics_data(corpus)
-        write_edge_dynamics_cache(prepared, cache_directory)
+        validate_edge_cache_source(prepared, corpus_directory)
+        write_edge_dynamics_cache(prepared, addressed_cache)
         cache_reused = False
 
     fit = prepared.windows["fit"]
@@ -147,29 +156,18 @@ def run_edge_experiments(
         model_artifacts=model_artifacts,
     )
 
-    raw_selection_winner = min(
-        selection_scores,
+    candidate_names = (
+        "echo_state",
+        "temporal_convolution",
+        "contractive_low_rank",
+        "bounded_graph_residual",
+    )
+    selected_name = min(
+        candidate_names,
         key=lambda name: float(
             selection_scores[name][
                 "normalized_mse_action_overlap"
             ]
-        ),
-    )
-    best_selection_mse = float(
-        selection_scores[raw_selection_winner][
-            "normalized_mse_action_overlap"
-        ]
-    )
-    near_best = tuple(
-        name
-        for name, scores in selection_scores.items()
-        if float(scores["normalized_mse_action_overlap"])
-        <= best_selection_mse * 1.01
-    )
-    selected_name = min(
-        near_best,
-        key=lambda name: int(
-            evaluation_scores[name]["parameter_count"]
         ),
     )
     selected_model = selected_models[selected_name]
@@ -226,7 +224,16 @@ def run_edge_experiments(
         evaluation=evaluation,
     )
     log_templates = audit_streaming_log_templates(corpus_directory)
-    sketch = benchmark_event_sketch(evaluation)
+    sketch = {
+        **benchmark_event_sketch(
+            evaluation, prepared.compiler_artifact
+        ),
+        "predictor_effect": sketch_event_predictor_effect(
+            model=selected_model,
+            windows=evaluation,
+            compiler_artifact=prepared.compiler_artifact,
+        ),
+    }
     report: Dict[str, Any] = {
         "schema_version": 1,
         "kind": "edge_dynamics_development_v1_result",
@@ -235,6 +242,10 @@ def run_edge_experiments(
             "world-model claim"
         ),
         "source_corpus_sha256": prepared.source_corpus_sha256,
+        "source_artifact_manifest_sha256": (
+            prepared.source_artifact_manifest_sha256
+        ),
+        "preprocessing_cache_address": addressed_cache.name,
         "cache_reused": cache_reused,
         "pair_roles": prepared.roles.to_dict(),
         "window_counts": {
@@ -247,19 +258,7 @@ def run_edge_experiments(
             "bounded_graph_residual": graph_candidates,
         },
         "selection_scores": selection_scores,
-        "raw_selection_winner": raw_selection_winner,
         "selected_model": selected_name,
-        "posthoc_edge_recommendation": {
-            "rule": (
-                "among models within 1% of the best selection action MSE, "
-                "prefer the fewest stored parameters"
-            ),
-            "eligible_models": list(near_best),
-            "warning": (
-                "parsimony rule added after inspecting development "
-                "results; recommendation only, not a frozen gate"
-            ),
-        },
         "evaluation_scores": evaluation_scores,
         "persistence": dict(persistence_scores(evaluation)),
         "structured_feature_ablation": structured_feature_ablation,

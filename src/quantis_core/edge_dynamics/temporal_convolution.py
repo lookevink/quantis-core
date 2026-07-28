@@ -9,11 +9,12 @@ from numpy.typing import NDArray
 from torch import Tensor, nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from .action_conditioned_dynamics import (
+from ..action_conditioned_dynamics import (
     ActionConditionedWindows,
     TrajectoryDistribution,
 )
-from .graph_telemetry import DeclaredTelemetryGraph
+from ..graph_telemetry import DeclaredTelemetryGraph
+from .models import validate_edge_rollout
 
 
 @dataclass(frozen=True)
@@ -229,20 +230,17 @@ class DirectTemporalConvDynamics:
         history = np.asarray(histories, dtype=np.float32)
         controls = np.asarray(future_controls, dtype=np.float32)
         actions = np.asarray(future_actions, dtype=np.float32)
-        if (
-            graph.to_dict() != fitted_graph.to_dict()
-            or history.ndim != 4
-            or controls.ndim != 3
-            or actions.ndim != 4
-            or history.shape[0] != controls.shape[0]
-            or history.shape[0] != actions.shape[0]
-            or controls.shape[1] != horizon
-            or actions.shape[1] != horizon
-            or history.shape[2:] != state_shape
-            or controls.shape[2] != control_count
-            or actions.shape[2:] != action_shape
-        ):
-            raise ValueError("temporal convolution rollout is invalid")
+        validate_edge_rollout(
+            np.asarray(history, dtype=np.float64),
+            np.asarray(controls, dtype=np.float64),
+            np.asarray(actions, dtype=np.float64),
+            graph,
+            fitted_graph,
+            state_shape,
+            control_count,
+            action_shape,
+            expected_horizon=horizon,
+        )
         history_tensor = torch.from_numpy(
             history.reshape(len(history), history.shape[1], -1)
         ).permute(0, 2, 1)

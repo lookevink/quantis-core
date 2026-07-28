@@ -9,17 +9,17 @@ from typing import Any, Dict, Mapping, Sequence, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from .action_conditioned_dynamics import (
+from ..action_conditioned_dynamics import (
     ActionConditionedRun,
     ActionConditionedWindows,
     ActionTrajectoryCompiler,
 )
-from .action_dynamics_corpus import LoadedActionDynamicsCorpus
-from .action_dynamics_real_corpus import (
+from ..action_dynamics_corpus import LoadedActionDynamicsCorpus
+from ..action_dynamics_real_corpus import (
     AttributionQuery,
     build_development_validation_queries,
 )
-from .graph_telemetry import DeclaredTelemetryGraph
+from ..graph_telemetry import DeclaredTelemetryGraph
 
 
 EDGE_ROLE_NAMES = ("fit", "selection", "calibration", "evaluation")
@@ -108,6 +108,7 @@ class PreparedEdgeDynamicsData:
     """One reusable normalized cache for all candidate experiments."""
 
     source_corpus_sha256: str
+    source_artifact_manifest_sha256: str
     roles: EdgePairRoles
     compiler_artifact: Mapping[str, Any]
     windows: Mapping[str, ActionConditionedWindows]
@@ -192,6 +193,9 @@ def prepare_edge_dynamics_data(
     )
     return PreparedEdgeDynamicsData(
         source_corpus_sha256=corpus.identity.corpus_sha256,
+        source_artifact_manifest_sha256=(
+            corpus.identity.artifact_manifest_sha256
+        ),
         roles=roles,
         compiler_artifact=compiler.to_dict(),
         windows=windows,
@@ -233,6 +237,9 @@ def write_edge_dynamics_cache(
         "schema_version": 1,
         "kind": "edge_dynamics_preprocessing_cache",
         "source_corpus_sha256": data.source_corpus_sha256,
+        "source_artifact_manifest_sha256": (
+            data.source_artifact_manifest_sha256
+        ),
         "roles": data.roles.to_dict(),
         "compiler": dict(data.compiler_artifact),
         "window_counts": {
@@ -268,6 +275,9 @@ def write_edge_dynamics_cache(
         "schema_version": 1,
         "kind": "edge_dynamics_preprocessing_manifest",
         "source_corpus_sha256": data.source_corpus_sha256,
+        "source_artifact_manifest_sha256": (
+            data.source_artifact_manifest_sha256
+        ),
         "sha256": artifact_hashes,
     }
     (output / "artifact-manifest.json").write_text(_pretty_json(manifest))
@@ -383,11 +393,38 @@ def load_edge_dynamics_cache(
         )
     return PreparedEdgeDynamicsData(
         source_corpus_sha256=str(metadata["source_corpus_sha256"]),
+        source_artifact_manifest_sha256=str(
+            metadata["source_artifact_manifest_sha256"]
+        ),
         roles=roles,
         compiler_artifact=compiler,
         windows=windows,
         attribution_queries=prepared_queries,
     )
+
+
+def source_artifact_manifest_sha256(
+    corpus_directory: Path,
+) -> str:
+    """Return the source evidence-manifest content address."""
+
+    path = Path(corpus_directory) / "artifact-manifest.json"
+    if not path.is_file():
+        raise ValueError("source corpus artifact manifest is missing")
+    return _file_sha256(path)
+
+
+def validate_edge_cache_source(
+    data: PreparedEdgeDynamicsData,
+    corpus_directory: Path,
+) -> None:
+    """Reject a cache paired with a different source evidence bundle."""
+
+    observed = source_artifact_manifest_sha256(corpus_directory)
+    if observed != data.source_artifact_manifest_sha256:
+        raise ValueError(
+            "edge cache source artifact manifest does not match corpus"
+        )
 
 
 def _pair_cells(

@@ -12,17 +12,17 @@ from typing import Any, Dict, Mapping, MutableMapping, Sequence, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from .action_conditioned_dynamics import (
+from ..action_conditioned_dynamics import (
     ActionConditionedWindows,
     TrajectoryDistribution,
     persistence_rollout,
 )
-from .edge_dynamics_data import (
+from .data import (
     PreparedAttributionQueries,
     PreparedEdgeDynamicsData,
 )
-from .edge_dynamics_models import EdgeDynamicsModel
-from .graph_telemetry import DeclaredTelemetryGraph
+from .models import EdgeDynamicsModel
+from ..graph_telemetry import DeclaredTelemetryGraph
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class EdgeModelScores:
     action_and_target_hit_at_1: float
     no_action_specificity: float
     maximum_absolute_prediction: float
+    maximum_horizon_norm_growth: float
     rollout_finite: bool
     parameter_count: int
     serialized_size_bytes: int
@@ -53,6 +54,9 @@ class EdgeModelScores:
             "no_action_specificity": self.no_action_specificity,
             "maximum_absolute_prediction": (
                 self.maximum_absolute_prediction
+            ),
+            "maximum_horizon_norm_growth": (
+                self.maximum_horizon_norm_growth
             ),
             "rollout_finite": self.rollout_finite,
             "parameter_count": self.parameter_count,
@@ -127,6 +131,13 @@ def score_edge_model(
         allow_nan=False,
     ).encode("utf-8")
     latency = _batch_one_latency(model, windows)
+    trajectory_norms = np.linalg.norm(
+        prediction.reshape(
+            len(prediction), prediction.shape[1], -1
+        ),
+        axis=2,
+    )
+    first_norm = np.maximum(trajectory_norms[:, :1], 1e-12)
     return EdgeModelScores(
         normalized_mse_overall=float(np.mean(squared_error)),
         normalized_mse_action_overlap=float(
@@ -141,6 +152,9 @@ def score_edge_model(
         no_action_specificity=attribution[1],
         maximum_absolute_prediction=float(
             np.max(np.abs(prediction))
+        ),
+        maximum_horizon_norm_growth=float(
+            np.max(trajectory_norms / first_norm)
         ),
         rollout_finite=bool(np.all(np.isfinite(prediction))),
         parameter_count=model.parameter_count,
@@ -350,6 +364,15 @@ class CountMinSketch:
     def storage_bytes(self) -> int:
         return int(self._counts.nbytes)
 
+    def columns(self, key: str) -> Tuple[int, ...]:
+        """Return the deterministic bucket address for one key."""
+
+        if not key:
+            raise ValueError("Count-Min Sketch key cannot be empty")
+        return tuple(
+            self._column(key, row) for row in range(self.depth)
+        )
+
     def _column(self, key: str, row: int) -> int:
         digest = hashlib.blake2b(
             f"{self.seed}:{row}:{key}".encode("utf-8"),
@@ -360,6 +383,7 @@ class CountMinSketch:
 
 def benchmark_event_sketch(
     windows: ActionConditionedWindows,
+    compiler_artifact: Mapping[str, Any],
     *,
     width: int = 128,
     depth: int = 4,
@@ -379,6 +403,9 @@ def benchmark_event_sketch(
     )
     if len(feature_positions) != 4:
         raise ValueError("event sketch requires four structured features")
+    center, scale = _event_feature_scaling(
+        windows, compiler_artifact, feature_positions
+    )
     sketch = CountMinSketch(width=width, depth=depth, seed=31)
     exact: MutableMapping[str, float] = {}
     states = np.asarray(windows.histories[:, -1], dtype=np.float64)
@@ -391,7 +418,15 @@ def benchmark_event_sketch(
             value = float(
                 np.sum(
                     np.maximum(
-                        states[:, entity_position, feature_position],
+                        (
+                            states[
+                                :,
+                                entity_position,
+                                feature_position,
+                            ]
+                            * scale[feature_position]
+                            + center[feature_position]
+                        ),
                         0.0,
                     )
                 )
@@ -409,14 +444,135 @@ def benchmark_event_sketch(
         "depth": depth,
         "key_count": len(exact),
         "storage_bytes": sketch.storage_bytes,
+        "exact_dictionary_payload_bytes": sum(
+            len(key.encode("utf-8")) + 8 for key in exact
+        ),
         "maximum_overestimate": max(errors.values()),
         "mean_overestimate": float(np.mean(tuple(errors.values()))),
         "exact_reconstruction_rate": float(
             np.mean([error == 0.0 for error in errors.values()])
         ),
         "bounded_interpretation": (
-            "current vocabulary is too small to establish a "
-            "high-cardinality sketch advantage"
+            "compiled observed event counts are reconstructed exactly, "
+            "but the vocabulary is too small to establish a "
+            "high-cardinality advantage"
+        ),
+    }
+
+
+def sketch_event_predictor_effect(
+    *,
+    model: EdgeDynamicsModel,
+    windows: ActionConditionedWindows,
+    compiler_artifact: Mapping[str, Any],
+    width: int = 128,
+    depth: int = 4,
+) -> Mapping[str, Any]:
+    """Round-trip event inputs through the current collision-free address."""
+
+    feature_positions = tuple(
+        position
+        for position, name in enumerate(windows.state_feature_names)
+        if name
+        in {
+            "log_event_count",
+            "log_error_count",
+            "trace_span_count",
+            "trace_error_count",
+        }
+    )
+    center, scale = _event_feature_scaling(
+        windows, compiler_artifact, feature_positions
+    )
+    keyed_positions = tuple(
+        (
+            f"{entity_id}:{windows.state_feature_names[position]}",
+            entity_position,
+            feature_position,
+        )
+        for entity_position, entity_id in enumerate(windows.entity_names)
+        for feature_position, position in enumerate(feature_positions)
+    )
+    keys = tuple(
+        key
+        for key, _, _ in keyed_positions
+    )
+    event_history = np.asarray(
+        windows.histories[..., feature_positions],
+        dtype=np.float64,
+    )
+    raw_event_history = np.maximum(
+        event_history
+        * scale[np.asarray(feature_positions)][None, None, None, :]
+        + center[np.asarray(feature_positions)][None, None, None, :],
+        0.0,
+    )
+    decoded = np.full_like(raw_event_history, np.inf)
+    sketch = CountMinSketch(width=width, depth=depth, seed=31)
+    addresses = {
+        key: sketch.columns(key)
+        for key in keys
+    }
+    for row in range(depth):
+        buckets = np.zeros(
+            (
+                len(windows.histories),
+                windows.histories.shape[1],
+                width,
+            ),
+            dtype=np.float64,
+        )
+        for key, entity_position, feature_position in keyed_positions:
+            buckets[..., addresses[key][row]] += raw_event_history[
+                ..., entity_position, feature_position
+            ]
+        for key, entity_position, feature_position in keyed_positions:
+            np.minimum(
+                decoded[..., entity_position, feature_position],
+                buckets[..., addresses[key][row]],
+                out=decoded[..., entity_position, feature_position],
+            )
+    reconstructed = (
+        decoded
+        - center[np.asarray(feature_positions)][None, None, None, :]
+    ) / scale[np.asarray(feature_positions)][None, None, None, :]
+    reconstructed_histories = np.array(
+        windows.histories, copy=True
+    )
+    reconstructed_histories[..., feature_positions] = reconstructed
+    round_tripped = ActionConditionedWindows(
+        histories=reconstructed_histories,
+        future_states=windows.future_states,
+        future_controls=windows.future_controls,
+        future_actions=windows.future_actions,
+        trajectory_ids=windows.trajectory_ids,
+        matched_pair_ids=windows.matched_pair_ids,
+        transition_indices=windows.transition_indices,
+        entity_names=windows.entity_names,
+        state_feature_names=windows.state_feature_names,
+        control_feature_names=windows.control_feature_names,
+        action_feature_names=windows.action_feature_names,
+        graph=windows.graph,
+    )
+    collision_free = all(
+        any(
+            sum(
+                other_columns[row] == columns[row]
+                for other_columns in addresses.values()
+            )
+            == 1
+            for row in range(depth)
+        )
+        for columns in addresses.values()
+    )
+    reconstruction_error = float(
+        np.max(np.abs(reconstructed - event_history))
+    )
+    return {
+        "collision_free_key_address": collision_free,
+        "input_reconstruction_max_abs_error": reconstruction_error,
+        "selected_predictor_metrics_after_round_trip": dict(
+            forecast_objective(model, round_tripped)
         ),
     }
 
@@ -469,6 +625,10 @@ def audit_streaming_log_templates(
         "message_count": message_count,
         "template_count": len(template_counts),
         "template_counts": dict(sorted(template_counts.items())),
+        "template_payload_bytes": sum(
+            len(template.encode("utf-8")) + 8
+            for template in template_counts
+        ),
         "elapsed_seconds": elapsed,
         "messages_per_second": (
             message_count / elapsed if elapsed > 0.0 else None
@@ -478,6 +638,26 @@ def audit_streaming_log_templates(
             "natural-language template generalization"
         ),
     }
+
+
+def _event_feature_scaling(
+    windows: ActionConditionedWindows,
+    compiler_artifact: Mapping[str, Any],
+    feature_positions: Sequence[int],
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
+    state = dict(compiler_artifact["state"])
+    center = np.asarray(state["state_center"], dtype=np.float64)
+    scale = np.asarray(state["state_scale"], dtype=np.float64)
+    if (
+        center.shape != (len(windows.state_feature_names),)
+        or scale.shape != center.shape
+        or any(
+            position < 0 or position >= len(center)
+            for position in feature_positions
+        )
+    ):
+        raise ValueError("event feature scaling does not align")
+    return center, scale
 
 
 def write_edge_experiment_artifacts(

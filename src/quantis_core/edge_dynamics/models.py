@@ -6,12 +6,12 @@ from typing import Any, Dict, Mapping, Optional, Protocol, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from .action_conditioned_dynamics import (
+from ..action_conditioned_dynamics import (
     ActionConditionedWindows,
     TrajectoryDistribution,
 )
-from .action_dynamics_real_corpus import DenseActionVarxDynamics
-from .graph_telemetry import DeclaredTelemetryGraph
+from ..action_dynamics_real_corpus import DenseActionVarxDynamics
+from ..graph_telemetry import DeclaredTelemetryGraph
 
 
 class EdgeDynamicsModel(Protocol):
@@ -237,7 +237,7 @@ class EchoStateActionDynamics:
         history = np.asarray(histories, dtype=np.float64)
         controls = np.asarray(future_controls, dtype=np.float64)
         actions = np.asarray(future_actions, dtype=np.float64)
-        _validate_rollout(
+        validate_edge_rollout(
             history,
             controls,
             actions,
@@ -594,7 +594,7 @@ class ContractiveLowRankDynamics:
         history = np.asarray(histories, dtype=np.float64)
         controls = np.asarray(future_controls, dtype=np.float64)
         actions = np.asarray(future_actions, dtype=np.float64)
-        _validate_rollout(
+        validate_edge_rollout(
             history,
             controls,
             actions,
@@ -623,6 +623,27 @@ class ContractiveLowRankDynamics:
     def spectral_radius(self) -> float:
         self._fitted_values()
         return self._spectral_radius
+
+    def validate_rollout_inputs(
+        self,
+        histories: NDArray[Any],
+        future_controls: NDArray[Any],
+        future_actions: NDArray[Any],
+        graph: DeclaredTelemetryGraph,
+    ) -> None:
+        """Validate inputs against the fitted global schema."""
+
+        values = self._fitted_values()
+        validate_edge_rollout(
+            np.asarray(histories, dtype=np.float64),
+            np.asarray(future_controls, dtype=np.float64),
+            np.asarray(future_actions, dtype=np.float64),
+            graph,
+            values[0],
+            values[1],
+            values[2],
+            values[3],
+        )
 
     @property
     def parameter_count(self) -> int:
@@ -821,16 +842,8 @@ class BoundedGraphResidualDynamics:
         history = np.asarray(histories, dtype=np.float64)
         controls = np.asarray(future_controls, dtype=np.float64)
         actions = np.asarray(future_actions, dtype=np.float64)
-        global_values = self.global_model._fitted_values()
-        _validate_rollout(
-            history,
-            controls,
-            actions,
-            graph,
-            global_values[0],
-            global_values[1],
-            global_values[2],
-            global_values[3],
+        self.global_model.validate_rollout_inputs(
+            history, controls, actions, graph
         )
         current = history[:, -1]
         means = np.empty(
@@ -1004,7 +1017,7 @@ def _masked_windows(
     )
 
 
-def _validate_rollout(
+def validate_edge_rollout(
     history: NDArray[np.float64],
     controls: NDArray[np.float64],
     actions: NDArray[np.float64],
@@ -1013,6 +1026,7 @@ def _validate_rollout(
     state_shape: Tuple[int, int],
     control_count: int,
     action_shape: Tuple[int, int],
+    expected_horizon: Optional[int] = None,
 ) -> None:
     if (
         graph.to_dict() != fitted_graph.to_dict()
@@ -1022,6 +1036,10 @@ def _validate_rollout(
         or history.shape[0] != controls.shape[0]
         or history.shape[0] != actions.shape[0]
         or controls.shape[1] != actions.shape[1]
+        or (
+            expected_horizon is not None
+            and controls.shape[1] != expected_horizon
+        )
         or history.shape[2:] != state_shape
         or controls.shape[2] != control_count
         or actions.shape[2:] != action_shape
