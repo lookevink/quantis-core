@@ -117,7 +117,7 @@ def run_lab_pilot(
         protocol_path=lab / "smoke-protocol.json",
         output=smoke_output,
         compose_file=compose_file,
-        project_prefix="quantis-action-smoke-v1",
+        project_prefix="quantis-action-smoke-v2",
         application_image_id=application_image_id,
         build_context_sha256=build_context_sha256,
         image_digests=image_digests,
@@ -133,7 +133,7 @@ def run_lab_pilot(
         protocol_path=lab / "pilot-protocol.json",
         output=pilot_output,
         compose_file=compose_file,
-        project_prefix="quantis-action-pilot-v1",
+        project_prefix="quantis-action-pilot-v2",
         application_image_id=application_image_id,
         build_context_sha256=build_context_sha256,
         image_digests=image_digests,
@@ -235,6 +235,25 @@ def _observation_schema(lab: Path) -> Mapping[str, Any]:
             "worker.processing",
             "postgresql.write",
         ],
+        "graph": {
+            "entities": [
+                "api",
+                "api_enqueues_queue",
+                "checkout_queue",
+                "queue_dequeues_to_worker",
+                "worker_pool",
+                "worker_writes_postgresql",
+                "postgresql",
+            ],
+            "directed_edges": [
+                ["api", "api_enqueues_queue"],
+                ["api_enqueues_queue", "checkout_queue"],
+                ["checkout_queue", "queue_dequeues_to_worker"],
+                ["queue_dequeues_to_worker", "worker_pool"],
+                ["worker_pool", "worker_writes_postgresql"],
+                ["worker_writes_postgresql", "postgresql"],
+            ],
+        },
         "truth_fields_permitted": [],
     }
 
@@ -294,14 +313,14 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         "--smoke-output",
         type=Path,
         default=Path(
-            "artifacts/action-dynamics/lab-smoke-v1"
+            "artifacts/action-dynamics/lab-smoke-v2"
         ),
     )
     parser.add_argument(
         "--pilot-output",
         type=Path,
         default=Path(
-            "artifacts/action-dynamics/instrumentation-pilot-v1"
+            "artifacts/action-dynamics/instrumentation-pilot-v2"
         ),
     )
     parser.add_argument("--parallel-jobs", type=int, default=6)

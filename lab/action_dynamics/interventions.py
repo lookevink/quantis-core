@@ -81,6 +81,7 @@ class ActionCommandEvidence:
     affected_state_index: int
     applied_unix_nano: int
     status: str
+    realized_worker_ids: tuple[str, ...] = ()
 
     def to_dict(self) -> Mapping[str, Any]:
         """Return stable command evidence."""
@@ -97,6 +98,9 @@ class ActionCommandEvidence:
             "affected_state_index": self.affected_state_index,
             "applied_unix_nano": self.applied_unix_nano,
             "status": self.status,
+            "realized_worker_ids": list(
+                self.realized_worker_ids
+            ),
         }
 
 
@@ -104,6 +108,7 @@ class ActionCommandEvidence:
 class _ActiveAction:
     action: Mapping[str, Any]
     lock: Optional[DatabaseLock] = None
+    realized_worker_ids: tuple[str, ...] = ()
 
 
 class ReversibleInterventionController:
@@ -167,14 +172,24 @@ class ReversibleInterventionController:
                 raise ValueError(f"action is already active: {action_id}")
             started_action = self._start(normalized)
             self._active[action_id] = started_action
+            realized_worker_ids = (
+                started_action.realized_worker_ids
+            )
         else:
             active_action = self._active.get(action_id)
             if active_action is None:
                 raise ValueError(f"action is not active: {action_id}")
+            realized_worker_ids = (
+                active_action.realized_worker_ids
+            )
             self._stop(active_action)
             del self._active[action_id]
         evidence = _evidence(
-            normalized, phase, logical_index, status="applied"
+            normalized,
+            phase,
+            logical_index,
+            status="applied",
+            realized_worker_ids=realized_worker_ids,
         )
         self._emit(evidence)
         self._command_ids.add(command_id)
@@ -196,6 +211,9 @@ class ReversibleInterventionController:
                 "stop",
                 logical_index,
                 status="cleanup",
+                realized_worker_ids=(
+                    active.realized_worker_ids
+                ),
             )
             self._emit(item)
             self._command_ids.add(command_id)
@@ -219,6 +237,12 @@ class ReversibleInterventionController:
             {
                 "event.name": "action.run.boundary",
                 "quantis.run.phase": phase,
+                "quantis.run.active_action_count": len(
+                    self._active
+                ),
+                "quantis.run.cleanup.status": (
+                    "clean" if phase == "closed" else "pending"
+                ),
             },
             body="action run boundary",
         )
@@ -255,7 +279,10 @@ class ReversibleInterventionController:
             )[:count]
             self.redis_client.delete(PAUSED_WORKERS)
             self.redis_client.sadd(PAUSED_WORKERS, *selected)
-            return _ActiveAction(action)
+            return _ActiveAction(
+                action,
+                realized_worker_ids=tuple(selected),
+            )
         if kind == "postgres_lock":
             lock = self.database_lock_factory()
             lock.execute(
@@ -321,6 +348,12 @@ class ReversibleInterventionController:
             ),
             "quantis.action.command_id": evidence.command_id,
             "quantis.action.status": evidence.status,
+            "quantis.action.realized_worker_count": len(
+                evidence.realized_worker_ids
+            ),
+            "quantis.action.realized_worker_ids": ",".join(
+                evidence.realized_worker_ids
+            ),
         }
         self._post_record(
             evidence.applied_unix_nano,
@@ -437,6 +470,7 @@ def _evidence(
     logical_index: int,
     *,
     status: str,
+    realized_worker_ids: tuple[str, ...] = (),
 ) -> ActionCommandEvidence:
     return ActionCommandEvidence(
         command_id=f"{action['action_id']}:{phase}",
@@ -450,6 +484,7 @@ def _evidence(
         affected_state_index=logical_index + 1,
         applied_unix_nano=time.time_ns(),
         status=status,
+        realized_worker_ids=realized_worker_ids,
     )
 
 

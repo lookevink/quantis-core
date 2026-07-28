@@ -3,7 +3,7 @@
   "kind": "action_dynamics_collection_protocol",
   "stage": "smoke",
   "evidence_boundary": "Instrumentation qualification only. These captures may select safe pilot ranges but must not be used for model fitting, threshold tuning against the pilot, forecasting claims, attribution claims, graph-benefit claims, or world-model claims.",
-  "generator_seed": 26072801,
+  "generator_seed": 26072811,
   "collection": {
     "pair_count": 6,
     "expected_capture_count": 12,
@@ -44,8 +44,6 @@
       "parameter_schema_version": 1,
       "magnitude_unit": "worker_fraction",
       "severity_values": [
-        0.34,
-        0.67,
         1.0
       ],
       "effect_feature": "worker_rate",
@@ -182,7 +180,7 @@
         "cell_id": "smoke-006",
         "action_kind": "worker_pause",
         "worker_replicas": 2,
-        "magnitude": 0.34,
+        "magnitude": 1.0,
         "onset_index": 38,
         "duration": 12,
         "workload_seed": 51006,

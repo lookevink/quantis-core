@@ -6,6 +6,7 @@ import pytest
 
 from quantis_core.action_conditioned_dynamics import ACTION_KINDS
 from quantis_core.action_dynamics_lab import (
+    ACTION_LAB_FEATURE_NAMES,
     ActionCollectionProtocol,
     LabActionCaptureManifest,
     assess_prepared_action_collection,
@@ -36,6 +37,12 @@ def test_lab_manifest_round_trip_is_strict() -> None:
     assert len(manifest.request_schedule) == 84
     assert all(6 <= value <= 10 for value in manifest.request_schedule)
     assert len(manifest.canonical_sha256()) == 64
+    assert manifest.action_case.split == "validation"
+    assert manifest.corpus_role == "smoke"
+    assert manifest.protocol_sha256 == protocol.canonical_sha256()
+    assert manifest.graph_observation_schema_sha256 == (
+        manifest.observation_schema_sha256
+    )
 
     invalid = manifest.to_dict()
     invalid["unexpected"] = True
@@ -201,13 +208,6 @@ def test_assessment_recomputes_smoke_evidence(
     _, manifests, assignments = load_prepared_action_collection(prepared)
     captures = tmp_path / "cases"
     _write_qualified_captures(captures, manifests)
-    for manifest in manifests:
-        if not manifest.action_case.actions:
-            (
-                captures
-                / manifest.action_case.case_id
-                / "collector-actions.jsonl"
-            ).unlink()
     attestation = _attestation(prepared, assignments)
     attestation_path = tmp_path / "collection-attestation.json"
     attestation_path.write_text(_pretty(attestation))
@@ -284,6 +284,56 @@ def test_assessment_rejects_truth_leak_and_missing_stop(
     assert assessment["status"] == "failed"
     assert assessment["gates"]["truth_exclusion"] is False
     assert assessment["gates"]["action_command_coverage"] is False
+
+
+def test_assessment_rejects_incomplete_metrics_and_broken_trace_chain(
+    tmp_path: Path,
+) -> None:
+    protocol = _protocol("smoke")
+    prepared = tmp_path / "inputs"
+    write_prepared_action_collection(
+        protocol,
+        prepared,
+        image_digests=_IMAGES,
+        observation_schema_sha256=_OBSERVATION_SCHEMA,
+    )
+    _, manifests, assignments = load_prepared_action_collection(
+        prepared
+    )
+    captures = tmp_path / "cases"
+    _write_qualified_captures(captures, manifests)
+    first = captures / manifests[0].action_case.case_id
+    metrics = json.loads(
+        (first / "collector-metrics.jsonl").read_text()
+    )
+    metrics["resourceMetrics"][0]["scopeMetrics"][0][
+        "metrics"
+    ].pop()
+    (first / "collector-metrics.jsonl").write_text(
+        json.dumps(metrics) + "\n"
+    )
+    traces = json.loads(
+        (first / "collector-traces.jsonl").read_text()
+    )
+    traces["resourceSpans"][0]["scopeSpans"][0]["spans"][3][
+        "parentSpanId"
+    ] = "ffffffffffffffff"
+    (first / "collector-traces.jsonl").write_text(
+        json.dumps(traces) + "\n"
+    )
+    attestation_path = tmp_path / "collection-attestation.json"
+    attestation_path.write_text(
+        _pretty(_attestation(prepared, assignments))
+    )
+
+    assessment = assess_prepared_action_collection(
+        prepared, captures, attestation_path
+    )
+
+    assert assessment["gates"]["metric_completeness"] is False
+    assert (
+        assessment["gates"]["complete_trace_coverage"] is False
+    )
 
 
 def _protocol(stage: str) -> ActionCollectionProtocol:
@@ -534,7 +584,7 @@ def _write_metrics(
                         "scope": {"name": "quantis.action-lab"},
                         "metrics": [
                             {
-                                "name": feature,
+                                "name": metric_name,
                                 "gauge": {
                                     "dataPoints": [
                                         {
@@ -542,12 +592,20 @@ def _write_metrics(
                                                 (index + 1)
                                                 * 1_000_000_000
                                             ),
-                                            "asDouble": value,
+                                            "asDouble": (
+                                                value
+                                                if metric_name == feature
+                                                else 0.0
+                                            ),
                                         }
                                         for index, value in enumerate(values)
                                     ]
                                 },
                             }
+                            for metric_name in (
+                                *ACTION_LAB_FEATURE_NAMES,
+                                "quantis.experiment.window.closed_unix_nano",
+                            )
                         ],
                     }
                 ],
@@ -594,6 +652,22 @@ def _write_logs_and_traces(
                         "logRecords": [
                             {
                                 "timeUnixNano": "1",
+                                "body": {
+                                    "stringValue": "checkout accepted"
+                                },
+                                "attributes": [
+                                    {
+                                        "key": "event.name",
+                                        "value": {
+                                            "stringValue": "checkout.accepted"
+                                        },
+                                    }
+                                ],
+                                "traceId": trace_id,
+                                "spanId": span_ids[0],
+                            },
+                            {
+                                "timeUnixNano": "8",
                                 "body": {"stringValue": "checkout completed"},
                                 "attributes": [
                                     {
@@ -710,9 +784,66 @@ def _write_actions(
                             "key": "quantis.action.status",
                             "value": {"stringValue": "applied"},
                         },
+                        {
+                            "key": (
+                                "quantis.action.realized_worker_count"
+                            ),
+                            "value": {
+                                "intValue": str(
+                                    manifest.action_case.worker_replicas
+                                    if action.action_kind
+                                    == "worker_pause"
+                                    else 0
+                                )
+                            },
+                        },
+                        {
+                            "key": (
+                                "quantis.action.realized_worker_ids"
+                            ),
+                            "value": {
+                                "stringValue": (
+                                    ",".join(
+                                        f"worker-{worker}"
+                                        for worker in range(
+                                            manifest.action_case.worker_replicas
+                                        )
+                                    )
+                                    if action.action_kind
+                                    == "worker_pause"
+                                    else ""
+                                )
+                            },
+                        },
                     ],
                 }
             )
+    records.append(
+        {
+            "timeUnixNano": "999",
+            "body": {"stringValue": "action run boundary"},
+            "attributes": [
+                {
+                    "key": "event.name",
+                    "value": {
+                        "stringValue": "action.run.boundary"
+                    },
+                },
+                {
+                    "key": "quantis.run.phase",
+                    "value": {"stringValue": "closed"},
+                },
+                {
+                    "key": "quantis.run.active_action_count",
+                    "value": {"intValue": "0"},
+                },
+                {
+                    "key": "quantis.run.cleanup.status",
+                    "value": {"stringValue": "clean"},
+                },
+            ],
+        }
+    )
     payload = {
         "resourceLogs": [
             {

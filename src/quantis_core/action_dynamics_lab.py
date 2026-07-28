@@ -51,6 +51,10 @@ _MANIFEST_KEYS = {
     "api_request_queue_size",
     "image_digests",
     "observation_schema_sha256",
+    "protocol_sha256",
+    "prepared_plan_sha256",
+    "graph_observation_schema_sha256",
+    "corpus_role",
 }
 _ASSIGNMENT_KEYS = {
     "pair_id",
@@ -71,6 +75,36 @@ _SPAN_NAMES = frozenset(
         "postgresql.write",
     }
 )
+_ACTION_LAB_FEATURE_NAMES = (
+    "request_rate",
+    "request_latency_ms",
+    "error_rate",
+    "api_inflight_current",
+    "api_inflight_peak",
+    "api_concurrency_mean",
+    "queue_depth",
+    "queue_oldest_age_ms",
+    "enqueue_event_age_ms",
+    "dequeue_event_age_ms",
+    "queue_residence_mean_ms",
+    "worker_rate",
+    "worker_heartbeat_age_s",
+    "worker_active_count",
+    "worker_busy_count",
+    "worker_busy_age_max_ms",
+    "worker_busy_fraction",
+    "worker_processing_latency_ms",
+    "redis_enqueue_latency_ms",
+    "redis_enqueue_error_rate",
+    "redis_dequeue_latency_ms",
+    "redis_dequeue_error_rate",
+    "db_write_rate",
+    "postgresql_write_latency_ms",
+    "postgresql_write_error_rate",
+    "postgresql_write_event_age_ms",
+    "postgresql_write_busy_age_max_ms",
+)
+ACTION_LAB_FEATURE_NAMES = _ACTION_LAB_FEATURE_NAMES
 _SPAN_ENTITY_OWNERS = {
     "api.admission": "api",
     "redis.enqueue": "api_enqueues_queue",
@@ -112,6 +146,10 @@ class LabActionCaptureManifest:
     api_request_queue_size: int
     image_digests: Mapping[str, str]
     observation_schema_sha256: str
+    protocol_sha256: str
+    prepared_plan_sha256: str
+    graph_observation_schema_sha256: str
+    corpus_role: str
     schema_version: int = 1
 
     def __post_init__(self) -> None:
@@ -131,6 +169,17 @@ class LabActionCaptureManifest:
             or not _HEX_SHA256.fullmatch(
                 self.observation_schema_sha256
             )
+            or not _HEX_SHA256.fullmatch(self.protocol_sha256)
+            or not _HEX_SHA256.fullmatch(
+                self.prepared_plan_sha256
+            )
+            or not _HEX_SHA256.fullmatch(
+                self.graph_observation_schema_sha256
+            )
+            or self.graph_observation_schema_sha256
+            != self.observation_schema_sha256
+            or self.corpus_role
+            not in {"smoke", "instrumentation_pilot"}
         ):
             raise ValueError("lab action capture manifest is invalid")
         if (
@@ -161,6 +210,12 @@ class LabActionCaptureManifest:
             "observation_schema_sha256": (
                 self.observation_schema_sha256
             ),
+            "protocol_sha256": self.protocol_sha256,
+            "prepared_plan_sha256": self.prepared_plan_sha256,
+            "graph_observation_schema_sha256": (
+                self.graph_observation_schema_sha256
+            ),
+            "corpus_role": self.corpus_role,
         }
 
     @classmethod
@@ -193,6 +248,14 @@ class LabActionCaptureManifest:
             or not isinstance(
                 payload["observation_schema_sha256"], str
             )
+            or not isinstance(payload["protocol_sha256"], str)
+            or not isinstance(
+                payload["prepared_plan_sha256"], str
+            )
+            or not isinstance(
+                payload["graph_observation_schema_sha256"], str
+            )
+            or not isinstance(payload["corpus_role"], str)
         ):
             raise ValueError(
                 "lab action manifest field types are invalid"
@@ -214,6 +277,14 @@ class LabActionCaptureManifest:
             observation_schema_sha256=payload[
                 "observation_schema_sha256"
             ],
+            protocol_sha256=payload["protocol_sha256"],
+            prepared_plan_sha256=payload[
+                "prepared_plan_sha256"
+            ],
+            graph_observation_schema_sha256=payload[
+                "graph_observation_schema_sha256"
+            ],
+            corpus_role=payload["corpus_role"],
             schema_version=payload["schema_version"],
         )
 
@@ -571,6 +642,15 @@ def prepare_action_collection(
             observation_schema_sha256=observation_schema_sha256,
         )
     )
+    protocol_sha256 = protocol.canonical_sha256()
+    prepared_plan_sha256 = _canonical_sha256(
+        {
+            "schema_version": 1,
+            "kind": "action_dynamics_prepared_plan_identity",
+            "protocol_sha256": protocol_sha256,
+            "generator": "prepare_action_collection:v2",
+        }
+    )
     for pair_position, (kind, workers, replicate) in enumerate(
         cells
     ):
@@ -658,7 +738,7 @@ def prepare_action_collection(
             action_case = ActionConditionedCaseManifest(
                 case_id=case_id,
                 matched_pair_id=pair_id,
-                split="training",
+                split="validation",
                 point_count=protocol.point_count,
                 logical_window_period_nano=int(
                     _required_number(
@@ -684,6 +764,12 @@ def prepare_action_collection(
                     api_request_queue_size=queue_size,
                     image_digests=image_digests,
                     observation_schema_sha256=observation_schema,
+                    protocol_sha256=protocol_sha256,
+                    prepared_plan_sha256=prepared_plan_sha256,
+                    graph_observation_schema_sha256=(
+                        observation_schema
+                    ),
+                    corpus_role=protocol.stage,
                 )
             )
             treatment_order = 0 if pair_treatment_first else 1
@@ -872,6 +958,7 @@ def assess_prepared_action_collection(
     truth_exclusion = True
     identity_binding = True
     action_coverage = True
+    metric_completeness = True
     trace_link_numerator = 0
     trace_link_denominator = 0
     complete_trace_numerator = 0
@@ -901,6 +988,9 @@ def assess_prepared_action_collection(
         )
         action_coverage = action_coverage and bool(
             capture["action_command_coverage"]
+        )
+        metric_completeness = metric_completeness and bool(
+            capture["metric_completeness"]
         )
         trace_link_numerator += int(
             capture["trace_link_numerator"]
@@ -953,6 +1043,7 @@ def assess_prepared_action_collection(
         "pair_schedule_alignment": schedule_alignment,
         "identity_and_hash_binding": identity_binding,
         "action_command_coverage": action_coverage,
+        "metric_completeness": metric_completeness,
         "truth_exclusion": truth_exclusion,
         "trace_link_coverage": trace_link_coverage
         >= _required_number(
@@ -1020,6 +1111,43 @@ def assess_prepared_action_collection(
             "cross_case_trace_reference_count": (
                 cross_case_trace_references
             ),
+            "trace_link_numerator": trace_link_numerator,
+            "trace_link_denominator": trace_link_denominator,
+            "complete_trace_numerator": (
+                complete_trace_numerator
+            ),
+            "complete_trace_denominator": (
+                complete_trace_denominator
+            ),
+        },
+        "pair_counts_by_action": {
+            kind: sum(
+                result["action_kind"] == kind
+                for result in pair_results
+            )
+            for kind in ACTION_KINDS
+        },
+        "pair_counts_by_topology": {
+            f"workers-{workers}": sum(
+                result["worker_replicas"] == workers
+                for result in pair_results
+            )
+            for workers in (1, 2, 3)
+        },
+        "failed_pair_ids": [
+            str(result["pair_id"])
+            for result in pair_results
+            if not (
+                result["raw_effect_passed"]
+                and result["recovery_passed"]
+                and result["schedule_alignment"]
+            )
+        ],
+        "attrition": {
+            "planned_captures": len(assignments),
+            "observed_captures": len(cases),
+            "missing_captures": len(assignments) - len(cases),
+            "automatic_retries": 0,
         },
         "gates": gates,
         "pairs": pair_results,
@@ -1470,7 +1598,7 @@ def _assess_capture(
     commands = _action_commands(raw_actions)
     action_command_coverage = _commands_match(
         commands, manifest, assignment
-    )
+    ) and _cleanup_boundary_matches(raw_actions)
     trace_records = [
         record
         for record in log_capture.records
@@ -1484,6 +1612,13 @@ def _assess_capture(
     )
     spans = _trace_spans(raw_traces)
     valid_trace_structure = _valid_trace_structure(spans)
+    accepted_trace_ids = {
+        record.trace_id
+        for record in trace_records
+        if record.record_attributes.get("event.name")
+        == "checkout.accepted"
+        and _HEX_TRACE_ID.fullmatch(record.trace_id)
+    }
     completed_trace_ids = {
         record.trace_id
         for record in trace_records
@@ -1492,20 +1627,21 @@ def _assess_capture(
         and _HEX_TRACE_ID.fullmatch(record.trace_id)
     }
     complete_trace_numerator = sum(
-        _SPAN_NAMES
-        <= {
-            str(span["name"])
-            for span in spans
-            if span["trace_id"] == trace_id
-        }
-        for trace_id in completed_trace_ids
+        trace_id in completed_trace_ids
+        and _has_exact_trace_path(spans, trace_id)
+        for trace_id in accepted_trace_ids
     )
     if not valid_trace_structure:
         complete_trace_numerator = 0
     metric_series: Dict[str, Tuple[float, ...]] = {}
-    for metric_name in {
+    metric_timestamps: Dict[str, Tuple[int, ...]] = {}
+    observed_metric_names = {
         point.metric_name for point in metric_capture.points
-    }:
+    }
+    allowed_metric_names = set(_ACTION_LAB_FEATURE_NAMES) | {
+        "quantis.experiment.window.closed_unix_nano"
+    }
+    for metric_name in observed_metric_names:
         points = sorted(
             (
                 point
@@ -1517,19 +1653,35 @@ def _assess_capture(
         if (
             len(points) == manifest.action_case.point_count
             and all(point.number_value is not None for point in points)
+            and len({point.time_unix_nano for point in points})
+            == manifest.action_case.point_count
         ):
             metric_series[metric_name] = tuple(
                 float(point.number_value)  # type: ignore[arg-type]
                 for point in points
             )
+            metric_timestamps[metric_name] = tuple(
+                point.time_unix_nano for point in points
+            )
+    required_timestamps = {
+        metric_timestamps.get(name)
+        for name in _ACTION_LAB_FEATURE_NAMES
+    }
+    metric_completeness = (
+        observed_metric_names == allowed_metric_names
+        and set(_ACTION_LAB_FEATURE_NAMES) <= set(metric_series)
+        and len(required_timestamps) == 1
+        and None not in required_timestamps
+    )
     return {
         "truth_exclusion": truth_exclusion,
         "identity_binding": identity_binding,
         "action_command_coverage": action_command_coverage,
+        "metric_completeness": metric_completeness,
         "trace_link_numerator": trace_link_numerator,
         "trace_link_denominator": len(trace_records),
         "complete_trace_numerator": complete_trace_numerator,
-        "complete_trace_denominator": len(completed_trace_ids),
+        "complete_trace_denominator": len(accepted_trace_ids),
         "trace_ids": tuple(
             sorted(
                 {
@@ -1619,19 +1771,16 @@ def _assess_pairs(
                     action_config, "recovery_feature_floor"
                 ),
             )
-            placebo_context = control_values[
-                max(0, action.start_index - 8) : action.start_index
-            ]
-            placebo_active = control_values[
-                action.start_index + 1 : action.stop_index + 1
-            ]
-            placebo_delta = statistics.median(
-                placebo_active
-            ) - statistics.median(placebo_context)
+            placebo_start = max(
+                0, action.start_index - action.duration
+            )
+            placebo_effect = statistics.median(
+                delta[placebo_start:action.start_index]
+            )
             signed_placebo = (
-                placebo_delta
+                placebo_effect
                 if action.effect_direction == "increase"
-                else -placebo_delta
+                else -placebo_effect
             )
             placebo_false_positive = (
                 signed_placebo >= action.minimum_effect
@@ -1706,6 +1855,7 @@ def _commands_match(
         ("stop", action.stop_index),
     }
     observed = set()
+    realized_worker_ids: set[Tuple[str, ...]] = set()
     for command in commands:
         raw_magnitude = command.get("quantis.action.magnitude")
         if (
@@ -1730,7 +1880,69 @@ def _commands_match(
         ):
             return False
         observed.add((phase, logical_index))
-    return observed == expected
+        if action.action_kind == "worker_pause":
+            raw_ids = command.get(
+                "quantis.action.realized_worker_ids"
+            )
+            raw_count = command.get(
+                "quantis.action.realized_worker_count"
+            )
+            if (
+                not isinstance(raw_ids, str)
+                or not _is_integer(raw_count)
+            ):
+                return False
+            worker_ids = tuple(
+                value for value in raw_ids.split(",") if value
+            )
+            expected_count = min(
+                manifest.action_case.worker_replicas,
+                max(
+                    1,
+                    int(
+                        action.magnitude
+                        * manifest.action_case.worker_replicas
+                        + 0.5
+                    ),
+                ),
+            )
+            if (
+                len(worker_ids) != raw_count
+                or raw_count != expected_count
+                or len(set(worker_ids)) != len(worker_ids)
+            ):
+                return False
+            realized_worker_ids.add(worker_ids)
+    return observed == expected and (
+        action.action_kind != "worker_pause"
+        or len(realized_worker_ids) == 1
+    )
+
+
+def _cleanup_boundary_matches(
+    payloads: Sequence[Mapping[str, Any]],
+) -> bool:
+    closed = []
+    for payload in payloads:
+        for resource_logs in payload.get("resourceLogs", []):
+            for scope_logs in resource_logs.get("scopeLogs", []):
+                if scope_logs.get("scope", {}).get("name") != "quantis.action":
+                    continue
+                for record in scope_logs.get("logRecords", []):
+                    attributes = _parse_attributes(
+                        record.get("attributes", [])
+                    )
+                    if (
+                        attributes.get("event.name")
+                        == "action.run.boundary"
+                        and attributes.get("quantis.run.phase")
+                        == "closed"
+                    ):
+                        closed.append(attributes)
+    return len(closed) == 1 and (
+        closed[0].get("quantis.run.active_action_count") == 0
+        and closed[0].get("quantis.run.cleanup.status") == "clean"
+    )
 
 
 def _trace_spans(
@@ -1755,6 +1967,12 @@ def _trace_spans(
                                 ).get(
                                     "quantis.graph.entity.id", ""
                                 )
+                            ),
+                            "start_unix_nano": str(
+                                raw.get("startTimeUnixNano", "")
+                            ),
+                            "end_unix_nano": str(
+                                raw.get("endTimeUnixNano", "")
                             ),
                         }
                     )
@@ -1787,6 +2005,44 @@ def _valid_trace_structure(
         == _SPAN_ENTITY_OWNERS[span["name"]]
         for span in spans
     )
+
+
+def _has_exact_trace_path(
+    spans: Sequence[Mapping[str, str]], trace_id: str
+) -> bool:
+    ordered_names = (
+        "api.admission",
+        "redis.enqueue",
+        "queue.residence",
+        "redis.dequeue",
+        "worker.processing",
+        "postgresql.write",
+    )
+    selected = [span for span in spans if span["trace_id"] == trace_id]
+    by_name = {
+        name: [span for span in selected if span["name"] == name]
+        for name in ordered_names
+    }
+    if any(len(values) != 1 for values in by_name.values()):
+        return False
+    previous_span_id = ""
+    previous_start = -1
+    for name in ordered_names:
+        span = by_name[name][0]
+        try:
+            start = int(span["start_unix_nano"])
+            end = int(span["end_unix_nano"])
+        except ValueError:
+            return False
+        if (
+            span["parent_span_id"] != previous_span_id
+            or start < previous_start
+            or end < start
+        ):
+            return False
+        previous_span_id = span["span_id"]
+        previous_start = start
+    return True
 
 
 def _identity_matches(
@@ -1927,6 +2183,17 @@ def _assessment_report(assessment: Mapping[str, Any]) -> str:
         f"- {name}: {'PASS' if passed else 'FAIL'}"
         for name, passed in gates.items()
     )
+    coverage = assessment["coverage"]
+    pair_lines = "\n".join(
+        "- "
+        f"{pair['pair_id']} {pair['action_kind']} "
+        f"workers-{pair['worker_replicas']}: "
+        f"effect={pair['active_effect']:.6g}, "
+        f"effect_pass={pair['raw_effect_passed']}, "
+        f"recovery_ratio={pair['recovery_ratio']:.6g}, "
+        f"recovery_pass={pair['recovery_passed']}"
+        for pair in assessment["pairs"]
+    )
     return (
         "# Action-dynamics collection assessment\n\n"
         f"Status: **{assessment['status']}**\n\n"
@@ -1934,7 +2201,21 @@ def _assessment_report(assessment: Mapping[str, Any]) -> str:
         "This is instrumentation and randomized-action data-quality "
         "evidence only. No model was trained.\n\n"
         "## Gates\n\n"
-        f"{gate_lines}\n"
+        f"{gate_lines}\n\n"
+        "## Coverage\n\n"
+        f"- trace linked: {coverage['trace_link_numerator']}/"
+        f"{coverage['trace_link_denominator']} "
+        f"({coverage['trace_link']:.3f})\n"
+        f"- complete paths: {coverage['complete_trace_numerator']}/"
+        f"{coverage['complete_trace_denominator']} "
+        f"({coverage['complete_trace']:.3f})\n\n"
+        "## Pair counts and attrition\n\n"
+        f"- by action: `{assessment['pair_counts_by_action']}`\n"
+        f"- by topology: `{assessment['pair_counts_by_topology']}`\n"
+        f"- failed pair ids: `{assessment['failed_pair_ids']}`\n"
+        f"- attrition: `{assessment['attrition']}`\n\n"
+        "## Effect and recovery\n\n"
+        f"{pair_lines}\n"
     )
 
 

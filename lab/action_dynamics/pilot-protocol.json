@@ -3,7 +3,7 @@
   "kind": "action_dynamics_collection_protocol",
   "stage": "instrumentation_pilot",
   "evidence_boundary": "Instrumentation evidence only. The 30 matched pairs validate collection quality and may inform the later open development generator. They are not training, validation, or confirmation data for a model claim.",
-  "generator_seed": 26072802,
+  "generator_seed": 26072812,
   "collection": {
     "pair_count": 30,
     "expected_capture_count": 60,
@@ -44,8 +44,6 @@
       "parameter_schema_version": 1,
       "magnitude_unit": "worker_fraction",
       "severity_values": [
-        0.34,
-        0.67,
         1.0
       ],
       "effect_feature": "worker_rate",

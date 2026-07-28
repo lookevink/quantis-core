@@ -96,7 +96,7 @@ overlap, and `recovery_tolerance` is the dimensionless value `0.30`.
 
 | Action | Target | Physical severities | Primary paired effect | Minimum signed effect |
 |---|---|---:|---|---:|
-| `worker_pause` | `worker_pool` | `0.34`, `0.67`, `1.0` worker fraction | `worker_rate` decreases | `1.0` request/s |
+| `worker_pause` | `worker_pool` | `1.0` worker fraction | `worker_rate` decreases | `1.0` request/s |
 | `postgres_lock` | `worker_writes_postgresql` | `1.0` binary lock | `db_write_rate` decreases | `1.0` write/s |
 | `redis_enqueue_delay` | `api_enqueues_queue` | `20`, `40`, `60` ms | `request_latency_ms` increases | `10.0` ms |
 | `redis_dequeue_delay` | `queue_dequeues_to_worker` | `20`, `40`, `60` ms | `redis_dequeue_latency_ms` increases | `10.0` ms |
@@ -118,8 +118,10 @@ The smoke protocol contains six fixed cells:
 
 - all five action kinds appear at least once;
 - one-, two-, and three-worker topologies are exercised;
-- `worker_pause` appears once with one worker at full pause and once with two
-  workers at a commanded `0.34` fraction to exercise partial targeting; and
+- `worker_pause` appears once with one worker and once with two workers, both
+  at full pause. The v1 smoke showed that partial pause was not identifiable
+  from aggregate throughput under the frozen light-load schedule, so partial
+  targeting is deferred until per-worker observations are available; and
 - onset, duration, workload seed, and intervention seed are explicit in each
   cell.
 

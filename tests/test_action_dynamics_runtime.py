@@ -282,3 +282,24 @@ def test_build_context_hash_covers_every_executable_image_source() -> None:
     assert first == hashlib.sha256(
         hasher.build_context_bytes()
     ).hexdigest()
+
+
+def test_independently_worked_otlp_fixture_separates_truth_stream() -> None:
+    fixture = (
+        REPOSITORY
+        / "tests"
+        / "fixtures"
+        / "otlp"
+        / "action-dynamics-telemetry.jsonl"
+    )
+    payloads = [
+        json.loads(line) for line in fixture.read_text().splitlines()
+    ]
+
+    observations = json.dumps(payloads[:2], sort_keys=True)
+    conditioning = json.dumps(payloads[2], sort_keys=True)
+    assert "00112233445566778899aabbccddeeff" in observations
+    assert "quantis.graph.entity.id" in observations
+    assert "quantis.action.kind" not in observations
+    assert "quantis.action.kind" in conditioning
+    assert "worker_pause" in conditioning
