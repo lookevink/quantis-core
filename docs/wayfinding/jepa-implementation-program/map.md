@@ -54,6 +54,14 @@ disposition for every family.
 - [Test PairEffect-JEPA](020-test-pair-effect-jepa.md) — Matched-twin training was slightly worse than its deranged null and the composed path regressed raw transfer effect by 3.38×. Reject; Contract-JEPA must retain the raw action-conditioned rollout unchanged.
 - [Test task-grounded Contract-JEPA](021-test-task-grounded-contract-jepa.md) — The contract passed every safety gate and improved raw effect error by 1.05%, but both controls were better and the witness produced 100% transfer control false alarms. Reject; Error-Certificate-JEPA must leave the raw mean untouched.
 - [Test Error-Certificate-JEPA](022-test-error-certificate-jepa.md) — The corrected run passed every safety gate, but achieved only 80% held-topology simultaneous control coverage, detected no treatments, and was no sharper than derangement or constant conformal. Reject.
+- [Test SALT-JEPA's static reconstructive teacher](023-test-salt-jepa-static-teacher.md) — Active. Test whether a separately reconstructed and frozen teacher produces a student representation that beats its teacher, deranged targets, PCA, and raw dynamics.
+
+## Next bounded queue
+
+- SALT-JEPA is active under ticket 023.
+- If SALT does not advance, continue in descending expected value with exact
+  LeNEPA projection, Discrete-JEPA, PEIRA, VISReg, and an edge-feasibility
+  screen for JEPA-SCORE.
 
 ## Not yet specified
 
