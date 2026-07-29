@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 label: wayfinder:ticket
 title: Test exact LeNEPA disposable projection
 ---
@@ -19,5 +19,12 @@ decoder, or mask schedule.
 
 ## Result
 
-Active. The primary-source translation, cells, gates, seeds, roles, and
-artifact contract are frozen before implementation or fitting.
+Rejected. All twelve protocol checks passed, but the projected candidate
+failed raw selection/transfer safety, failed the projected mechanism gate,
+retained `1.92×` raw transfer effect error, and beat the unprojected control
+on only two of ten transfer pairs.
+
+See the
+[retained result](../../research/lenepa-telemetry-v1-results.md) and immutable
+`artifacts/action-dynamics/prototype-lenepa-jepa-v1` artifact. Proceed to
+Discrete-JEPA.
