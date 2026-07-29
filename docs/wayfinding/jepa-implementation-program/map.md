@@ -68,9 +68,10 @@ disposition for every family.
 
 ## Next target
 
-- Freeze and test Causal-JEPA's whole-entity trajectory intervention against
-  coordinate-time masking and prediction-only controls. Require observable
-  interaction recovery rather than accepting masked latent loss alone.
+- [Test Causal-JEPA's entity intervention](018-test-causal-jepa-entity-intervention.md)
+  — Active. Compare whole-entity trajectory masking with matched
+  coordinate-time masking and prediction-only controls, requiring observable
+  interaction recovery and held-topology effect value.
 
 ## Out of scope
 
