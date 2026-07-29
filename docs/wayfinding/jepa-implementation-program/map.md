@@ -58,13 +58,15 @@ disposition for every family.
 - [Test exact LeNEPA disposable projection](024-test-lenepa-projection.md) — All twelve protocol checks passed, but projection failed the mechanism gate, every learned cell failed raw forecast safety, and the candidate retained 1.92× raw transfer effect error. Reject; proceed to Discrete-JEPA.
 - [Test Discrete-JEPA semantic tokenization](025-test-discrete-jepa.md) — The hard codebook collapsed to one code per entity, tied P2P-only on forecasts and transition accuracy, and retained 1.92× raw transfer effect error. Reject; proceed to PEIRA.
 - [Test PEIRA inter-view regressor alignment](026-test-peira.md) — Aligned PEIRA learned a real noncollapsed trace mechanism, but lost to derangement and reconstruction controls, retained 1.91× raw transfer effect error, and won three of ten pairs. Reject; proceed to VISReg.
+- [Test VISReg scale-shape regularization](027-test-visreg.md) — Active. Substitute the exact current clean-room VISReg regularizer into complete LeJEPA and compare detached scale/shape decoupling with a no-detach falsifier, exact SIGReg, reconstruction, PCA, and raw dynamics.
 
 ## Next bounded queue
 
 - Exact LeNEPA and Discrete-JEPA are complete and rejected under tickets 024
   and 025.
 - PEIRA is complete and rejected under ticket 026.
-- VISReg is next, followed by an edge-feasibility screen for JEPA-SCORE.
+- VISReg is active under ticket 027, followed by an edge-feasibility screen
+  for JEPA-SCORE.
 
 ## Not yet specified
 
@@ -84,7 +86,7 @@ disposition for every family.
 
 The generic queue identified by ticket 011, the three locally formulated
 one-stack hypotheses, SALT, exact LeNEPA, and Discrete-JEPA are complete.
-None earned fixed-seed robustness or sealed confirmation. VISReg is next,
+None earned fixed-seed robustness or sealed confirmation. VISReg is active,
 followed by the rest of the bounded queue.
 Continue to use retained raw dynamics and direct retrieval as the
 shadow-system baselines. Open another JEPA lane only when a recorded
