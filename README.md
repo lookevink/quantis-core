@@ -298,7 +298,7 @@ and [result interpretation](docs/research/graph-jepa-observability-pilot-v1-resu
 
 ## Reproduce the retained edge JEPA tracers
 
-Rejected experiment recipes remain reproducible evidence. Twenty-two tracers
+Rejected experiment recipes remain reproducible evidence. Twenty-three tracers
 were run against the shared evaluation contract; none passed its frozen
 observable-safety, mechanism, and operational-value gates. All runners,
 assessors, and result documents are retained under `lab/action_dynamics`. The
@@ -378,7 +378,11 @@ reproduction commands, seeds, and artifact identities are in the
   passed, but the detached candidate collapsed to projector rank 1.12,
   retained 1.97× raw transfer effect error, and lost to no-detach and
   reconstruction controls.
+- **Exact JEPA-SCORE edge alerting** — Exact Jacobian/SVD scoring passed every
+  protocol and edge-safety gate at 51.4 ms median and 60.2 ms p95, but detected
+  only 10% of IID treatments and none of the transfer treatments.
 
 Raw action-conditioned dynamics and direct retrieval remain the shadow-system
-baselines. Exact JEPA-SCORE edge alerting is the active final bounded screen
-under [ticket 028](docs/wayfinding/jepa-implementation-program/map.md).
+baselines. The materially distinct, currently runnable queue is complete; see
+the [bounded conclusion](docs/research/jepa-frontier-execution-conclusion-2026.md)
+and [ticket map](docs/wayfinding/jepa-implementation-program/map.md).

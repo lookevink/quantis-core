@@ -59,16 +59,15 @@ disposition for every family.
 - [Test Discrete-JEPA semantic tokenization](025-test-discrete-jepa.md) — The hard codebook collapsed to one code per entity, tied P2P-only on forecasts and transition accuracy, and retained 1.92× raw transfer effect error. Reject; proceed to PEIRA.
 - [Test PEIRA inter-view regressor alignment](026-test-peira.md) — Aligned PEIRA learned a real noncollapsed trace mechanism, but lost to derangement and reconstruction controls, retained 1.91× raw transfer effect error, and won three of ten pairs. Reject; proceed to VISReg.
 - [Test VISReg scale-shape regularization](027-test-visreg.md) — The frozen small-radius gradient mechanism passed, but the detached candidate collapsed to projector rank 1.12, retained 1.97× raw transfer effect error, and lost to no-detach and reconstruction. Reject; proceed to JEPA-SCORE.
-- [Test exact JEPA-SCORE edge alerting](028-test-jepa-score.md) — In progress under a frozen exact-Jacobian, action-blind, raw-delta-controlled alert contract.
+- [Test exact JEPA-SCORE edge alerting](028-test-jepa-score.md) — Exact Jacobian/SVD scoring passed every protocol and edge-safety gate, but won 40% of selection pairs, detected 10% of IID treatments, and detected no transfer treatments. Reject the alert recipe; retain exact-score edge feasibility.
 
 ## Next bounded queue
 
-- Exact LeNEPA and Discrete-JEPA are complete and rejected under tickets 024
-  and 025.
-- PEIRA is complete and rejected under ticket 026.
-- VISReg is complete and rejected under ticket 027.
-- JEPA-SCORE is frozen and in progress as the final bounded edge-feasibility
-  screen.
+- The materially distinct, currently runnable queue through exact JEPA-SCORE
+  is complete.
+- No recipe earned robustness, sealed confirmation, or paging authority.
+- Open another JEPA lane only when one of the recorded prerequisites below is
+  satisfied.
 
 ## Not yet specified
 
@@ -87,9 +86,10 @@ disposition for every family.
 ## Conclusion
 
 The generic queue identified by ticket 011, the three locally formulated
-one-stack hypotheses, SALT, exact LeNEPA, and Discrete-JEPA are complete.
-None earned fixed-seed robustness or sealed confirmation. JEPA-SCORE is next
-as the final bounded screen in this queue.
+one-stack hypotheses, SALT, exact LeNEPA, Discrete-JEPA, PEIRA, VISReg, and
+exact JEPA-SCORE are complete. None earned fixed-seed robustness or sealed
+confirmation. JEPA-SCORE established that exact Jacobian/SVD density scoring
+fits the edge budget, but its frozen alert policy had no transfer detection.
 Continue to use retained raw dynamics and direct retrieval as the
 shadow-system baselines. Open another JEPA lane only when a recorded
 prerequisite creates a materially different hypothesis.

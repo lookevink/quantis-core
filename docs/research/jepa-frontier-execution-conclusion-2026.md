@@ -45,6 +45,11 @@ It is not a claim that JEPA fails generally.
 | task-grounded Contract-JEPA | immutable raw bypass, bounded correction, and a learned effect witness | both controls predicted better; witness produced 100% transfer control false alarms | reject |
 | Error-Certificate-JEPA | exact raw preservation, independently calibrated bounds, and 99.91% point coverage | only 80% simultaneous control coverage, zero treatment detection, no sharpness advantage | reject |
 | SALT-JEPA | exact static teacher, restorable student, aligned latent advantage over derangement | v2 transfer advantage was 8.89%; transfer effect error remained 1.91× raw | reject |
+| exact LeNEPA | disposable projection and twelve passing protocol checks | projection failed its mechanism gate; transfer effect error remained 1.92× raw | reject |
+| Discrete-JEPA | exact hard semantic tokenizer and complementary objectives | one code per entity, no P2P gain, transfer effect error remained 1.92× raw | reject |
+| PEIRA | real non-collapsed inter-view regressor-alignment mechanism | lost both controls, retained 1.91× raw transfer effect error, won 3/10 pairs | reject |
+| VISReg | exact scale/shape mechanism passed its small-radius gradient check | detached projector rank collapsed to 1.12 and retained 1.97× raw transfer effect error | reject |
+| exact JEPA-SCORE | all protocol and edge gates passed at 51.4 ms median and 60.2 ms p95 | 40% selection pair wins, 10% IID detection, and zero transfer detection | reject alert recipe; retain exact-score feasibility |
 
 The linked
 [wayfinding map](../wayfinding/jepa-implementation-program/map.md) binds every
@@ -69,6 +74,10 @@ Several ideas worked as mechanisms but not as alerting systems:
 - **MoP-JEPA** genuinely specialized hard heads and remained tiny and fast
   enough for an edge process. The alternatives were not better conditional
   futures than a static codebook or raw dynamics.
+- **Exact JEPA-SCORE** resolved an operational uncertainty: full Jacobian/SVD
+  scoring fits this edge budget without approximation. Its frozen density
+  score did not separate treatment from control, so feasibility is not alert
+  value.
 
 These are research signals, not promotion candidates. Edge feasibility,
 non-collapse, rank, or a lower self-supervised loss never overrides failed
@@ -117,16 +126,19 @@ The retained implementations cover:
 - raw-preserving residual correction;
 - whole-entity observability interventions;
 - episode-predictive retrieval;
-- likelihood-responsibility trajectory mixtures; and
+- likelihood-responsibility trajectory mixtures;
 - hard winner-take-all predictor mixtures with router gating, context
   shuffling, codebook control, and realized-transition precision;
 - matched-twin effect prediction with supervised and deranged-pair controls;
 - raw-bypass task-grounded residual contracts with explicit effect witnesses;
-  and
 - JEPA-assisted empirical error certificates with raw-only, deranged, and
-  direct conformal controls; and
+  direct conformal controls;
 - reconstructive static-teacher asymmetric latent training with an
-  equal-capacity deranged-target control.
+  equal-capacity deranged-target control;
+- disposable LeNEPA projections and hard Discrete-JEPA semantic tokens;
+- PEIRA inter-view regressor alignment and VISReg scale-shape regularization;
+  and
+- exact local-density scoring from full encoder Jacobian singular values.
 
 All candidate inference paths were implemented as bounded CPU/edge paths.
 That closes the prior frozen runnable queue and the three locally formulated

@@ -299,6 +299,86 @@ The frozen path is non-overwriting. Smoke overrides require
 cannot advance. Selected checkpoints, smoke artifacts, failed staging
 bundles, source copies, and negative evidence are retained.
 
+## VISReg scale-shape regularization
+
+Recompute the exact two-cell VISReg tracer in a fresh retained directory:
+
+```bash
+PYTHONPATH=src .venv/bin/python \
+  lab/action_dynamics/prototype_visreg.py \
+  --output artifacts/action-dynamics/reproductions/visreg-rerun-001 \
+  --allow-noninterpretable-smoke
+```
+
+Independently verify the manifest and rederive the mechanism, state, effect,
+restoration, latency, and final gate values from stored evidence:
+
+```bash
+PYTHONPATH=src .venv/bin/python \
+  lab/action_dynamics/prototype_visreg_assessor.py \
+  artifacts/action-dynamics/reproductions/visreg-rerun-001
+```
+
+- Exact schedule: 1,600 steps per VISReg cell and 100 latency repetitions
+- Implementation commit:
+  `985d448308dd32b65782a462abd27f7fcbca3859`
+- Specification:
+  `docs/specs/visreg-telemetry-tracer-v1.md`
+- Primary-source notes:
+  `docs/research/visreg-primary-source-notes.md`
+- Result interpretation:
+  `docs/research/visreg-telemetry-v1-results.md`
+- Published local artifact:
+  `artifacts/action-dynamics/prototype-visreg-v1`
+- Published manifest SHA-256:
+  `029dd91e4b158b82ca9658ac4e97bf825ba7097a2988d5dbb1a594d573b44b18`
+
+The published path is immutable. A fresh output path is deliberately labeled
+non-interpretable even when it uses the full schedule; it can reproduce the
+mechanics and evidence but cannot mint a second scientific decision.
+
+## Exact JEPA-SCORE edge alerting
+
+Recompute all 500 rows for all three frozen representation cells, including
+the exact full Jacobian and SVD, in a fresh retained directory:
+
+```bash
+PYTHONPATH=src .venv/bin/python \
+  lab/action_dynamics/prototype_jepa_score.py \
+  --output artifacts/action-dynamics/reproductions/jepa-score-rerun-001 \
+  --allow-noninterpretable-smoke
+```
+
+Independently reconstruct the model route and rederive every score, role,
+threshold, alert metric, latency receipt, and gate:
+
+```bash
+PYTHONPATH=src .venv/bin/python \
+  lab/action_dynamics/prototype_jepa_score_assessor.py \
+  --artifact artifacts/action-dynamics/reproductions/jepa-score-rerun-001 \
+  --cache artifacts/action-dynamics/edge-preprocessing-v1/eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff \
+  --prior artifacts/action-dynamics/prototype-complete-lejepa-v1
+```
+
+- Exact score: Appendix-B full singular-value reduction with `1e-6` clipping
+- Fixed anchors: 19, 39, 59, 79, and 97
+- Implementation commit:
+  `b12b3b6d040729b2b2479b94ad251174cd316c44`
+- Specification:
+  `docs/specs/jepa-score-edge-screen-v1.md`
+- Primary-source notes:
+  `docs/research/jepa-score-primary-source-notes.md`
+- Result interpretation:
+  `docs/research/jepa-score-edge-screen-v1-results.md`
+- Published local artifact:
+  `artifacts/action-dynamics/prototype-jepa-score-v1`
+- Published manifest SHA-256:
+  `e678101945c3b99cd325e003f23fdbef334c09ef29ef68f89220cc244012ed86`
+
+The published path is immutable. Four failed smoke builds are intentionally
+retained as provenance for contract hardening. Fresh-path reruns cannot
+advance even when their numerical evidence matches the published result.
+
 ## Artifact availability
 
 The experiment artifacts are currently local and excluded by the repository's

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: complete
 label: wayfinder:ticket
 title: Test exact JEPA-SCORE edge alerting
 ---
@@ -24,3 +24,14 @@ Conclude with an immutable artifact and result record. Promote only if exact
 edge runtime, role-clean safety, and held-topology alert value all pass. Keep
 all code and evidence after either outcome.
 
+## Result
+
+Rejected. All 13 protocol gates and all eight edge-safety gates passed, with
+`51.359 ms` median and `60.195 ms` p95 exact scorer latency. All five value
+gates failed: selection pair wins were `0.40`, IID treatment detection was
+`0.10`, and transfer treatment detection was `0.00`.
+
+See the
+[retained result](../../research/jepa-score-edge-screen-v1-results.md). The
+immutable artifact manifest SHA-256 is
+`e678101945c3b99cd325e003f23fdbef334c09ef29ef68f89220cc244012ed86`.

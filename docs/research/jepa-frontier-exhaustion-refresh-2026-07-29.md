@@ -144,6 +144,11 @@ the complete predictor-free LeJEPA representation was state-accessible but
 operationally inferior to raw dynamics, so PEIRA should be treated as a
 bounded representation ablation rather than a likely alert system.
 
+**Executed result:** rejected. The aligned cell learned a real non-collapsed
+trace mechanism but lost to derangement and reconstruction controls, retained
+1.91× raw transfer effect error, and won three of ten pairs. See the
+[retained result](peira-telemetry-v1-results.md).
+
 ### 7. VISReg — exact regularizer omission, low value priority
 
 [VISReg](https://arxiv.org/abs/2606.02572) combines an explicit variance floor
@@ -155,14 +160,23 @@ It is runnable and adds no inference cost, but Quantis already showed that
 several active changes in latent rank and geometry did not restore state or
 effect value. VISReg is therefore a bounded ablation, not a new program.
 
-### 8. JEPA-SCORE — untested value path, not a trainer
+**Executed result:** rejected. The exact small-radius gradient mechanism
+passed, but the detached candidate collapsed to projector rank 1.12, retained
+1.97× raw transfer effect error, and lost to no-detach and reconstruction
+controls. See the [retained result](visreg-telemetry-v1-results.md).
+
+### 8. JEPA-SCORE — executed value path, not a trainer
 
 [JEPA-SCORE](https://arxiv.org/abs/2510.05949) derives a local density score
 from encoder Jacobian singular values. It is a genuinely different way to use
 a fitted encoder, but it does not repair the predictive representation.
-Exact per-event Jacobian/SVD scoring remains a latency concern; an
-approximation would be a new method and must be compared with raw residual and
-conformal scores.
+The frozen screen resolved the latency concern without approximation.
+
+**Executed result:** rejected for alerting, retained for feasibility. Exact
+full-Jacobian/SVD scoring passed every protocol and edge gate at 51.4 ms
+median and 60.2 ms p95, but won 40% of selection pairs, detected 10% of IID
+treatments, and detected no transfer treatments. See the
+[retained result](jepa-score-edge-screen-v1-results.md).
 
 ## Known mechanisms that do not become small-stack alert experiments
 
@@ -275,9 +289,10 @@ confirmation.
 
 Interaction-aware target selection was exercised through matched-pair effect
 supervision and task-grounded witnesses; neither established incremental
-value. SALT was nevertheless run as a bounded exact-recipe omission and also
-failed. Exact LeNEPA follows. Discrete-JEPA, PEIRA,
-VISReg, and approximate JEPA-SCORE remain lower-priority bounded ablations.
+value. SALT, exact LeNEPA, Discrete-JEPA, PEIRA, VISReg, and exact
+JEPA-SCORE were then run as bounded omissions and rejected before robustness
+or sealed confirmation. JEPA-SCORE did establish that exact, unapproximated
+Jacobian/SVD scoring fits the edge budget.
 
 This outcome accepts that the stack is intentionally small. The next action
 is shadow deployment of the retained non-JEPA baselines, not data expansion
