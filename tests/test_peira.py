@@ -275,6 +275,60 @@ def test_peira_assessment_rejects_failed_mechanism() -> None:
     assert assessment["decision"] == "reject_peira_recipe"
 
 
+def test_peira_moment_replay_accepts_float32_loss_rounding() -> None:
+    from lab.action_dynamics.prototype_peira_assessor import (
+        PEIRA_NAMES,
+        recompute_peira_training_moments,
+    )
+
+    configs = {
+        name: PeiraConfig(
+            objective=name,
+            steps=1,
+            width=8,
+            head_count=2,
+            feedforward_width=16,
+            projector_width=16,
+            warmup_steps=1,
+        ).to_dict()
+        for name in PEIRA_NAMES
+    }
+    arrays = {}
+    for name in PEIRA_NAMES:
+        for field in (
+            "batch_signal",
+            "batch_noise",
+            "running_signal",
+            "running_noise",
+        ):
+            arrays[f"training__{name}__{field}"] = np.zeros(
+                (1, 8, 8), dtype=np.float64
+            )
+        arrays[f"training__{name}__eta"] = np.ones(
+            1, dtype=np.float64
+        )
+        for field in (
+            "auxiliary_value",
+            "trace_objective",
+            "trace_predictor",
+            "symmetry_error",
+            "solve_residual",
+        ):
+            arrays[f"training__{name}__{field}"] = np.zeros(
+                1, dtype=np.float64
+            )
+        arrays[f"training__{name}__loss"] = np.asarray(
+            [2.2e-7], dtype=np.float64
+        )
+        arrays[f"training__{name}__condition_number"] = np.ones(
+            1, dtype=np.float64
+        )
+
+    assert recompute_peira_training_moments(
+        {"configs": configs}, arrays
+    )
+
+
 def test_peira_smoke_artifact_reassesses(tmp_path: Path) -> None:
     from lab.action_dynamics.prototype_peira import (
         FROZEN_CACHE,

@@ -356,7 +356,7 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         "public_inference_is_causal": _public_inference_is_causal(root),
         "all_schedules_recompute": schedule_ok,
         "training_moments_recompute": (
-            _training_moments_recompute(metadata, arrays)
+            recompute_peira_training_moments(metadata, arrays)
         ),
         "final_operators_recompute": _final_operators_recompute(
             metadata, arrays
@@ -984,10 +984,12 @@ def _selection_recomputes(
     return bool(chosen_ok), bool(failed_ok)
 
 
-def _training_moments_recompute(
+def recompute_peira_training_moments(
     metadata: Mapping[str, Any],
     arrays: Mapping[str, np.ndarray],
 ) -> bool:
+    """Replay retained PEIRA moments and bounded training scalars."""
+
     for name in PEIRA_NAMES:
         config = PeiraConfig.from_dict(
             dict(dict(metadata["configs"])[name])
@@ -1061,7 +1063,11 @@ def _training_moments_recompute(
                     float(arrays[f"training__{name}__{field}"][step]),
                     float(value),
                     rtol=1e-5,
-                    atol=1e-7,
+                    atol=(
+                        1e-6
+                        if field in ("loss", "auxiliary_value")
+                        else 1e-7
+                    ),
                 )
                 for field, value in expected.items()
             ):
