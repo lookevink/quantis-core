@@ -257,6 +257,48 @@ The frozen path is non-overwriting. Smoke overrides require
 payloads are written and restored under `objective-checkpoints/` before the
 runner starts the next cell; failed staging bundles are preserved.
 
+## SD-JEPA progression/content event localization
+
+Run canonical A2 and its capacity-matched A0 and A2-full controls:
+
+```bash
+.venv/bin/python -m lab.action_dynamics.prototype_sd_jepa \
+  --output artifacts/action-dynamics/reproductions/sd-jepa-rerun-001
+```
+
+Independently verify the manifest and rederive calibration, event
+localization, progress probes, alert metrics, state retention, restoration,
+and the decision from stored arrays:
+
+```bash
+.venv/bin/python -m \
+  lab.action_dynamics.prototype_sd_jepa_assessor \
+  artifacts/action-dynamics/reproductions/sd-jepa-rerun-001
+```
+
+- Seed: `15015`
+- Exact schedule: 300 steps per cell, checkpoints every 50, pair-blocked
+  batches, cosine learning-rate decay, 100 latency repetitions
+- Implementation commit:
+  `8ece9c9e91061db17a0399af0e7be0f15ab1e0b3`
+- Official SD-JEPA revision:
+  `1cc121065e83220a495808f4c65ef4b0b1915f9f`
+- Specification:
+  `docs/specs/sd-jepa-alert-tracer-v1.md`
+- Primary-source notes:
+  `docs/research/sd-jepa-primary-source-notes.md`
+- Result interpretation:
+  `docs/research/sd-jepa-alert-v1-results.md`
+- Published local artifact:
+  `artifacts/action-dynamics/prototype-sd-jepa-alert-v1`
+- Published manifest SHA-256:
+  `45bf49091c33553c2f06fcac1c9260762741f833fdd34a5e85376e44e7f6903b`
+
+The frozen path is non-overwriting. Smoke overrides require
+`--allow-noninterpretable-smoke`, reduce only the SIGReg sketch count, and
+cannot advance. Selected checkpoints, smoke artifacts, failed staging
+bundles, source copies, and negative evidence are retained.
+
 ## Artifact availability
 
 The experiment artifacts are currently local and excluded by the repository's
