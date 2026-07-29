@@ -47,7 +47,7 @@ FROZEN_CACHE = Path(
     "eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff"
 )
 FROZEN_OUTPUT = Path(
-    "artifacts/action-dynamics/prototype-error-certificate-jepa-v1"
+    "artifacts/action-dynamics/prototype-error-certificate-jepa-v2"
 )
 FROZEN_PRETRAIN_STEPS = 800
 IMPLEMENTATION_SOURCE_PATHS = (
@@ -336,7 +336,7 @@ def run_experiment(
                 windows.future_actions.astype(np.float32)
             )
             evidence[f"realized_error__{role}"] = (
-                realized_errors[role].astype(np.float32)
+                realized_errors[role].astype(np.float64)
             )
             evidence[f"raw_mean__{role}"] = (
                 raw_distributions[role].mean.astype(np.float32)
@@ -348,16 +348,16 @@ def run_experiment(
                 np.full_like(
                     realized_errors[role],
                     constant_bound,
-                    dtype=np.float32,
+                    dtype=np.float64,
                 )
             )
             for name in CELL_NAMES:
                 evidence[f"unadjusted__{name}__{role}"] = (
-                    unadjusted[name][role].astype(np.float32)
+                    unadjusted[name][role].astype(np.float64)
                 )
                 evidence[f"bound__{name}__{role}"] = bounds[name][
                     role
-                ].astype(np.float32)
+                ].astype(np.float64)
         for name in CELL_NAMES:
             evidence[
                 f"wrapper_raw_mean__{name}__transfer_evaluation"

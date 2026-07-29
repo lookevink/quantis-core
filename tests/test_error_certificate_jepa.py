@@ -233,6 +233,12 @@ def test_error_certificate_smoke_reassesses_from_stored_evidence(
     assert assessment["eligible_for_advance"] is False
     assert assessment["passed"] is False
     assert (
+        assessment["safety_gates"][
+            "calibration_recomputes_exactly"
+        ]
+        is True
+    )
+    assert (
         assessment["decision"]
         == "non_interpretable_error_certificate_jepa_smoke"
     )
