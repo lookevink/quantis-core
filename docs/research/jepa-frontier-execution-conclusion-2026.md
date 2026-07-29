@@ -18,8 +18,10 @@ The strongest current deployment candidates are not JEPAs:
 3. use the existing explicit calibration, abstention, and policy contracts
    around those baselines before considering paging.
 
-This is a bounded negative conclusion for this one-stack, mostly
-deterministic corpus. It is not a claim that JEPA fails generally.
+This is a bounded negative conclusion for the deliberately small, one-stack,
+mostly deterministic deployment boundary. The single-stack scope is a product
+constraint, not a corpus defect and not a reason to acquire unrelated stacks.
+It is not a claim that JEPA fails generally.
 
 ## Completed experiment matrix
 
@@ -82,11 +84,18 @@ the raw model. Three patterns recur:
    state probes, event-sensitive angles, head diversity, and completion can
    improve while transfer effects, attribution, calibration, or alert policy
    degrade.
-3. **There is only one logical stack family.** Cross-stack semantics and
-   invariance cannot be established by overlapping windows from one system.
+3. **The product intentionally targets one logical stack family.** Cross-stack
+   invariance is therefore out of scope. A useful candidate must exploit
+   within-stack randomized interventions, topology changes, operational
+   identities, or missing/recovery behavior without making additional stacks
+   a prerequisite.
 
-The experiments therefore falsify “try another JEPA objective on the same
-data” as the next best action.
+The experiments therefore falsify “try another generic JEPA objective on the
+same targets” as the next best action. They do not close objectives that use
+the corpus's matched interventions or the bounded alert/effect decision as
+the target equivalence relation. The
+[2026-07-29 exhaustion refresh](jepa-frontier-exhaustion-refresh-2026-07-29.md)
+records those remaining mechanisms and their controls.
 
 ## Frontier edge-runnable techniques actually tried
 
@@ -109,8 +118,11 @@ The retained implementations cover:
   shuffling, codebook control, and realized-transition precision.
 
 All candidate inference paths were implemented as bounded CPU/edge paths.
-That closes the runnable objective-level omissions; modality ports and
-backbone changes are not separate scientific hypotheses.
+That closes the prior frozen runnable queue; modality ports and backbone
+changes are not separate scientific hypotheses. It does not literally exhaust
+every known objective family: decision/value anchoring, interaction-aware
+target selection, and a static reconstructive target teacher remain exact
+one-stack omissions.
 
 ## Techniques intentionally not run
 
@@ -131,7 +143,7 @@ that the current project does not have.
 | Fast-LeWorldModel | a rollout-throughput bottleneck; direct multi-horizon prediction already exists |
 | Temporal-Distance JEPA and temporal straightening | an actual latent-planning lane |
 | MJEPA | aligned, information-bearing metric/event/trace modalities after event data adds value |
-| CHARM | at least six independent stacks and 765 additional matched pairs under the frozen acquisition audit |
+| CHARM | out of scope: its cross-environment invariance claim conflicts with the deliberate one-stack product boundary |
 | VL-JEPA | aligned operator language, incidents, or tickets |
 | US-JEPA/domain teacher | a trustworthy pretrained telemetry teacher |
 | DMT-, DSeq-, P-, and ER-JEPA | respectively useful graph neighbors, salience-safe targets, long procedures, or interval hierarchy evidence |
@@ -139,18 +151,27 @@ that the current project does not have.
 
 ## Recommended next target
 
-The next target is not another JEPA paper.
+The next target is not another generic JEPA paper port.
 
 1. Run the raw rank-32 and direct retrieval baselines in a bounded shadow
    alerting system with explicit abstention and operator feedback.
-2. Acquire the cross-stack corpus required by the frozen diversity contract:
-   six independent stacks and at least 765 additional matched pairs.
+2. Keep data collection inside the declared stack. Prefer new randomized
+   matched interventions, worker-topology variation, and explicit operational
+   contract violations that test the alerting lane directly.
 3. Measure real missing-channel frequency, recovery trajectories, and
    residual heteroscedasticity. Open T-JEPA, BiJEPA, or probabilistic belief
    work only if those measurements satisfy their prerequisites.
 4. Revisit HEPA only after event diversity and treatment coverage materially
    change; revisit MoP only with repeated conditionally identical contexts or
    an environment that can verify several valid successors.
+
+If the JEPA program continues, start with the locally formulated
+**PairEffect-JEPA** tracer in the
+[exhaustion refresh](jepa-frontier-exhaustion-refresh-2026-07-29.md). It makes
+each randomized treatment/control pair the training unit and predicts the
+paired intervention effect while preserving the frozen raw path. Its required
+comparators are a supervised paired-effect model, a capacity-matched
+deranged-pair null, and raw rank-32 dynamics.
 
 ## Evidence boundary
 

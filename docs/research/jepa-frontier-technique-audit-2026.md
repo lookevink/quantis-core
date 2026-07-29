@@ -49,8 +49,8 @@ The repository already contains reproducible code and negative evidence for:
 - official-formula SIGReg substituted into the existing EMA residual model;
 - complete predictor-free multi-view LeJEPA;
 - episode retrieval-JEPA; and
-- a cross-stack representation contract, currently blocked by the absence of
-  enough independent stacks.
+- a cross-stack representation contract, retained as an audit artifact but
+  out of scope because the product deliberately targets one small stack.
 
 Those experiments rejected exact recipes, not the whole JEPA family. The
 recurring local failure was a learned latent bottleneck that lost
