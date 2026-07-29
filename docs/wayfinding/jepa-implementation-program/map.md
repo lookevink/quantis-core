@@ -1,5 +1,5 @@
 ---
-status: open
+status: complete
 label: wayfinder:map
 title: Evaluate the unimplemented JEPA families
 ---
@@ -50,7 +50,7 @@ disposition for every family.
 - [Test Delta-JEPA action-sensitive displacement](016-test-delta-jepa-action-displacement.md) — The displacement was state-rich and predicted observable change, but endpoint concatenation decoded treatment actions much better and every neural cell nearly doubled raw transfer effect error; reject the recipe and proceed to the exact LeWorldModel geometry screen.
 - [Test the LeWorldModel bounded geometry screen](017-test-leworld-geometry-screen.md) — No regularized cell was selection-safe. SPHERE-JEPA won the diagnostic selection by a negligible margin, then lost transfer value and state information; ambient and Sub-JEPA collapsed without meeting the UR-JEPA prerequisite. Reject and proceed to Causal-JEPA.
 - [Test Causal-JEPA's entity intervention](018-test-causal-jepa-entity-intervention.md) — Whole-entity masking learned completion beyond persistence but lost to matched coordinate-time masking, regressed raw held-topology effects by more than threefold, and won half of transfer pairs. Reject and proceed to MoP-JEPA.
-- [Test MoP-JEPA hard-assigned predictors](019-test-mop-jepa-hard-assignment.md) — In progress under a frozen hard-WTA, context-dependence, transition-precision, proper-score, and edge-safety contract.
+- [Test MoP-JEPA hard-assigned predictors](019-test-mop-jepa-hard-assignment.md) — Hard assignment activated and produced transition-valid alternatives, but lost to supervised hard-WTA and raw dynamics, failed conditional-codebook value, and regressed held-topology effects by 4.65×. Reject the recipe.
 
 ## Not yet specified
 
@@ -66,12 +66,13 @@ disposition for every family.
 - CHARM and other cross-stack semantic methods remain blocked by ticket 010's
   acquisition prerequisite.
 
-## Next target
+## Conclusion
 
-- Freeze and test MoP-JEPA's hard best-of-K predictor specialization against
-  the prior likelihood-trained mixture, supervised best-of-K, single-head,
-  and raw controls. Require proper mixture and observable value, not merely
-  head diversity.
+All materially distinct, currently runnable omissions identified by ticket
+011 have now been executed. None earned fixed-seed robustness or sealed
+confirmation. Do not train another JEPA recipe on the one-stack corpus until a
+recorded prerequisite changes; use the retained raw dynamics and direct
+retrieval controls as the next shadow-system baselines.
 
 ## Out of scope
 

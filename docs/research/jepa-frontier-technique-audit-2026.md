@@ -2,10 +2,11 @@
 
 ## Decision
 
-Quantis has not exhausted the JEPA design space. It has tested most of the
-canonical masked-prediction recipes and several important frontier ideas, but
-it has not tested the most directly relevant 2026 event-prediction recipe:
-[HEPA](https://arxiv.org/abs/2605.11130). HEPA is the next tracer.
+The runnable queue identified by this audit is now complete. HEPA, complete
+SC-JEPA, CF-JEPA, SD-JEPA, Delta-JEPA, exact LeWorldModel plus its bounded
+geometry matrix, Causal-JEPA, and MoP-JEPA were all implemented and rejected
+under their frozen gates. See the
+[execution conclusion](jepa-frontier-execution-conclusion-2026.md).
 
 The remaining work is not “try every paper with JEPA in the title.” Many
 papers are modality or backbone ports of the same objective. The scientifically
@@ -13,7 +14,7 @@ useful queue is the set of materially different mechanisms: a different
 training signal, target construction, collapse constraint, latent geometry,
 predictive distribution, or deployment value path.
 
-The recommended order is:
+The completed execution order was:
 
 1. HEPA horizon-conditioned event prediction;
 2. the complete SC-JEPA codebook-plus-multi-resolution interaction;
@@ -23,8 +24,8 @@ The recommended order is:
 6. exact LeWorldModel with a controlled ambient/subspace geometry screen;
 7. Causal-JEPA entity-trajectory interventions;
 8. uncertainty-aware joint embeddings, beginning with MoP-JEPA; and
-9. lower-priority channel, cross-modal, physics, and geometric variants only
-   when their stated prerequisite is present.
+9. lower-priority channel, cross-modal, physics, and belief variants remain
+   conditional on their stated prerequisites.
 
 This audit covers primary sources available through 2026-07-28. Claims below
 about telemetry fit are inferences from those sources and the Quantis results,
@@ -390,12 +391,9 @@ passes a separate latency feasibility test.
 
 ## Conclusion
 
-The omission is real, but bounded. HEPA, the complete SC-JEPA interaction,
-CF-JEPA, SD-JEPA, Delta-JEPA, exact LeWorldModel/Sub-JEPA, Causal-JEPA, and
-MoP-JEPA are the materially distinct, currently runnable families worth
-preserving as reproducible tracers. The first of these should be HEPA because
-it tests an alert-native value proposition under the existing open corpus and
-shared trajectory-level gates. Cross-stack semantic methods remain blocked by
-data, while diffusion, density-matrix, and Jacobian-score approaches should
-not consume edge implementation effort until simpler tracers establish a
-predictable residual or alert benefit.
+The omission was real and bounded; the runnable set is now preserved as
+reproducible tracers and negative evidence. None should advance. Cross-stack
+semantic methods remain blocked by data, while diffusion, density-matrix, and
+Jacobian-score approaches should not consume edge implementation effort until
+their recorded prerequisites establish a predictable residual, distinct
+future, or alert benefit.
