@@ -1638,12 +1638,29 @@ def build_complete_lejepa_backbone(
     )
 
 
+def build_telemetry_backbone(
+    torch: Any,
+    *,
+    feature_count: int,
+    graph: DeclaredTelemetryGraph,
+    config: Any,
+) -> Any:
+    """Build the shared entity-preserving telemetry view encoder."""
+
+    return _build_backbone(
+        torch,
+        feature_count=feature_count,
+        graph=graph,
+        config=config,
+    )
+
+
 def _build_backbone(
     torch: Any,
     *,
     feature_count: int,
     graph: DeclaredTelemetryGraph,
-    config: CompleteLejepaConfig,
+    config: Any,
 ) -> Any:
     """Build the fixed pre-norm graph-biased telemetry transformer."""
 
