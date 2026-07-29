@@ -1,6 +1,6 @@
 # Test LeWorldModel bounded geometry screen
 
-- Status: active
+- Status: complete
 - Depends on:
   - [Audit remaining JEPA frontier](011-audit-remaining-jepa-frontier.md)
   - [Test Delta-JEPA action-sensitive displacement](016-test-delta-jepa-action-displacement.md)
@@ -21,11 +21,22 @@ Preserve every cell, smoke, failure, and final bundle.
 
 ## Completion
 
-- [ ] Unit tests cover every regularizer, equal capacity, restoration,
+- [x] Unit tests cover every regularizer, equal capacity, restoration,
   pair-blocking, causal public encoding, and pure assessment.
-- [ ] A non-interpretable smoke completes and independently reassesses.
-- [ ] Implementation is reviewed, full-suite clean, and committed before the
+- [x] A non-interpretable smoke completes and independently reassesses.
+- [x] Implementation is reviewed, full-suite clean, and committed before the
   official run.
-- [ ] The 800-step official matrix and fresh-process assessment complete.
-- [ ] The result, UR-JEPA prerequisite decision, and next Causal-JEPA target
+- [x] The 800-step official matrix and fresh-process assessment complete.
+- [x] The result, UR-JEPA prerequisite decision, and next Causal-JEPA target
   are recorded.
+
+## Outcome
+
+Resolved on 2026-07-29 by the retained
+[result](../../research/leworld-geometry-screen-v1-results.md).
+
+Reject the recipe. No regularized cell was selection-safe. The diagnostic
+SPHERE-JEPA winner had effective rank `5.474`, worsened prediction-only
+transfer effect, won 40% of transfer pairs, and nearly doubled raw effect
+error. Ambient and Sub-JEPA both collapsed but were not otherwise competitive,
+so the frozen UR-JEPA prerequisite was absent. Proceed to Causal-JEPA.

@@ -48,11 +48,11 @@ disposition for every family.
 - [Test CF-JEPA mask-free multi-horizon alerting](014-test-cf-jepa-alert-tracer.md) — The EMA target became smoother, lower rank, and state-rich, but three zones lost narrowly to one zone, all neural routes tied at 90% detection, and the 10% control false-alarm rate exceeded the frozen ceiling; reject this recipe and proceed to SD-JEPA.
 - [Test SD-JEPA progression/content telemetry](015-test-sd-jepa-alert-tracer.md) — The split made angular change more event-sensitive than A0, but the designated coordinates did not encode progression and the calibrated transfer policy emitted no alerts; reject the recipe and proceed to Delta-JEPA.
 - [Test Delta-JEPA action-sensitive displacement](016-test-delta-jepa-action-displacement.md) — The displacement was state-rich and predicted observable change, but endpoint concatenation decoded treatment actions much better and every neural cell nearly doubled raw transfer effect error; reject the recipe and proceed to the exact LeWorldModel geometry screen.
+- [Test the LeWorldModel bounded geometry screen](017-test-leworld-geometry-screen.md) — No regularized cell was selection-safe. SPHERE-JEPA won the diagnostic selection by a negligible margin, then lost transfer value and state information; ambient and Sub-JEPA collapsed without meeting the UR-JEPA prerequisite. Reject and proceed to Causal-JEPA.
 
 ## Not yet specified
 
-- Next execute the exact LeWorldModel/geometry matrix, Causal-JEPA, and
-  MoP-JEPA in that order. Open each tracer ticket only when
+- Next execute Causal-JEPA and MoP-JEPA in that order. Open each tracer ticket only when
   the preceding result makes its exact smallest falsifier clear.
 - T-JEPA missing-channel robustness, V-JEPA 2.1 deep self-supervision,
   BiJEPA, Koopman-constrained prediction, Phys-JEPA, and seq-JEPA remain
@@ -68,9 +68,9 @@ disposition for every family.
 
 ## Next target
 
-- [Test the LeWorldModel bounded geometry screen](017-test-leworld-geometry-screen.md)
-  — Active. Hold the predictor and downstream probe fixed while comparing
-  ambient, subspace, rectified, kernel, and spherical distribution geometry.
+- Freeze and test Causal-JEPA's whole-entity trajectory intervention against
+  coordinate-time masking and prediction-only controls. Require observable
+  interaction recovery rather than accepting masked latent loss alone.
 
 ## Out of scope
 
