@@ -67,8 +67,9 @@ disposition for every family.
 
 ## Next target
 
-- Specify and test Delta-JEPA's latent-displacement action decoder against
-  the paper's endpoint-concatenation null and the raw rank-32 effect model.
+- [Test Delta-JEPA action-sensitive displacement](016-test-delta-jepa-action-displacement.md)
+  — Active. Decode five-step actions from latent displacement against the
+  capacity-matched endpoint-concatenation null and raw rank-32 effect model.
 
 ## Out of scope
 
