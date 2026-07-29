@@ -967,6 +967,11 @@ def assess_salt_jepa_gates(
         "mask_schedule_is_valid": bool(
             protocol_checks.get("mask_schedule_is_valid", False)
         ),
+        "selection_only_ridge_choice_recomputes": bool(
+            protocol_checks.get(
+                "selection_only_ridge_choice_recomputes", False
+            )
+        ),
         "selection_overall_within_1_05_raw": (
             candidate_selection["overall_mse"]
             <= 1.05 * raw_selection["overall_mse"]

@@ -1,5 +1,12 @@
 import numpy as np
 
+from lab.action_dynamics.prototype_salt_jepa import (
+    FROZEN_CACHE,
+    run_experiment,
+)
+from lab.action_dynamics.prototype_salt_jepa_assessor import (
+    verify_stored_assessment,
+)
 from quantis_core.action_conditioned_dynamics import (
     ActionConditionedWindows,
 )
@@ -195,6 +202,7 @@ def test_salt_assessment_recomputes_failed_raw_safety() -> None:
             "pair_and_trajectory_roles_are_disjoint": True,
             "public_inference_is_causal": True,
             "mask_schedule_is_valid": True,
+            "selection_only_ridge_choice_recomputes": True,
         },
         parameter_counts={
             "salt_jepa": {"training": 10, "inference": 5},
@@ -218,6 +226,24 @@ def test_salt_assessment_recomputes_failed_raw_safety() -> None:
     ]
     assert assessment["mechanism_gates"]["masked_latent_advantage"]
     assert assessment["decision"] == "reject_salt_jepa_telemetry_recipe"
+
+
+def test_salt_smoke_artifact_reassesses_from_stored_arrays(tmp_path) -> None:
+    output = tmp_path / "salt-smoke"
+
+    run_experiment(
+        cache_directory=FROZEN_CACHE,
+        output_directory=output,
+        teacher_steps=1,
+        student_steps=1,
+        latency_repetitions=1,
+        allow_noninterpretable_smoke=True,
+    )
+
+    assessment = verify_stored_assessment(output)
+    assert assessment["decision"] == "non_interpretable_salt_jepa_smoke"
+    assert (output / "artifact-manifest.json").is_file()
+    assert (output / "reproduction-source").is_dir()
 
 
 def _tiny_windows(
