@@ -45,7 +45,7 @@ FROZEN_CACHE = Path(
     "eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff"
 )
 FROZEN_OUTPUT = Path(
-    "artifacts/action-dynamics/prototype-pair-effect-jepa-v1"
+    "artifacts/action-dynamics/prototype-pair-effect-jepa-v2"
 )
 FROZEN_PRETRAIN_STEPS = 800
 IMPLEMENTATION_SOURCE_PATHS = (
@@ -202,6 +202,7 @@ def run_experiment(
             for name, dynamics in composed.items()
         }
 
+        restoration_evidence: Dict[str, np.ndarray] = {}
         restored_max = 0.0
         sample = roles["transfer_evaluation"]
         for name in CELL_NAMES:
@@ -213,15 +214,35 @@ def run_experiment(
                 sample.future_controls[:8],
                 sample.future_actions[:8],
                 sample.graph,
-            ).mean
+            )
             replay = restored.rollout(
                 sample.histories[:8],
                 sample.future_controls[:8],
                 sample.future_actions[:8],
                 sample.graph,
-            ).mean
+            )
+            restoration_evidence[
+                f"restoration_original_mean__{name}"
+            ] = original.mean
+            restoration_evidence[
+                f"restoration_restored_mean__{name}"
+            ] = replay.mean
+            restoration_evidence[
+                f"restoration_original_variance__{name}"
+            ] = original.variance
+            restoration_evidence[
+                f"restoration_restored_variance__{name}"
+            ] = replay.variance
             restored_max = max(
-                restored_max, float(np.max(np.abs(original - replay)))
+                restored_max,
+                float(np.max(np.abs(original.mean - replay.mean))),
+                float(
+                    np.max(
+                        np.abs(
+                            original.variance - replay.variance
+                        )
+                    )
+                ),
             )
         no_action = np.zeros_like(sample.future_actions[:8])
         no_action[..., 0] = 1.0
@@ -290,6 +311,12 @@ def run_experiment(
                 evidence[
                     f"action_sanity__{name}__{variant}"
                 ] = values.astype(np.float32)
+        evidence.update(
+            {
+                name: values.astype(np.float64)
+                for name, values in restoration_evidence.items()
+            }
+        )
         np.savez_compressed(building / "evidence.npz", **evidence)
 
         parameter_counts = {

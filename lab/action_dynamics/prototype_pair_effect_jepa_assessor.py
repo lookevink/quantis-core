@@ -147,6 +147,26 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         int(dict(value)["inference"])
         for value in parameter_counts.values()
     }
+    restoration_differences = [
+        float(
+            np.max(
+                np.abs(
+                    arrays[f"restoration_original_{field}__{name}"]
+                    - arrays[
+                        f"restoration_restored_{field}__{name}"
+                    ]
+                )
+            )
+        )
+        for name in CELL_NAMES
+        for field in ("mean", "variance")
+        if f"restoration_original_{field}__{name}" in arrays
+        and f"restoration_restored_{field}__{name}" in arrays
+    ]
+    restoration_arrays_match = (
+        len(restoration_differences) == 2 * len(CELL_NAMES)
+        and max(restoration_differences) <= 1e-6
+    )
     safety = {
         "all_evidence_is_finite": finite,
         "capacity_is_matched": (
@@ -155,7 +175,9 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         "restoration_max_abs_at_most_1e_6": float(
             metadata["restoration_max_abs"]
         )
-        <= 1e-6,
+        <= 1e-6
+        and restoration_arrays_match,
+        "restoration_arrays_match": restoration_arrays_match,
         "public_inference_is_causal": bool(
             metadata["public_causality"]
         ),
@@ -535,4 +557,3 @@ def _file_sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-

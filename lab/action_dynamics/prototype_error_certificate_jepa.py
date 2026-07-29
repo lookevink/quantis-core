@@ -47,7 +47,7 @@ FROZEN_CACHE = Path(
     "eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff"
 )
 FROZEN_OUTPUT = Path(
-    "artifacts/action-dynamics/prototype-error-certificate-jepa-v2"
+    "artifacts/action-dynamics/prototype-error-certificate-jepa-v3"
 )
 FROZEN_PRETRAIN_STEPS = 800
 IMPLEMENTATION_SOURCE_PATHS = (
@@ -234,6 +234,7 @@ def run_experiment(
         sample = roles["transfer_evaluation"]
         sample_raw = raw_distributions["transfer_evaluation"]
         wrapper_raw = {}
+        restoration_evidence: Dict[str, NDArray[Any]] = {}
         all_cells_exact_raw = True
         restoration_max = 0.0
         restored_alert_decisions_match = True
@@ -301,6 +302,30 @@ def run_experiment(
                 restored_alert_decisions_match
                 and np.array_equal(original_alert, restored_alert)
             )
+            for field, original_values, restored_values in (
+                (
+                    "raw_mean",
+                    original.distribution.mean,
+                    restored.distribution.mean,
+                ),
+                (
+                    "raw_variance",
+                    original.distribution.variance,
+                    restored.distribution.variance,
+                ),
+                (
+                    "error_bound",
+                    original.error_bound,
+                    restored.error_bound,
+                ),
+                ("alerts", original_alert, restored_alert),
+            ):
+                restoration_evidence[
+                    f"restoration_original_{field}__{name}"
+                ] = original_values
+                restoration_evidence[
+                    f"restoration_restored_{field}__{name}"
+                ] = restored_values
 
         public_causality = _rejects_forbidden_inputs(
             certificates["jepa_error_certificate"],
@@ -365,6 +390,16 @@ def run_experiment(
             evidence[
                 f"wrapper_raw_variance__{name}__transfer_evaluation"
             ] = wrapper_raw[name].variance.astype(np.float32)
+        evidence.update(
+            {
+                name: values.astype(
+                    np.bool_
+                    if values.dtype.kind == "b"
+                    else np.float64
+                )
+                for name, values in restoration_evidence.items()
+            }
+        )
         np.savez_compressed(building / "evidence.npz", **evidence)
 
         parameter_counts = {
@@ -394,7 +429,6 @@ def run_experiment(
                     ),
                 }
                 for role, windows in roles.items()
-                if role != "fit"
             },
             "parameter_counts": parameter_counts,
             "selected_steps": {

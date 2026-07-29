@@ -406,12 +406,8 @@ class TaskGroundedContractJepa:
                 )
             objective = (
                 float(losses["residual"])
-                + self.config.effective_paired_effect_weight
+                + self.config.paired_effect_weight
                 * float(losses["paired_effect"])
-                + self.config.effective_effect_score_weight
-                * float(losses["effect_score"])
-                + self.config.effective_state_weight
-                * float(losses["state"])
             )
             row = {
                 "step": float(step),

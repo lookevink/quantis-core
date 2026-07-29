@@ -189,6 +189,47 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         int(dict(value)["inference"])
         for value in parameter_counts.values()
     }
+    restoration_fields = (
+        "rollout_mean",
+        "rollout_variance",
+        "correction",
+        "witness",
+        "learned_tokens",
+        "raw_current_state",
+    )
+    restoration_differences = [
+        float(
+            np.max(
+                np.abs(
+                    arrays[f"restoration_original_{field}__{name}"]
+                    - arrays[
+                        f"restoration_restored_{field}__{name}"
+                    ]
+                )
+            )
+        )
+        for name in CELL_NAMES
+        for field in restoration_fields
+        if f"restoration_original_{field}__{name}" in arrays
+        and f"restoration_restored_{field}__{name}" in arrays
+    ]
+    restoration_arrays_match = (
+        len(restoration_differences)
+        == len(CELL_NAMES) * len(restoration_fields)
+        and max(restoration_differences) <= 1e-6
+    )
+    alert_pairs = [
+        np.array_equal(
+            arrays[f"restoration_original_alerts__{name}"],
+            arrays[f"restoration_restored_alerts__{name}"],
+        )
+        for name in CELL_NAMES
+        if f"restoration_original_alerts__{name}" in arrays
+        and f"restoration_restored_alerts__{name}" in arrays
+    ]
+    restored_alert_decisions_match = (
+        len(alert_pairs) == len(CELL_NAMES) and all(alert_pairs)
+    )
     correction = arrays[
         "correction__task_grounded_contract_jepa__transfer_evaluation"
     ]
@@ -209,7 +250,13 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         "restoration_max_abs_at_most_1e_6": float(
             metadata["restoration_max_abs"]
         )
-        <= 1e-6,
+        <= 1e-6
+        and restoration_arrays_match,
+        "restoration_arrays_match": restoration_arrays_match,
+        "restored_alert_decisions_match": (
+            restored_alert_decisions_match
+            and bool(metadata["restored_alert_decisions_match"])
+        ),
         "transfer_overall_is_raw_safe": float(candidate["overall_mse"])
         <= 1.05 * float(raw["overall_mse"]),
         "transfer_action_overlap_is_raw_safe": float(
@@ -365,9 +412,15 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
 
 def verify_stored_assessment(directory: Path) -> None:
     root = Path(directory)
-    if shared._canonical_json(
+    stored = _normalize_legacy_vocabulary(
         _read_json(root / "assessment.json")
-    ) != shared._canonical_json(assess_stored_bundle(root)):
+    )
+    recomputed = _normalize_legacy_vocabulary(
+        assess_stored_bundle(root)
+    )
+    if shared._canonical_json(stored) != shared._canonical_json(
+        recomputed
+    ):
         raise ValueError("stored Contract-JEPA assessment differs")
 
 
@@ -389,6 +442,22 @@ def verify_artifact_manifest(directory: Path) -> None:
         raise ValueError("Contract-JEPA artifact manifest differs")
 
 
+def _normalize_legacy_vocabulary(
+    assessment: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Normalize the v1 serialized name without mutating an artifact."""
+
+    result = json.loads(json.dumps(assessment))
+    for evidence in dict(result.get("detection", {})).values():
+        if (
+            isinstance(evidence, dict)
+            and "threshold" in evidence
+            and "alert_policy_cutoff" not in evidence
+        ):
+            evidence["alert_policy_cutoff"] = evidence.pop("threshold")
+    return result
+
+
 def _calibrated_detection(
     *,
     calibration_scores: np.ndarray,
@@ -402,21 +471,21 @@ def _calibrated_detection(
         calibration_scores,
         calibration_metadata,
         calibration_actions,
-        threshold=None,
+        cutoff=None,
     )
     control_maxima = [
         float(row["maximum_score"])
         for row in calibration_rows
         if not bool(row["is_treatment"])
     ]
-    threshold = float(
+    cutoff = float(
         np.quantile(control_maxima, 0.95, method="higher")
     )
     rows = _trajectory_rows(
         evaluation_scores,
         evaluation_metadata,
         evaluation_actions,
-        threshold=threshold,
+        cutoff=cutoff,
     )
     controls = [row for row in rows if not bool(row["is_treatment"])]
     treatments = [row for row in rows if bool(row["is_treatment"])]
@@ -431,7 +500,7 @@ def _calibrated_detection(
         for row in detected
     ]
     return {
-        "threshold": threshold,
+        "alert_policy_cutoff": cutoff,
         "calibration_control_trajectory_count": len(control_maxima),
         "control_trajectory_false_alarm_rate": float(
             np.mean([bool(row["any_alarm"]) for row in controls])
@@ -451,7 +520,7 @@ def _trajectory_rows(
     metadata: Mapping[str, Any],
     actions: np.ndarray,
     *,
-    threshold: Any,
+    cutoff: Any,
 ) -> list[Mapping[str, Any]]:
     trajectory_ids = tuple(
         str(value) for value in metadata["trajectory_ids"]
@@ -478,10 +547,10 @@ def _trajectory_rows(
             transitions[local, None]
             + np.arange(1, scores.shape[1] + 1)[None]
         )
-        if threshold is None:
+        if cutoff is None:
             alarms = np.zeros_like(local_scores, dtype=np.bool_)
         else:
-            alarms = local_scores > float(threshold)
+            alarms = local_scores > float(cutoff)
         eligible = (
             event_times[alarms & (event_times >= onset)]
             if onset is not None
@@ -515,4 +584,3 @@ def _file_sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-

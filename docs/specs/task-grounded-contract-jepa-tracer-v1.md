@@ -80,7 +80,7 @@ gain. Gain zero is always available and means the residual earned no role.
 ## Witness alert policy
 
 The public effect-score head consumes the same causal inputs as correction.
-Using calibration control trajectories, calibrate one threshold over each
+Using calibration control trajectories, calibrate one alert-policy cutoff over each
 trajectory's maximum score. Report control-trajectory false alarms, treatment
 detection, and post-onset delay on IID and transfer evaluation.
 
@@ -129,4 +129,3 @@ arrays, independent assessment, copied sources, and a SHA-256 manifest.
 
 The result may establish only whether this exact hard-sufficiency,
 task-grounded residual contract adds value on the open fixed-stack corpus.
-

@@ -16,7 +16,7 @@ Implement and conclude the
 - An immutable raw action-conditioned path and bounded correction.
 - Equal-capacity JEPA, supervised, and ungrounded cells.
 - Joint current-state, paired-effect, and effect-score witnesses.
-- Selection-only safe gain and calibration-only witness threshold.
+- Selection-only safe gain and calibration-only witness alert-policy cutoff.
 - Independent stored-evidence assessment and retained reproduction code.
 
 ## Result

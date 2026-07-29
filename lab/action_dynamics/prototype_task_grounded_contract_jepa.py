@@ -48,7 +48,7 @@ FROZEN_CACHE = Path(
     "eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff"
 )
 FROZEN_OUTPUT = Path(
-    "artifacts/action-dynamics/prototype-task-grounded-contract-jepa-v1"
+    "artifacts/action-dynamics/prototype-task-grounded-contract-jepa-v2"
 )
 FROZEN_PRETRAIN_STEPS = 800
 GAIN_CANDIDATES = (0.0, 0.25, 0.5, 0.75, 1.0)
@@ -255,7 +255,9 @@ def run_experiment(
         }
 
         sample = roles["transfer_evaluation"]
+        restoration_evidence: Dict[str, np.ndarray] = {}
         restoration_max = 0.0
+        restored_alert_decisions_match = True
         for name in CELL_NAMES:
             restored = TaskGroundedContractDynamics.from_dict(
                 dynamics[name].to_dict()
@@ -265,24 +267,28 @@ def run_experiment(
                 sample.future_controls[:8],
                 sample.future_actions[:8],
                 sample.graph,
-            ).mean
+            )
             replay = restored.rollout(
                 sample.histories[:8],
                 sample.future_controls[:8],
                 sample.future_actions[:8],
                 sample.graph,
-            ).mean
-            original_witness = dynamics[name].witness_scores(
+            )
+            original_correction, original_witness = branches[
+                name
+            ].predict_contract(
                 sample.histories[:8],
                 sample.future_controls[:8],
                 sample.future_actions[:8],
                 sample.graph,
             )
-            replay_witness = restored.witness_scores(
-                sample.histories[:8],
-                sample.future_controls[:8],
-                sample.future_actions[:8],
-                sample.graph,
+            replay_correction, replay_witness = (
+                restored.branch.predict_contract(
+                    sample.histories[:8],
+                    sample.future_controls[:8],
+                    sample.future_actions[:8],
+                    sample.graph,
+                )
             )
             original_tokens = branches[name].encode_contract(
                 sample.histories[:8], sample.graph
@@ -290,23 +296,61 @@ def run_experiment(
             restored_tokens = restored.branch.encode_contract(
                 sample.histories[:8], sample.graph
             )
-            restoration_max = max(
-                restoration_max,
-                float(np.max(np.abs(original - replay))),
-                float(
-                    np.max(
-                        np.abs(original_witness - replay_witness)
-                    )
-                ),
-                float(
-                    np.max(
-                        np.abs(
-                            original_tokens.learned_tokens
-                            - restored_tokens.learned_tokens
-                        )
-                    )
-                ),
+            cutoff = _calibration_control_cutoff(
+                witnesses[name]["calibration"], roles["calibration"]
             )
+            original_alerts = original_witness > cutoff
+            restored_alerts = replay_witness > cutoff
+            restored_alert_decisions_match = (
+                restored_alert_decisions_match
+                and np.array_equal(original_alerts, restored_alerts)
+            )
+            for field, original_values, restored_values in (
+                ("rollout_mean", original.mean, replay.mean),
+                (
+                    "rollout_variance",
+                    original.variance,
+                    replay.variance,
+                ),
+                (
+                    "correction",
+                    original_correction,
+                    replay_correction,
+                ),
+                ("witness", original_witness, replay_witness),
+                (
+                    "learned_tokens",
+                    original_tokens.learned_tokens,
+                    restored_tokens.learned_tokens,
+                ),
+                (
+                    "raw_current_state",
+                    original_tokens.raw_current_state,
+                    restored_tokens.raw_current_state,
+                ),
+            ):
+                restoration_evidence[
+                    f"restoration_original_{field}__{name}"
+                ] = original_values
+                restoration_evidence[
+                    f"restoration_restored_{field}__{name}"
+                ] = restored_values
+                restoration_max = max(
+                    restoration_max,
+                    float(
+                        np.max(
+                            np.abs(
+                                original_values - restored_values
+                            )
+                        )
+                    ),
+                )
+            restoration_evidence[
+                f"restoration_original_alerts__{name}"
+            ] = original_alerts
+            restoration_evidence[
+                f"restoration_restored_alerts__{name}"
+            ] = restored_alerts
         zero_model = TaskGroundedContractDynamics(
             baseline, branches["task_grounded_contract_jepa"], gain=0.0
         )
@@ -404,6 +448,16 @@ def run_experiment(
                 evidence[
                     f"action_sanity__{name}__{variant}"
                 ] = values.astype(np.float32)
+        evidence.update(
+            {
+                name: values.astype(
+                    np.bool_
+                    if values.dtype.kind == "b"
+                    else np.float64
+                )
+                for name, values in restoration_evidence.items()
+            }
+        )
         np.savez_compressed(building / "evidence.npz", **evidence)
 
         parameter_counts = {
@@ -458,6 +512,9 @@ def run_experiment(
             "gain_zero_is_exact_raw": gain_zero_exact,
             "public_causality": causality,
             "restoration_max_abs": restoration_max,
+            "restored_alert_decisions_match": (
+                restored_alert_decisions_match
+            ),
             "latency": latency,
         }
         _write_json(building / "evidence-metadata.json", metadata)
@@ -555,6 +612,23 @@ def _select_gain(
     )
     model.set_gain(float(selected["gain"]))
     return float(selected["gain"]), rows
+
+
+def _calibration_control_cutoff(
+    scores: np.ndarray,
+    windows: ActionConditionedWindows,
+) -> float:
+    trajectory_ids = np.asarray(windows.trajectory_ids)
+    maxima = []
+    for trajectory in sorted(set(windows.trajectory_ids)):
+        rows = np.flatnonzero(trajectory_ids == trajectory)
+        if not np.any(windows.future_actions[rows, ..., 1] > 0.5):
+            maxima.append(float(np.max(scores[rows])))
+    if len(maxima) < 2:
+        raise ValueError(
+            "Contract-JEPA alert policy needs control trajectories"
+        )
+    return float(np.quantile(maxima, 0.95, method="higher"))
 
 
 def _scores(

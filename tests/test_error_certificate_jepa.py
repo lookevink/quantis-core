@@ -19,55 +19,12 @@ from quantis_core.edge_dynamics.error_certificate_jepa import (
     CertifiedRawDynamics,
     ErrorCertificateJepa,
     ErrorCertificateJepaConfig,
-    _training_arrays,
-    realized_raw_error,
 )
 from quantis_core.edge_dynamics.models import (
     ContractiveLowRankDynamics,
     LowRankConfig,
 )
 from tests.test_sd_jepa import tiny_action_conditioned_windows
-
-
-def test_only_deranged_cell_receives_deranged_latent_targets() -> None:
-    windows = tiny_action_conditioned_windows(
-        pair_count=2, transition_count=6
-    )
-    raw_prediction = np.zeros_like(windows.future_states)
-    ownership = np.ones(
-        windows.future_states.shape[2:], dtype=np.bool_
-    )
-    error_target = realized_raw_error(
-        raw_prediction, windows.future_states, ownership
-    )
-    indices = np.asarray([0, 1], dtype=np.int64)
-    donor = np.asarray([1, 0], dtype=np.int64)
-
-    aligned = _training_arrays(
-        windows,
-        raw_prediction,
-        error_target,
-        indices=indices,
-        donor=donor,
-        ownership=ownership,
-        derange=False,
-    )
-    deranged = _training_arrays(
-        windows,
-        raw_prediction,
-        error_target,
-        indices=indices,
-        donor=donor,
-        ownership=ownership,
-        derange=True,
-    )
-
-    np.testing.assert_array_equal(
-        aligned["latent_future"], windows.future_states[indices]
-    )
-    np.testing.assert_array_equal(
-        deranged["latent_future"], windows.future_states[donor]
-    )
 
 
 def test_error_certificate_cells_restore_calibrate_and_match_capacity() -> None:
@@ -107,6 +64,10 @@ def test_error_certificate_cells_restore_calibrate_and_match_capacity() -> None:
     assert len(
         {model.inference_parameter_count for model in models.values()}
     ) == 1
+    assert (
+        models["jepa_error_certificate"].training_metrics
+        != models["deranged_jepa_certificate"].training_metrics
+    )
 
     model = models["jepa_error_certificate"]
     raw_prediction = raw.rollout(
@@ -235,6 +196,13 @@ def test_error_certificate_smoke_reassesses_from_stored_evidence(
     assert (
         assessment["safety_gates"][
             "calibration_recomputes_exactly"
+        ]
+        is True
+    )
+    assert assessment["safety_gates"]["restoration_arrays_match"] is True
+    assert (
+        assessment["safety_gates"][
+            "selection_and_calibration_roles_are_isolated"
         ]
         is True
     )

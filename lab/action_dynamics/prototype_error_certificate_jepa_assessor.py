@@ -157,12 +157,112 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         for name in CELL_NAMES
         for role in role_results
     )
-    role_audit = dict(metadata["role_use_audit"])
+    restoration_fields = ("raw_mean", "raw_variance", "error_bound")
+    restoration_differences = [
+        float(
+            np.max(
+                np.abs(
+                    arrays[f"restoration_original_{field}__{name}"]
+                    - arrays[
+                        f"restoration_restored_{field}__{name}"
+                    ]
+                )
+            )
+        )
+        for name in CELL_NAMES
+        for field in restoration_fields
+        if f"restoration_original_{field}__{name}" in arrays
+        and f"restoration_restored_{field}__{name}" in arrays
+    ]
+    restoration_arrays_match = (
+        len(restoration_differences)
+        == len(CELL_NAMES) * len(restoration_fields)
+        and max(restoration_differences) <= 1e-6
+    )
+    alert_pairs = [
+        np.array_equal(
+            arrays[f"restoration_original_alerts__{name}"],
+            arrays[f"restoration_restored_alerts__{name}"],
+        )
+        for name in CELL_NAMES
+        if f"restoration_original_alerts__{name}" in arrays
+        and f"restoration_restored_alerts__{name}" in arrays
+    ]
+    restored_alerts_match = (
+        len(alert_pairs) == len(CELL_NAMES) and all(alert_pairs)
+    )
+    expected_pair_counts = {
+        "fit": 40,
+        "selection": 10,
+        "calibration": 10,
+        "iid_evaluation": 20,
+        "transfer_evaluation": 10,
+    }
+    role_trajectories = {
+        role: set(
+            str(value)
+            for value in dict(metadata["roles"][role])[
+                "trajectory_ids"
+            ]
+        )
+        for role in expected_pair_counts
+    }
+    role_identifiers_are_disjoint = (
+        all(
+            len(
+                set(
+                    str(value)
+                    for value in dict(metadata["roles"][role])[
+                        "pair_ids"
+                    ]
+                )
+            )
+            == count
+            for role, count in expected_pair_counts.items()
+        )
+        and all(
+            role_trajectories[left].isdisjoint(
+                role_trajectories[right]
+            )
+            for index, left in enumerate(expected_pair_counts)
+            for right in tuple(expected_pair_counts)[index + 1 :]
+        )
+    )
+    selection_metrics = dict(metadata["selection_metrics"])
+    selected_steps = dict(metadata["selected_steps"])
+    checkpoint_selection_recomputes = all(
+        int(
+            min(
+                selection_metrics[name],
+                key=lambda row: (
+                    float(dict(row)["pinball"]),
+                    int(float(dict(row)["step"])),
+                ),
+            )["step"]
+        )
+        == int(selected_steps[name])
+        and abs(
+            float(
+                min(
+                    selection_metrics[name],
+                    key=lambda row: (
+                        float(dict(row)["pinball"]),
+                        int(float(dict(row)["step"])),
+                    ),
+                )["pinball"]
+            )
+            - float(
+                role_results["selection"]["certificates"][name][
+                    "unadjusted_pinball"
+                ]
+            )
+        )
+        <= 1e-6
+        for name in CELL_NAMES
+    )
     role_use_valid = (
-        role_audit.get("checkpoint_selection") == "selection"
-        and role_audit.get("calibration_adjustment") == "calibration"
-        and role_audit.get("evaluation_roles")
-        == ["iid_evaluation", "transfer_evaluation"]
+        role_identifiers_are_disjoint
+        and checkpoint_selection_recomputes
     )
     safety = {
         "all_evidence_is_finite": finite,
@@ -177,9 +277,12 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         "restoration_max_abs_at_most_1e_6": float(
             metadata["restoration_max_abs"]
         )
-        <= 1e-6,
-        "restored_alert_decisions_match": bool(
-            metadata["restored_alert_decisions_match"]
+        <= 1e-6
+        and restoration_arrays_match,
+        "restoration_arrays_match": restoration_arrays_match,
+        "restored_alert_decisions_match": (
+            bool(metadata["restored_alert_decisions_match"])
+            and restored_alerts_match
         ),
         "bounds_are_finite_and_nonnegative": finite and nonnegative,
         "calibration_recomputes_exactly": all(
@@ -187,6 +290,12 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         )
         and constant_matches,
         "selection_and_calibration_roles_are_isolated": role_use_valid,
+        "role_identifiers_are_disjoint": (
+            role_identifiers_are_disjoint
+        ),
+        "checkpoint_selection_recomputes": (
+            checkpoint_selection_recomputes
+        ),
         "candidate_bundle_at_most_16_mib": int(
             metadata["candidate_bundle_bytes"]
         )

@@ -58,6 +58,12 @@ def test_contract_cells_are_bounded_sufficient_restorable_and_matched() -> None:
     assert len(
         {model.inference_parameter_count for model in models.values()}
     ) == 1
+    for contract in models.values():
+        for row in contract.selection_metrics:
+            assert row["selection_objective"] == pytest.approx(
+                row["residual"]
+                + base.paired_effect_weight * row["paired_effect"]
+            )
 
     model = models["task_grounded_contract_jepa"]
     encoded = model.encode_contract(fit.histories[:3], fit.graph)
@@ -181,6 +187,13 @@ def test_contract_smoke_artifact_reassesses_from_stored_evidence(
     assert (
         assessment["decision"]
         == "non_interpretable_task_grounded_contract_jepa_smoke"
+    )
+    assert assessment["safety_gates"]["restoration_arrays_match"] is True
+    assert (
+        assessment["safety_gates"][
+            "restored_alert_decisions_match"
+        ]
+        is True
     )
     verify_stored_assessment(output)
     verify_artifact_manifest(output)

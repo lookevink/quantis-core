@@ -172,5 +172,6 @@ def test_pair_effect_smoke_artifact_reassesses_from_stored_evidence(
         assessment["decision"]
         == "non_interpretable_pair_effect_jepa_smoke"
     )
+    assert assessment["safety_gates"]["restoration_arrays_match"] is True
     verify_stored_assessment(output)
     verify_artifact_manifest(output)
