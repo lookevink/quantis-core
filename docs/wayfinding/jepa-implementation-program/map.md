@@ -68,9 +68,9 @@ disposition for every family.
 
 ## Next target
 
-- Freeze and test the exact LeWorldModel ambient-SIGReg treatment against a
-  bounded subspace geometry screen. Hold the predictor and downstream probe
-  fixed so the experiment isolates where regularization acts.
+- [Test the LeWorldModel bounded geometry screen](017-test-leworld-geometry-screen.md)
+  — Active. Hold the predictor and downstream probe fixed while comparing
+  ambient, subspace, rectified, kernel, and spherical distribution geometry.
 
 ## Out of scope
 
