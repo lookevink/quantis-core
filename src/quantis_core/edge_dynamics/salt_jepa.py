@@ -20,6 +20,7 @@ from .complete_lejepa import (
     CompleteLejepaConfig,
     EncodedTelemetry,
     PairBlockedAnchorSchedule,
+    build_complete_lejepa_backbone,
     fit_owned_feature_mask,
 )
 
@@ -31,12 +32,19 @@ class SaltMaskedTelemetry:
     values: NDArray[np.float64]
     visible_tokens: NDArray[np.bool_]
     target_tokens: NDArray[np.bool_]
+    block_rectangles: NDArray[np.int64]
+    fill_order: NDArray[np.int64]
 
     def __post_init__(self) -> None:
         if (
             self.values.ndim != 4
             or self.visible_tokens.shape != self.values.shape[:-1]
             or self.target_tokens.shape != self.visible_tokens.shape
+            or self.block_rectangles.shape
+            != (len(self.values), 64, 5)
+            or self.fill_order.shape != (len(self.values), 126)
+            or self.block_rectangles.dtype.kind not in ("i", "u")
+            or self.fill_order.dtype.kind not in ("i", "u")
             or not np.array_equal(
                 self.target_tokens, ~self.visible_tokens
             )
@@ -106,6 +114,12 @@ class SaltMaskSchedule:
         target = np.zeros(source.shape[:-1], dtype=np.bool_)
         protected = np.zeros_like(target)
         protected[:, -1, list(self.observed_entities)] = True
+        block_rectangles = np.full(
+            (len(source), 64, 5), -1, dtype=np.int64
+        )
+        fill_order = np.full(
+            (len(source), self.target_count), -1, dtype=np.int64
+        )
         durations = (4, 6, 8, 10, 12)
         for sample_position in range(len(source)):
             generator = np.random.default_rng(
@@ -114,6 +128,7 @@ class SaltMaskSchedule:
                 )
             )
             attempts = 0
+            block_position = 0
             while (
                 int(np.sum(target[sample_position])) < self.target_count
                 and attempts < 64
@@ -135,17 +150,41 @@ class SaltMaskSchedule:
                 needed = self.target_count - int(
                     np.sum(target[sample_position])
                 )
-                target[sample_position].flat[additions[:needed]] = True
+                if len(additions) == 0 or len(additions) > needed:
+                    continue
+                target[sample_position].flat[additions] = True
                 target[sample_position][protected[sample_position]] = False
+                block_rectangles[
+                    sample_position, block_position
+                ] = np.asarray((start, duration, *block), dtype=np.int64)
+                block_position += 1
             remaining = self.target_count - int(
                 np.sum(target[sample_position])
             )
-            if remaining:
+            fill_position = 0
+            while remaining:
                 candidates = np.flatnonzero(
                     ~(target[sample_position] | protected[sample_position])
                 )
-                chosen = generator.permutation(candidates)[:remaining]
+                candidates = np.asarray(
+                    [
+                        value
+                        for value in generator.permutation(candidates)
+                        if self._extends_mask(
+                            target[sample_position], int(value)
+                        )
+                    ],
+                    dtype=np.int64,
+                )
+                if not len(candidates):
+                    raise RuntimeError(
+                        "SALT mask schedule cannot extend a connected block"
+                    )
+                chosen = int(candidates[0])
                 target[sample_position].flat[chosen] = True
+                fill_order[sample_position, fill_position] = chosen
+                fill_position += 1
+                remaining -= 1
             if int(np.sum(target[sample_position])) != self.target_count:
                 raise RuntimeError("SALT mask schedule could not fill target")
         visible = ~target
@@ -160,6 +199,31 @@ class SaltMaskSchedule:
             values=values,
             visible_tokens=visible,
             target_tokens=target,
+            block_rectangles=block_rectangles,
+            fill_order=fill_order,
+        )
+
+    def _extends_mask(
+        self, target: NDArray[np.bool_], flat_position: int
+    ) -> bool:
+        time_position, entity_position = np.unravel_index(
+            flat_position, target.shape
+        )
+        if time_position > 0 and target[time_position - 1, entity_position]:
+            return True
+        if (
+            time_position + 1 < target.shape[0]
+            and target[time_position + 1, entity_position]
+        ):
+            return True
+        return any(
+            target[
+                time_position,
+                self.graph.entity_ids.index(neighbor_id),
+            ]
+            for neighbor_id in self.graph.neighboring_entity_ids(
+                self.graph.entity_ids[entity_position]
+            )
         )
 
     def _connected_block(self, root: int) -> Tuple[int, ...]:
@@ -416,15 +480,8 @@ class SaltJepaRepresentation:
             self.config,
             seed=self.config.teacher_seed,
         )
-        decoder = _seeded_module(
-            self.config.decoder_seed,
-            lambda: torch.nn.Sequential(
-                torch.nn.Linear(self.config.width, self.config.width),
-                torch.nn.GELU(),
-                torch.nn.Linear(
-                    self.config.width, windows.histories.shape[-1]
-                ),
-            ),
+        decoder = _new_decoder(
+            self.config, windows.histories.shape[-1]
         )
         teacher_optimizer = torch.optim.AdamW(
             list(teacher.parameters()) + list(decoder.parameters()),
@@ -527,18 +584,7 @@ class SaltJepaRepresentation:
             self.config,
             seed=self.config.student_seed,
         )
-        predictor = _seeded_module(
-            self.config.predictor_seed,
-            lambda: torch.nn.Sequential(
-                torch.nn.Linear(
-                    self.config.width, self.config.predictor_width
-                ),
-                torch.nn.GELU(),
-                torch.nn.Linear(
-                    self.config.predictor_width, self.config.width
-                ),
-            ),
-        )
+        predictor = _new_predictor(self.config)
         student_optimizer = torch.optim.AdamW(
             list(student.parameters()) + list(predictor.parameters()),
             lr=self.config.learning_rate,
@@ -972,6 +1018,28 @@ def assess_salt_jepa_gates(
                 "selection_only_ridge_choice_recomputes", False
             )
         ),
+        "selection_safety_status_recomputes": bool(
+            protocol_checks.get(
+                "selection_safety_status_recomputes", False
+            )
+        ),
+        "capacity_metadata_recomputes": bool(
+            protocol_checks.get("capacity_metadata_recomputes", False)
+        ),
+        "teacher_metadata_recomputes": bool(
+            protocol_checks.get("teacher_metadata_recomputes", False)
+        ),
+        "causality_metadata_recomputes": bool(
+            protocol_checks.get("causality_metadata_recomputes", False)
+        ),
+        "deployed_bundle_metadata_recomputes": bool(
+            protocol_checks.get(
+                "deployed_bundle_metadata_recomputes", False
+            )
+        ),
+        "latency_metadata_recomputes": bool(
+            protocol_checks.get("latency_metadata_recomputes", False)
+        ),
         "selection_overall_within_1_05_raw": (
             candidate_selection["overall_mse"]
             <= 1.05 * raw_selection["overall_mse"]
@@ -1048,14 +1116,24 @@ def assess_salt_jepa_gates(
     ]
     candidate_entities = candidate_state["entities"]
     teacher_entities = teacher_state["entities"]
+    comparable_entities = {
+        entity_id
+        for entity_id, values in candidate_entities.items()
+        if values["nrmse"] is not None
+    }
+    teacher_comparable_entities = {
+        entity_id
+        for entity_id, values in teacher_entities.items()
+        if values["nrmse"] is not None
+    }
     state_not_worse = (
         candidate_state["aggregate_nrmse"]
         <= teacher_state["aggregate_nrmse"]
-        and set(candidate_entities) == set(teacher_entities)
+        and comparable_entities == teacher_comparable_entities
         and all(
             candidate_entities[entity_id]["nrmse"]
             <= teacher_entities[entity_id]["nrmse"]
-            for entity_id in candidate_entities
+            for entity_id in comparable_entities
         )
     )
     value_gates = {
@@ -1090,8 +1168,8 @@ def assess_salt_jepa_gates(
         and all(value_gates.values())
     )
     return {
-        "schema_version": 1,
-        "experiment": "salt_jepa_telemetry_tracer_v1",
+        "schema_version": 2,
+        "experiment": "salt_jepa_telemetry_tracer_v2",
         "safety_gates": safety_gates,
         "mechanism_gates": mechanism_gates,
         "value_gates": value_gates,
@@ -1113,7 +1191,6 @@ def _new_backbone(
     seed: int,
 ) -> Any:
     torch = _require_torch()
-    torch.manual_seed(seed)
     backbone_config = CompleteLejepaConfig(
         width=config.width,
         block_count=config.block_count,
@@ -1128,14 +1205,16 @@ def _new_backbone(
         minimum_learning_rate=config.minimum_learning_rate,
         preprocessing_protocol=config.preprocessing_protocol,
     )
-    from .complete_lejepa import _build_backbone
-
-    return _build_backbone(
-        torch,
-        feature_count=feature_count,
-        graph=graph,
-        config=backbone_config,
-    )
+    state = torch.random.get_rng_state()
+    try:
+        torch.manual_seed(seed)
+        return build_complete_lejepa_backbone(
+            feature_count=feature_count,
+            graph=graph,
+            config=backbone_config,
+        )
+    finally:
+        torch.random.set_rng_state(state)
 
 
 def _new_decoder(config: SaltJepaConfig, feature_count: int) -> Any:

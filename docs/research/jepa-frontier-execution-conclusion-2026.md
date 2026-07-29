@@ -44,6 +44,7 @@ It is not a claim that JEPA fails generally.
 | PairEffect-JEPA | matched-twin objective, exact action attribution, and edge-feasible inference | effect prediction was worse than derangement; composed transfer effect error was 3.38× raw | reject |
 | task-grounded Contract-JEPA | immutable raw bypass, bounded correction, and a learned effect witness | both controls predicted better; witness produced 100% transfer control false alarms | reject |
 | Error-Certificate-JEPA | exact raw preservation, independently calibrated bounds, and 99.91% point coverage | only 80% simultaneous control coverage, zero treatment detection, no sharpness advantage | reject |
+| SALT-JEPA | exact static teacher, restorable student, aligned latent advantage over derangement | v1 advantage missed 10% and transfer effect error was 1.91× raw; corrected evidence v2 pending | provisional reject |
 
 The linked
 [wayfinding map](../wayfinding/jepa-implementation-program/map.md) binds every
@@ -123,7 +124,9 @@ The retained implementations cover:
 - raw-bypass task-grounded residual contracts with explicit effect witnesses;
   and
 - JEPA-assisted empirical error certificates with raw-only, deranged, and
-  direct conformal controls.
+  direct conformal controls; and
+- reconstructive static-teacher asymmetric latent training with an
+  equal-capacity deranged-target control.
 
 All candidate inference paths were implemented as bounded CPU/edge paths.
 That closes the prior frozen runnable queue and the three locally formulated

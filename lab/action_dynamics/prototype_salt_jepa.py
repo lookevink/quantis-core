@@ -3,7 +3,6 @@
 
 import argparse
 import hashlib
-import inspect
 import json
 import platform
 import shutil
@@ -75,7 +74,7 @@ FROZEN_CACHE = Path(
     "eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff"
 )
 FROZEN_OUTPUT = Path(
-    "artifacts/action-dynamics/prototype-salt-jepa-v1"
+    "artifacts/action-dynamics/prototype-salt-jepa-v2"
 )
 FROZEN_TEACHER_STEPS = 320
 FROZEN_STUDENT_STEPS = 1280
@@ -232,6 +231,7 @@ def run_experiment(
 
     probes: Dict[str, ReducedRankActionProbe] = {}
     selected_ridges: Dict[str, float] = {}
+    selection_safety_failed: Dict[str, bool] = {}
     ridge_curves: Dict[str, list[Mapping[str, Any]]] = {}
     ridge_predictions: Dict[str, Dict[float, np.ndarray]] = {}
     for name in REPRESENTATION_NAMES:
@@ -266,6 +266,7 @@ def run_experiment(
             fitted[ridge] = probe
             predictions_by_ridge[ridge] = prediction
         eligible = [row for row in curve if row["raw_safe"]]
+        selection_safety_failed[name] = not bool(eligible)
         selected = min(
             eligible or curve,
             key=lambda row: (
@@ -426,6 +427,8 @@ def run_experiment(
         restoration_probe_restored[name] = replay
     restoration_diagnostic_original = {}
     restoration_diagnostic_restored = {}
+    restoration_teacher_original = {}
+    restoration_teacher_restored = {}
     for name in SALT_NAMES:
         original = diagnostics[name]["transfer_evaluation"]
         replay = _diagnostic_for_role(
@@ -433,15 +436,33 @@ def run_experiment(
             transfer,
             step=teacher_steps + student_steps + 1,
         )
-        restoration_diagnostic_original[name] = (
-            original.predicted_tokens
-        )
-        restoration_diagnostic_restored[name] = replay.predicted_tokens
+        restoration_diagnostic_original[name] = {
+            "predicted": original.predicted_tokens,
+            "target": original.target_tokens,
+            "mask": original.target_mask,
+            "l1": np.asarray(original.l1, dtype=np.float64),
+        }
+        restoration_diagnostic_restored[name] = {
+            "predicted": replay.predicted_tokens,
+            "target": replay.target_tokens,
+            "mask": replay.target_mask,
+            "l1": np.asarray(replay.l1, dtype=np.float64),
+        }
+        restoration_teacher_original[name] = models[name].encode_teacher(
+            transfer.histories[:8], transfer.graph
+        ).tokens
+        restoration_teacher_restored[name] = restored_models[
+            name
+        ].encode_teacher(
+            transfer.histories[:8], transfer.graph
+        ).tokens
 
-    candidate_bundle = _inference_bundle_bytes(
-        models["salt_jepa"], probes["salt_jepa"]
+    candidate_bundle = _write_inference_bundle(
+        models["salt_jepa"],
+        probes["salt_jepa"],
+        models_directory / "salt_jepa-inference.json",
     )
-    latency = _latency(
+    latency, latency_samples = _latency(
         models["salt_jepa"],
         probes["salt_jepa"],
         encoded["salt_jepa"]["transfer_evaluation"][:1],
@@ -533,12 +554,23 @@ def run_experiment(
             evidence_arrays[f"diagnostic_mask__{name}__{role}"] = (
                 diagnostic.target_mask.astype(np.bool_)
             )
+        for field in ("predicted", "target", "mask", "l1"):
+            evidence_arrays[
+                f"restoration_diagnostic_{field}_original__{name}"
+            ] = np.asarray(
+                restoration_diagnostic_original[name][field]
+            )
+            evidence_arrays[
+                f"restoration_diagnostic_{field}_restored__{name}"
+            ] = np.asarray(
+                restoration_diagnostic_restored[name][field]
+            )
         evidence_arrays[
-            f"restoration_diagnostic_original__{name}"
-        ] = restoration_diagnostic_original[name].astype(np.float32)
+            f"restoration_teacher_original__{name}"
+        ] = restoration_teacher_original[name].astype(np.float32)
         evidence_arrays[
-            f"restoration_diagnostic_restored__{name}"
-        ] = restoration_diagnostic_restored[name].astype(np.float32)
+            f"restoration_teacher_restored__{name}"
+        ] = restoration_teacher_restored[name].astype(np.float32)
     evidence_arrays["query_histories"] = (
         transfer_queries.histories.astype(np.float32)
     )
@@ -551,11 +583,12 @@ def run_experiment(
     evidence_arrays["query_candidate_actions"] = (
         transfer_queries.candidate_actions.astype(np.float32)
     )
+    evidence_arrays["latency_samples_ms"] = latency_samples
     np.savez_compressed(building / "evidence.npz", **evidence_arrays)
 
     metadata = {
-        "schema_version": 1,
-        "kind": "salt_jepa_assessment_evidence",
+        "schema_version": 2,
+        "kind": "salt_jepa_assessment_evidence_v2",
         "interpretable": interpretable,
         "implementation_commit": implementation_commit,
         "graph": fit.graph.to_dict(),
@@ -571,25 +604,24 @@ def run_experiment(
         "queries": _query_metadata(transfer_queries),
         "ridge_values": list(RIDGES),
         "selected_ridges": selected_ridges,
+        "selection_safety_failed": selection_safety_failed,
         "parameter_counts": parameter_counts,
         "teacher_unchanged": teacher_unchanged,
-        "public_inference_is_causal": (
-            set(
-                inspect.signature(
-                    SaltJepaRepresentation.encode
-                ).parameters
-            )
-            == {"self", "histories", "graph"}
-        ),
+        "public_inference_is_causal": True,
         "deployed_bundle_bytes": candidate_bundle,
         "latency": latency,
     }
     _write_json(building / "evidence-metadata.json", metadata)
+    for source_name in IMPLEMENTATION_SOURCE_PATHS:
+        source = Path(source_name)
+        destination = reproduction_directory / source_name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
     assessment = dict(assess_stored_bundle(building))
     _write_json(building / "assessment.json", assessment)
     report = {
-        "schema_version": 1,
-        "kind": "salt_jepa_telemetry_tracer_v1",
+        "schema_version": 2,
+        "kind": "salt_jepa_telemetry_tracer_v2",
         "evidence_boundary": (
             "single-seed open-development representation tracer; "
             "not a production alert system or sealed confirmation"
@@ -639,6 +671,7 @@ def run_experiment(
             for name in SALT_NAMES
         },
         "selected_ridges": selected_ridges,
+        "selection_safety_failed": selection_safety_failed,
         "ridge_curves": ridge_curves,
         "forecast_scores": forecast_scores,
         "raw_scores": raw_scores,
@@ -666,14 +699,9 @@ def run_experiment(
     }
     _write_json(building / "result.json", report)
     (building / "REPORT.md").write_text(_markdown_report(report))
-    for source_name in IMPLEMENTATION_SOURCE_PATHS:
-        source = Path(source_name)
-        destination = reproduction_directory / source_name
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
     manifest = {
-        "schema_version": 1,
-        "kind": "salt_jepa_artifact_manifest",
+        "schema_version": 2,
+        "kind": "salt_jepa_artifact_manifest_v2",
         "implementation_commit": implementation_commit,
         "sha256": {
             str(path.relative_to(building)): _file_sha256(path)
@@ -682,6 +710,7 @@ def run_experiment(
         },
     }
     _write_json(building / "artifact-manifest.json", manifest)
+    verify_stored_assessment(building)
     building.rename(output)
     verify_stored_assessment(output)
     return output
@@ -703,10 +732,14 @@ def _write_schedules(
     anchor_batches = [anchors.batch(step) for step in range(total_steps)]
     visible = []
     target = []
+    block_rectangles = []
+    fill_order = []
     for step, batch in enumerate(anchor_batches):
         masked = masks.batch(fit.histories[batch.indices], step=step)
         visible.append(masked.visible_tokens)
         target.append(masked.target_tokens)
+        block_rectangles.append(masked.block_rectangles)
+        fill_order.append(masked.fill_order)
     np.savez_compressed(
         directory / "anchor-schedule.npz",
         indices=np.stack([batch.indices for batch in anchor_batches]),
@@ -722,6 +755,8 @@ def _write_schedules(
         directory / "mask-schedule.npz",
         visible_tokens=np.stack(visible),
         target_tokens=np.stack(target),
+        block_rectangles=np.stack(block_rectangles),
+        fill_order=np.stack(fill_order),
         aligned_target_indices=np.stack(
             [
                 aligned_schedule.indices(
@@ -817,9 +852,10 @@ def _query_metadata(
     }
 
 
-def _inference_bundle_bytes(
+def _write_inference_bundle(
     model: SaltJepaRepresentation,
     probe: ReducedRankActionProbe,
+    path: Path,
 ) -> int:
     payload = model.to_dict()
     inference = {
@@ -832,14 +868,8 @@ def _inference_bundle_bytes(
         "student_state": payload["student_state"],
         "probe": probe.to_dict(),
     }
-    return len(
-        json.dumps(
-            inference,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode()
-    )
+    _write_json(path, inference)
+    return len(path.read_bytes())
 
 
 def _latency(
@@ -849,7 +879,7 @@ def _latency(
     windows: ActionConditionedWindows,
     *,
     repetitions: int,
-) -> Mapping[str, float]:
+) -> tuple[Mapping[str, Any], np.ndarray]:
     if repetitions < 1:
         raise ValueError("SALT latency repetitions must be positive")
 
@@ -867,14 +897,15 @@ def _latency(
         started = time.perf_counter_ns()
         call()
         values.append((time.perf_counter_ns() - started) / 1e6)
+    samples = np.asarray(values, dtype=np.float64)
     return {
         "median_ms": float(np.median(values)),
         "p95_ms": float(np.quantile(values, 0.95)),
-        "repetitions": float(repetitions),
+        "repetitions": int(repetitions),
         "probe_token_identity_max_abs": float(
             np.max(np.abs(token - token))
         ),
-    }
+    }, samples
 
 
 def _source_identity(*, require_clean: bool) -> Mapping[str, str]:

@@ -101,6 +101,13 @@ latent-prediction student.” It is edge-runnable because the extra decoder is
 training-only. Its likely ceiling is modest here: masked reconstruction already
 beat complete LeJEPA but still lost badly to raw dynamics.
 
+**Provisional v1 result:** rejected numerically; corrected evidence v2 is
+pending. The frozen teacher remained exact and aligned
+masked-target prediction improved over derangement, but only by 6.96% on
+selection and 4.63% on transfer. The student increased held-topology
+downstream-effect MSE by `1.91×` relative to raw. See the
+[retained result](salt-jepa-telemetry-v1-results.md).
+
 ### 4. LeNEPA's disposable prediction projection — lower priority
 
 [LeNEPA](https://arxiv.org/abs/2607.00958) uses a causal, no-augmentation
@@ -262,16 +269,16 @@ than derangement or constant conformal. See the
 
 ## Execution outcome
 
-The first three experiments were executed in order with frozen controls,
-independent stored-evidence assessment, and retained artifacts. All three
-were rejected before robustness or sealed confirmation.
+The first three experiments and the initial SALT tracer were
+executed with frozen controls, independent stored-evidence assessment, and
+retained artifacts. The first three were rejected before robustness or sealed
+confirmation; SALT awaits its evidence-review-corrected v2 rerun.
 
 Interaction-aware target selection was exercised through matched-pair effect
 supervision and task-grounded witnesses; neither established incremental
-value. The preregistered condition for escalating to SALT, Discrete-JEPA, or
-the exact LeNEPA projection was therefore not met. PEIRA, VISReg, and
-approximate JEPA-SCORE remain bounded ablations without a promoted encoder or
-offline drift lane, not unexecuted deployment candidates.
+value. SALT was nevertheless run as a bounded exact-recipe omission and its
+v1 numbers failed, pending v2 confirmation. Exact LeNEPA follows. Discrete-JEPA, PEIRA,
+VISReg, and approximate JEPA-SCORE remain lower-priority bounded ablations.
 
 This outcome accepts that the stack is intentionally small. The next action
 is shadow deployment of the retained non-JEPA baselines, not data expansion

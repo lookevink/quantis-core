@@ -22,5 +22,10 @@ Implement, independently assess, and retain the
 
 ## Result
 
-Active. The contract is frozen before implementation or model fitting.
-
+Correction pending. The preserved v1 run indicates rejection: aligned
+teacher targets improved masked-latent L1 by 6.96% on
+selection and 4.63% on transfer versus derangement, below the 10% mechanism
+gate. The student increased raw held-topology downstream-effect MSE by
+`1.91×` and failed every predictive value gate. An evidence-review-corrected
+v2 rerun must confirm that disposition. See the
+[v1 review record](../../research/salt-jepa-telemetry-v1-results.md).

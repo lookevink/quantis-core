@@ -1622,6 +1622,22 @@ def assess_complete_lejepa_gates(
     }
 
 
+def build_complete_lejepa_backbone(
+    *,
+    feature_count: int,
+    graph: DeclaredTelemetryGraph,
+    config: CompleteLejepaConfig,
+) -> Any:
+    """Build the shared graph-biased telemetry transformer."""
+
+    return _build_backbone(
+        _require_torch(),
+        feature_count=feature_count,
+        graph=graph,
+        config=config,
+    )
+
+
 def _build_backbone(
     torch: Any,
     *,

@@ -15,6 +15,7 @@ from quantis_core.edge_dynamics.complete_lejepa import (
 )
 from quantis_core.edge_dynamics.salt_jepa import (
     SaltJepaConfig,
+    SaltMaskedTelemetry,
     SaltJepaRepresentation,
     SaltMaskSchedule,
     SaltTargetSchedule,
@@ -46,6 +47,10 @@ def test_salt_mask_schedule_is_deterministic_semantic_and_nonmutating() -> None:
     np.testing.assert_array_equal(
         first.visible_tokens, second.visible_tokens
     )
+    np.testing.assert_array_equal(
+        first.block_rectangles, second.block_rectangles
+    )
+    np.testing.assert_array_equal(first.fill_order, second.fill_order)
     np.testing.assert_array_equal(first.target_tokens, ~first.visible_tokens)
     assert first.values.shape == source.shape
     assert first.visible_tokens.shape == source.shape[:-1]
@@ -54,6 +59,13 @@ def test_salt_mask_schedule_is_deterministic_semantic_and_nonmutating() -> None:
     assert np.all(first.visible_tokens[:, -1, observed_entities])
     assert np.all(first.values[~first.visible_tokens] == 0.0)
     assert np.all(np.isfinite(first.values))
+    expected_values = np.where(
+        first.visible_tokens[..., None],
+        np.where(ownership[None, None], source, 0.0),
+        0.0,
+    )
+    np.testing.assert_array_equal(first.values, expected_values)
+    _assert_mask_provenance(first, windows.graph, observed_entities)
 
 
 def test_salt_target_schedule_deranges_pairs_without_fixed_points() -> None:
@@ -72,6 +84,8 @@ def test_salt_target_schedule_deranges_pairs_without_fixed_points() -> None:
 
 
 def test_salt_representation_freezes_teacher_and_restores_public_outputs() -> None:
+    import torch
+
     windows = _tiny_windows(pair_count=4, transition_count=5)
     config = SaltJepaConfig(
         alignment="aligned",
@@ -80,7 +94,12 @@ def test_salt_representation_freezes_teacher_and_restores_public_outputs() -> No
         expected_pair_count=4,
     )
 
+    torch.manual_seed(9182)
+    rng_before = torch.random.get_rng_state().clone()
     model = SaltJepaRepresentation(config).fit(windows)
+    np.testing.assert_array_equal(
+        torch.random.get_rng_state().numpy(), rng_before.numpy()
+    )
     student = model.encode(windows.histories[:3], windows.graph)
     teacher = model.encode_teacher(
         windows.histories[:3], windows.graph
@@ -203,6 +222,12 @@ def test_salt_assessment_recomputes_failed_raw_safety() -> None:
             "public_inference_is_causal": True,
             "mask_schedule_is_valid": True,
             "selection_only_ridge_choice_recomputes": True,
+            "selection_safety_status_recomputes": True,
+            "capacity_metadata_recomputes": True,
+            "teacher_metadata_recomputes": True,
+            "causality_metadata_recomputes": True,
+            "deployed_bundle_metadata_recomputes": True,
+            "latency_metadata_recomputes": True,
         },
         parameter_counts={
             "salt_jepa": {"training": 10, "inference": 5},
@@ -242,8 +267,85 @@ def test_salt_smoke_artifact_reassesses_from_stored_arrays(tmp_path) -> None:
 
     assessment = verify_stored_assessment(output)
     assert assessment["decision"] == "non_interpretable_salt_jepa_smoke"
+    assert all(assessment["protocol_checks"].values())
     assert (output / "artifact-manifest.json").is_file()
     assert (output / "reproduction-source").is_dir()
+
+
+def _assert_mask_provenance(
+    masked: SaltMaskedTelemetry,
+    graph: DeclaredTelemetryGraph,
+    observed_entities: np.ndarray,
+) -> None:
+    target = np.asarray(masked.target_tokens, dtype=np.bool_)
+    rectangles = np.asarray(masked.block_rectangles, dtype=np.int64)
+    fill_order = np.asarray(masked.fill_order, dtype=np.int64)
+    protected = np.zeros(target.shape[1:], dtype=np.bool_)
+    protected[-1, observed_entities] = True
+    for sample_position in range(len(target)):
+        reconstructed = np.zeros(target.shape[1:], dtype=np.bool_)
+        for start, duration, first, second, third in rectangles[
+            sample_position
+        ]:
+            if start < 0:
+                assert np.all(
+                    np.asarray(
+                        (start, duration, first, second, third)
+                    )
+                    == -1
+                )
+                continue
+            entities = (int(first), int(second), int(third))
+            assert 0 <= start < start + duration <= 20
+            assert len(set(entities)) == 3
+            reached = {entities[0]}
+            while True:
+                expanded = reached | {
+                    entity
+                    for entity in entities
+                    if any(
+                        graph.entity_ids[neighbor]
+                        in graph.neighboring_entity_ids(
+                            graph.entity_ids[entity]
+                        )
+                        for neighbor in reached
+                    )
+                }
+                if expanded == reached:
+                    break
+                reached = expanded
+            assert reached == set(entities)
+            proposal = np.zeros_like(reconstructed)
+            proposal[start : start + duration, list(entities)] = True
+            proposal[protected] = False
+            reconstructed |= proposal
+        for flat_position in fill_order[sample_position]:
+            if flat_position < 0:
+                continue
+            time_position, entity_position = np.unravel_index(
+                int(flat_position), reconstructed.shape
+            )
+            assert not reconstructed[time_position, entity_position]
+            assert not protected[time_position, entity_position]
+            temporal_neighbor = (
+                time_position > 0
+                and reconstructed[time_position - 1, entity_position]
+            ) or (
+                time_position + 1 < reconstructed.shape[0]
+                and reconstructed[time_position + 1, entity_position]
+            )
+            graph_neighbor = any(
+                reconstructed[
+                    time_position,
+                    graph.entity_ids.index(neighbor_id),
+                ]
+                for neighbor_id in graph.neighboring_entity_ids(
+                    graph.entity_ids[entity_position]
+                )
+            )
+            assert temporal_neighbor or graph_neighbor
+            reconstructed[time_position, entity_position] = True
+        np.testing.assert_array_equal(reconstructed, target[sample_position])
 
 
 def _tiny_windows(
