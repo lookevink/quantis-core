@@ -240,10 +240,14 @@ class CfJepaModel:
             lr=self.config.learning_rate,
             weight_decay=self.config.weight_decay,
         )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=self.config.pretrain_steps
+        )
         generator = np.random.default_rng(self.config.seed + 1)
         metrics: List[Mapping[str, float]] = []
         checkpoints = []
         network.train()
+        network.target_encoder.eval()
         for step in range(self.config.pretrain_steps):
             indices = generator.integers(
                 0,
@@ -268,6 +272,7 @@ class CfJepaModel:
                 self.config.gradient_clip_norm,
             )
             optimizer.step()
+            scheduler.step()
             network.update_target(
                 _ema_momentum(
                     self.config.ema_base,
@@ -281,6 +286,9 @@ class CfJepaModel:
                         name: float(value.detach())
                         for name, value in losses.items()
                     },
+                    "learning_rate": float(
+                        scheduler.get_last_lr()[0]
+                    ),
                 }
             )
             if (
@@ -387,7 +395,7 @@ class CfJepaModel:
             np.concatenate(result, axis=0), dtype=np.float64
         )
         return CfEncodedTelemetry(
-            tokens=np.mean(temporal, axis=2),
+            tokens=temporal[:, :, -1].copy(),
             temporal_tokens=temporal,
             entity_ids=graph.entity_ids,
             ownership_mask=ownership.copy(),
@@ -978,16 +986,6 @@ def _build_network(
                     target.data.mul_(momentum).add_(
                         online.data, alpha=1.0 - momentum
                     )
-                for target, online in zip(
-                    self.target_encoder.buffers(),
-                    self.online_encoder.buffers(),
-                ):
-                    if target.dtype.is_floating_point:
-                        target.data.mul_(momentum).add_(
-                            online.data, alpha=1.0 - momentum
-                        )
-                    else:
-                        target.data.copy_(online.data)
 
         def objective_loss(
             self,

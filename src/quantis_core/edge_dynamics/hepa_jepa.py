@@ -203,6 +203,69 @@ class HepaEntityPcaBaseline:
             "components": [value.tolist() for value in components],
         }
 
+    @classmethod
+    def from_dict(
+        cls, payload: Mapping[str, Any]
+    ) -> "HepaEntityPcaBaseline":
+        """Restore a fitted entity-local PCA baseline."""
+
+        if (
+            payload.get("schema_version") != cls.schema_version
+            or payload.get("kind") != cls.kind
+        ):
+            raise ValueError("unsupported HEPA PCA baseline")
+        width = payload.get("width")
+        if (
+            isinstance(width, bool)
+            or not isinstance(width, int)
+            or width < 1
+        ):
+            raise ValueError("HEPA PCA width is invalid")
+        graph = DeclaredTelemetryGraph.from_dict(
+            dict(payload["graph"])
+        )
+        features = tuple(
+            str(value) for value in payload["feature_names"]
+        )
+        ownership = np.asarray(
+            payload["ownership_mask"], dtype=np.bool_
+        )
+        centers = tuple(
+            np.asarray(value, dtype=np.float64)
+            for value in payload["centers"]
+        )
+        components = tuple(
+            np.asarray(value, dtype=np.float64)
+            for value in payload["components"]
+        )
+        expected = (len(graph.entities), len(features))
+        if (
+            not features
+            or ownership.shape != expected
+            or not np.any(ownership)
+            or len(centers) != len(graph.entities)
+            or len(components) != len(graph.entities)
+        ):
+            raise ValueError("HEPA PCA schema is invalid")
+        for center, local in zip(centers, components):
+            if (
+                center.ndim != 1
+                or local.ndim != 2
+                or local.shape[1] != len(center)
+                or len(local) > width
+                or not np.all(np.isfinite(center))
+                or not np.all(np.isfinite(local))
+            ):
+                raise ValueError("HEPA PCA tensors are invalid")
+        result = cls(width=width)
+        result._graph = graph
+        result._feature_names = features
+        result._ownership_mask = ownership
+        result._centers = centers
+        result._components = components
+        result._fitted_values()
+        return result
+
     def _fitted_values(
         self,
     ) -> Tuple[

@@ -40,10 +40,10 @@ batch normalization, GELU, pointwise convolutions, residual connections, and
 a final linear projection.
 
 Use deterministic CPU AdamW, seed `14014`, 300 pretraining steps, batch size
-64, four crops per sample, learning rate `2.25e-4`, weight decay `1e-5`,
-gradient clipping at one, and checkpoints every 50 steps. Series shorter
-than 50 use crop ratios sampled uniformly from `[0.6, 0.8]`. Crop sampling
-reserves at least three future positions.
+64, four crops per sample, initial learning rate `2.25e-4` with cosine
+annealing, weight decay `1e-5`, gradient clipping at one, and checkpoints
+every 50 steps. Series shorter than 50 use crop ratios sampled uniformly from
+`[0.6, 0.8]`. Crop sampling reserves at least three future positions.
 
 The base EMA momentum is `0.983` and follows the source cosine schedule to
 one. Apply source weights `0.081`, `0.076`, and `1.101` to VICReg variance,
@@ -78,11 +78,13 @@ have different heads.
 
 ## Alert adapter
 
-For every representation, mean-pool the encoder’s per-timestep history
-tokens per entity. Fit one full-covariance Gaussian with ridge `1e-3` to
-fitting-control tokens for each entity. Average the summed entity Mahalanobis
-distance over entity and latent dimensions, then apply the fixed monotone map
-`d / (1 + d)` to obtain a bounded action-blind anomaly score.
+For every neural representation, take the final per-timestep history token
+for each entity, matching the paper’s per-timestep anomaly route at the
+current observation boundary. Fit one full-covariance Gaussian with ridge
+`1e-3` to fitting-control tokens for each entity. Average the summed entity
+Mahalanobis distance over entity and latent dimensions, then apply the fixed
+monotone map `d / (1 + d)` to obtain a bounded action-blind anomaly score.
+The matched-PCA reference uses its entity-local history token.
 
 Reuse the HEPA robust normalized one-step state-change event definition,
 fitted on fitting controls only. Fit an increasing one-dimensional logit

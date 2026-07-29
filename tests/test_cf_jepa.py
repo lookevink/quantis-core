@@ -1,9 +1,16 @@
 import copy
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
 
+from lab.action_dynamics.prototype_cf_jepa import run_experiment
+from lab.action_dynamics.prototype_cf_jepa_assessor import (
+    assess_stored_bundle,
+    verify_artifact_manifest,
+    verify_stored_assessment,
+)
 from quantis_core.action_conditioned_dynamics import (
     ActionConditionedWindows,
 )
@@ -14,7 +21,16 @@ from quantis_core.edge_dynamics.cf_jepa import (
     cf_forward_zones,
     sample_cf_crop,
 )
-from quantis_core.edge_dynamics.hepa_jepa import HepaEventDefinition
+from quantis_core.edge_dynamics.hepa_jepa import (
+    HepaEntityPcaBaseline,
+    HepaEventDefinition,
+)
+from quantis_core.edge_dynamics.data import (
+    EdgePairRoles,
+    PreparedAttributionQueries,
+    PreparedEdgeDynamicsData,
+    write_edge_dynamics_cache,
+)
 from quantis_core.graph_telemetry import (
     DeclaredTelemetryGraph,
     GraphEntity,
@@ -77,6 +93,22 @@ def test_cf_jepa_objectives_restore_and_share_deployed_capacity() -> None:
 
     histories = fit.histories[:3]
     candidate = models["three_zone"]
+    candidate_state = candidate.to_dict()["state_dict"]
+    target_batch_counts = [
+        raw["values"]
+        for name, raw in candidate_state.items()
+        if name.startswith("target_encoder.")
+        and name.endswith("num_batches_tracked")
+    ]
+    online_batch_counts = [
+        raw["values"]
+        for name, raw in candidate_state.items()
+        if name.startswith("online_encoder.")
+        and name.endswith("num_batches_tracked")
+    ]
+    assert target_batch_counts
+    assert all(value == 0 for value in target_batch_counts)
+    assert any(value > 0 for value in online_batch_counts)
     target = candidate.encode(histories, fit.graph, route="target")
     online = candidate.encode(histories, fit.graph, route="online")
     restored = CfJepaModel.from_dict(candidate.to_dict())
@@ -168,6 +200,41 @@ def test_cf_gaussian_alert_restores_scores_and_calibration() -> None:
         CfGaussianAlert(route="online").fit(
             CfJepaModel(config), fit
         )
+
+
+def test_matched_pca_baseline_restores_for_cf_reference() -> None:
+    windows = _tiny_windows(pair_count=4, transition_count=6)
+    model = HepaEntityPcaBaseline(width=8).fit(windows)
+    restored = HepaEntityPcaBaseline.from_dict(model.to_dict())
+
+    np.testing.assert_allclose(
+        model.encode(windows.histories, windows.graph).tokens,
+        restored.encode(windows.histories, windows.graph).tokens,
+        atol=1e-12,
+    )
+
+
+def test_cf_jepa_smoke_artifact_reassesses_from_stored_arrays(
+    tmp_path: Path,
+) -> None:
+    cache = _write_tiny_edge_cache(tmp_path / "cache")
+    output = tmp_path / "artifact"
+
+    run_experiment(
+        cache_directory=cache,
+        output_directory=output,
+        pretrain_steps=1,
+        latency_repetitions=1,
+        allow_noninterpretable_smoke=True,
+        expected_pair_count=2,
+    )
+
+    assessment = assess_stored_bundle(output)
+    assert assessment["eligible_for_advance"] is False
+    assert assessment["passed"] is False
+    assert assessment["decision"] == "non_interpretable_cf_jepa_smoke"
+    verify_stored_assessment(output)
+    verify_artifact_manifest(output)
 
 
 def _tiny_windows(
@@ -274,3 +341,67 @@ def _tiny_windows(
         action_feature_names=action_names,
         graph=graph,
     )
+
+
+def _write_tiny_edge_cache(output: Path) -> Path:
+    windows = {
+        role: _tiny_windows(
+            pair_count=3,
+            transition_count=6,
+            pair_prefix=role,
+        )
+        for role in ("fit", "selection", "calibration", "evaluation")
+    }
+    fit = windows["fit"]
+    query = PreparedAttributionQueries(
+        query_ids=("query",),
+        histories=fit.histories[:1].astype(np.float32),
+        future_controls=fit.future_controls[:1].astype(np.float32),
+        observed_future=fit.future_states[:1].astype(np.float32),
+        candidate_actions=fit.future_actions[:1, None].astype(
+            np.float32
+        ),
+        candidate_ids=("candidate",),
+        candidate_action_kinds=("worker_pause",),
+        candidate_target_entities=("e2",),
+        expected_action_kinds=("worker_pause",),
+        expected_target_entities=("e2",),
+        expected_variant_ids=("variant",),
+    )
+    roles = EdgePairRoles(
+        fit_pair_ids=tuple(sorted(set(fit.matched_pair_ids))),
+        selection_pair_ids=tuple(
+            sorted(set(windows["selection"].matched_pair_ids))
+        ),
+        calibration_pair_ids=tuple(
+            sorted(set(windows["calibration"].matched_pair_ids))
+        ),
+        evaluation_pair_ids=tuple(
+            sorted(set(windows["evaluation"].matched_pair_ids))
+        ),
+    )
+    compiler = {
+        "schema_version": 1,
+        "kind": "action_trajectory_compiler",
+        "context_length": 20,
+        "rollout_horizon": 10,
+        "semantic_schema": {
+            "graph": fit.graph.to_dict(),
+            "state_feature_names": list(fit.state_feature_names),
+            "control_feature_names": list(fit.control_feature_names),
+            "action_feature_names": list(fit.action_feature_names),
+        },
+        "semantic_schema_sha256": fit.semantic_schema_sha256,
+    }
+    write_edge_dynamics_cache(
+        PreparedEdgeDynamicsData(
+            source_corpus_sha256="a" * 64,
+            source_artifact_manifest_sha256="b" * 64,
+            roles=roles,
+            compiler_artifact=compiler,
+            windows=windows,
+            attribution_queries=query,
+        ),
+        output,
+    )
+    return output

@@ -93,10 +93,11 @@ initialization, temporal alignment, and the three official objectives remain
 unchanged. This tests the mechanism at the intended edge budget; it does not
 reproduce the paper’s benchmark scale.
 
-The alert adapter follows the paper’s Gaussian anomaly route. A regularized
-Gaussian is fit only on fitting-control representations, then an increasing
-calibrator and a strict trajectory threshold are fit on the calibration
-role. Quantis maps the non-negative Mahalanobis distance through the fixed
-monotone transform `d / (1 + d)` because the shared logit calibrator accepts
-bounded inputs. A matched entity-local rank-32 PCA passes through the
-identical Gaussian/calibration protocol.
+The alert adapter follows the paper’s per-timestep Gaussian anomaly route,
+using the final history token at the current observation boundary. A
+regularized Gaussian is fit only on fitting-control representations, then an
+increasing calibrator and a strict trajectory threshold are fit on the
+calibration role. Quantis maps the non-negative Mahalanobis distance through
+the fixed monotone transform `d / (1 + d)` because the shared logit
+calibrator accepts bounded inputs. A matched entity-local rank-32 PCA passes
+through the identical Gaussian/calibration protocol.
