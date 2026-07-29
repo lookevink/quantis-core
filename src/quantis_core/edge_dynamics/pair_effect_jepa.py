@@ -288,7 +288,7 @@ class PairEffectJepaModel:
             controls=controls,
             actions=actions,
         )
-        matched = _match_rows(windows)
+        matched = _match_rows(windows, require_derangement=False)
         torch = _require_torch()
         rows = []
         best_key: Optional[Tuple[float, int]] = None
@@ -828,7 +828,11 @@ def _update_target_encoder(network: Any, *, decay: float) -> None:
         target.data.mul_(decay).add_(online.data, alpha=1.0 - decay)
 
 
-def _match_rows(windows: ActionConditionedWindows) -> _MatchedRows:
+def _match_rows(
+    windows: ActionConditionedWindows,
+    *,
+    require_derangement: bool = True,
+) -> _MatchedRows:
     pair_names = tuple(sorted(set(windows.matched_pair_ids)))
     treatment_rows: List[int] = []
     control_rows: List[int] = []
@@ -878,8 +882,10 @@ def _match_rows(windows: ActionConditionedWindows) -> _MatchedRows:
             pair_positions[pair].append(position)
     treatment = np.asarray(treatment_rows, dtype=np.int64)
     control = np.asarray(control_rows, dtype=np.int64)
-    donor_by_pair = _deranged_pair_map(
-        windows, pair_names, arm_by_pair
+    donor_by_pair = (
+        _deranged_pair_map(windows, pair_names, arm_by_pair)
+        if require_derangement
+        else {pair: pair for pair in pair_names}
     )
     control_lookup = {
         (
@@ -936,20 +942,12 @@ def _deranged_pair_map(
     result: Dict[str, str] = {}
     for members in groups.values():
         ordered = sorted(members)
-        if len(ordered) > 1:
-            for position, pair in enumerate(ordered):
-                result[pair] = ordered[(position + 1) % len(ordered)]
-    unresolved = [pair for pair in pair_names if pair not in result]
-    if unresolved:
-        ordered_all = sorted(pair_names)
-        for pair in unresolved:
-            position = ordered_all.index(pair)
-            donor = ordered_all[(position + 1) % len(ordered_all)]
-            if donor == pair:
-                raise ValueError(
-                    "PairEffect-JEPA derangement needs multiple pairs"
-                )
-            result[pair] = donor
+        if len(ordered) < 2:
+            raise ValueError(
+                "PairEffect-JEPA derangement cell needs at least two pairs"
+            )
+        for position, pair in enumerate(ordered):
+            result[pair] = ordered[(position + 1) % len(ordered)]
     if any(pair == donor for pair, donor in result.items()):
         raise ValueError("PairEffect-JEPA derangement retained a twin")
     return result

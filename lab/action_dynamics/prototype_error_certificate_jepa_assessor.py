@@ -207,20 +207,21 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         )
         for role in expected_pair_counts
     }
+    role_pairs = {
+        role: set(
+            str(value)
+            for value in dict(metadata["roles"][role])["pair_ids"]
+        )
+        for role in expected_pair_counts
+    }
     role_identifiers_are_disjoint = (
         all(
-            len(
-                set(
-                    str(value)
-                    for value in dict(metadata["roles"][role])[
-                        "pair_ids"
-                    ]
-                )
-            )
-            == count
+            len(role_pairs[role]) == count
             for role, count in expected_pair_counts.items()
         )
         and all(
+            role_pairs[left].isdisjoint(role_pairs[right])
+            and
             role_trajectories[left].isdisjoint(
                 role_trajectories[right]
             )

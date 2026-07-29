@@ -45,7 +45,7 @@ FROZEN_CACHE = Path(
     "eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff"
 )
 FROZEN_OUTPUT = Path(
-    "artifacts/action-dynamics/prototype-pair-effect-jepa-v2"
+    "artifacts/action-dynamics/prototype-pair-effect-jepa-v3"
 )
 FROZEN_PRETRAIN_STEPS = 800
 IMPLEMENTATION_SOURCE_PATHS = (
@@ -221,6 +221,18 @@ def run_experiment(
                 sample.future_actions[:8],
                 sample.graph,
             )
+            original_effect = cells[name].predict_effect(
+                sample.histories[:8],
+                sample.future_controls[:8],
+                sample.future_actions[:8],
+                sample.graph,
+            )
+            restored_effect = restored.effect_model.predict_effect(
+                sample.histories[:8],
+                sample.future_controls[:8],
+                sample.future_actions[:8],
+                sample.graph,
+            )
             restoration_evidence[
                 f"restoration_original_mean__{name}"
             ] = original.mean
@@ -233,6 +245,12 @@ def run_experiment(
             restoration_evidence[
                 f"restoration_restored_variance__{name}"
             ] = replay.variance
+            restoration_evidence[
+                f"restoration_original_effect_prediction__{name}"
+            ] = original_effect
+            restoration_evidence[
+                f"restoration_restored_effect_prediction__{name}"
+            ] = restored_effect
             restored_max = max(
                 restored_max,
                 float(np.max(np.abs(original.mean - replay.mean))),
@@ -241,6 +259,11 @@ def run_experiment(
                         np.abs(
                             original.variance - replay.variance
                         )
+                    )
+                ),
+                float(
+                    np.max(
+                        np.abs(original_effect - restored_effect)
                     )
                 ),
             )

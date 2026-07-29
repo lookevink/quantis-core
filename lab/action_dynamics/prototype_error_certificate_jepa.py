@@ -47,7 +47,7 @@ FROZEN_CACHE = Path(
     "eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff"
 )
 FROZEN_OUTPUT = Path(
-    "artifacts/action-dynamics/prototype-error-certificate-jepa-v4"
+    "artifacts/action-dynamics/prototype-error-certificate-jepa-v5"
 )
 FROZEN_PRETRAIN_STEPS = 800
 IMPLEMENTATION_SOURCE_PATHS = (

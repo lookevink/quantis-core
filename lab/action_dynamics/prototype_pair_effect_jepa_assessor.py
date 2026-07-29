@@ -159,12 +159,12 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
             )
         )
         for name in CELL_NAMES
-        for field in ("mean", "variance")
+        for field in ("mean", "variance", "effect_prediction")
         if f"restoration_original_{field}__{name}" in arrays
         and f"restoration_restored_{field}__{name}" in arrays
     ]
     restoration_arrays_match = (
-        len(restoration_differences) == 2 * len(CELL_NAMES)
+        len(restoration_differences) == 3 * len(CELL_NAMES)
         and max(restoration_differences) <= 1e-6
     )
     safety = {

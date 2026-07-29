@@ -27,11 +27,44 @@ from quantis_core.edge_dynamics.models import (
 from tests.test_sd_jepa import tiny_action_conditioned_windows
 
 
-def test_pair_effect_cells_restore_match_capacity_and_zero_no_action() -> None:
-    fit = tiny_action_conditioned_windows(
+def _pair_effect_windows(
+    *,
+    pair_count: int,
+    transition_count: int,
+    pair_prefix: str = "pair",
+):
+    windows = tiny_action_conditioned_windows(
+        pair_count=pair_count,
+        transition_count=transition_count,
+        pair_prefix=pair_prefix,
+    )
+    controls = windows.future_controls.copy()
+    controls[..., 1] = 0.0
+    return replace(windows, future_controls=controls)
+
+
+def test_deranged_pair_cell_rejects_singleton_action_topology_cells() -> None:
+    windows = tiny_action_conditioned_windows(
         pair_count=4, transition_count=6
     )
-    selection = tiny_action_conditioned_windows(
+    with pytest.raises(ValueError, match="cell needs at least two"):
+        PairEffectJepaModel(
+            PairEffectJepaConfig(
+                objective="deranged_pair_jepa",
+                width=8,
+                hidden_width=16,
+                pretrain_steps=1,
+                checkpoint_interval=1,
+                expected_pair_count=4,
+            )
+        ).fit(windows)
+
+
+def test_pair_effect_cells_restore_match_capacity_and_zero_no_action() -> None:
+    fit = _pair_effect_windows(
+        pair_count=4, transition_count=6
+    )
+    selection = _pair_effect_windows(
         pair_count=2,
         transition_count=6,
         pair_prefix="selection",
@@ -111,10 +144,10 @@ def test_pair_effect_cells_restore_match_capacity_and_zero_no_action() -> None:
 
 
 def test_pair_effect_composition_preserves_raw_path_and_restores() -> None:
-    fit = tiny_action_conditioned_windows(
+    fit = _pair_effect_windows(
         pair_count=4, transition_count=6
     )
-    selection = tiny_action_conditioned_windows(
+    selection = _pair_effect_windows(
         pair_count=2,
         transition_count=6,
         pair_prefix="selection",

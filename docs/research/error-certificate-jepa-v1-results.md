@@ -17,8 +17,9 @@ sharper than its deranged, raw-only, or constant-conformal controls.
 - implementation commit:
   `ad3c3b51890296d2895a5f76c6212e1a6cbd2344`;
 - conclusive immutable artifact:
-  `artifacts/action-dynamics/prototype-error-certificate-jepa-v4`;
+  `artifacts/action-dynamics/prototype-error-certificate-jepa-v5`;
 - retained superseded artifacts:
+  `artifacts/action-dynamics/prototype-error-certificate-jepa-v4`,
   `artifacts/action-dynamics/prototype-error-certificate-jepa-v3`,
   `artifacts/action-dynamics/prototype-error-certificate-jepa-v2` and
   `artifacts/action-dynamics/prototype-error-certificate-jepa-v1`;
@@ -35,7 +36,9 @@ runner stores calibration evidence losslessly, retains original/restored
 forecasts, bounds, and decisions, verifies disjoint role identifiers, and
 recomputes the selected checkpoint from selection evidence, but its copied
 ticket still named v2. The identical v4 rerun binds the corrected ticket and
-passes every safety gate.
+passes every safety gate. The identical v5 rerun additionally verifies
+pair-ID as well as trajectory-ID disjointness across roles and is the
+conclusion-bearing artifact.
 
 ## Held-topology result
 
@@ -73,7 +76,7 @@ measurable reliability signal.
 
 ## Calibration and safety
 
-Every safety gate passed in v4:
+Every safety gate passed in v5:
 
 - all evidence was finite and every bound was non-negative;
 - all three cells had identical `87,409` training and `79,713` inference
