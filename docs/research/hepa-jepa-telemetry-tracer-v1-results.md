@@ -108,8 +108,8 @@ Edge diagnostics for the candidate were:
 
 - 78,082 inference parameters;
 - 1,981,889 serialized candidate-and-sidecar bytes;
-- 1.69 ms local batch-one CPU latency over 100 repetitions; and
-- 2.74 GB process peak RSS while the complete training and assessment bundle
+- 1.71 ms local batch-one CPU latency over 100 repetitions; and
+- 2.75 GB process peak RSS while the complete training and assessment bundle
   was resident.
 
 The RSS value is a process-level training/assessment diagnostic, not a claim
