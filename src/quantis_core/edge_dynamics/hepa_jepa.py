@@ -21,6 +21,16 @@ _HEPA_OBJECTIVES = (
     "horizon_deranged",
     "supervised_scratch",
 )
+HEPA_MODEL_NAMES = (
+    "hepa",
+    "horizon_deranged",
+    "supervised_scratch",
+)
+HEPA_ASSESSMENT_ROLE_NAMES = (
+    "calibration",
+    "evaluation_iid",
+    "evaluation_transfer",
+)
 
 
 @dataclass(frozen=True)
@@ -1247,6 +1257,16 @@ def assess_hepa_tracer(
     restored_calibrated_surfaces: Mapping[
         str, Mapping[str, NDArray[np.float64]]
     ],
+    stored_alert_decisions: Mapping[
+        str, Mapping[str, NDArray[np.bool_]]
+    ],
+    restored_alert_decisions: Mapping[
+        str, Mapping[str, NDArray[np.bool_]]
+    ],
+    stored_model_calibrations: Mapping[str, Mapping[str, float]],
+    restored_model_calibrations: Mapping[
+        str, Mapping[str, float]
+    ],
     labels: Mapping[str, NDArray[np.bool_]],
     trajectory_ids: Mapping[str, Tuple[str, ...]],
     transition_indices: Mapping[str, NDArray[np.int64]],
@@ -1265,17 +1285,7 @@ def assess_hepa_tracer(
 ) -> Mapping[str, Any]:
     """Recompute the complete HEPA decision from stored numeric evidence."""
 
-    model_names = (
-        "hepa",
-        "horizon_deranged",
-        "supervised_scratch",
-    )
-    role_names = (
-        "calibration",
-        "evaluation_iid",
-        "evaluation_transfer",
-    )
-    for role in role_names:
+    for role in HEPA_ASSESSMENT_ROLE_NAMES:
         if (
             role not in probability_surfaces
             or role not in restored_probability_surfaces
@@ -1286,6 +1296,8 @@ def assess_hepa_tracer(
             or role not in transition_indices
             or role not in trajectory_onsets
             or role not in raw_effect_scores
+            or role not in stored_alert_decisions
+            or role not in restored_alert_decisions
         ):
             raise ValueError(f"HEPA assessment role is missing: {role}")
         count = len(trajectory_ids[role])
@@ -1295,7 +1307,7 @@ def assess_hepa_tracer(
             or raw_effect_scores[role].shape != (count,)
         ):
             raise ValueError("HEPA assessment role arrays do not align")
-        for model in model_names:
+        for model in HEPA_MODEL_NAMES:
             shape = labels[role].shape
             if any(
                 values[role][model].shape != shape
@@ -1309,6 +1321,13 @@ def assess_hepa_tracer(
                 raise ValueError(
                     "HEPA probability surface shape differs"
                 )
+            if (
+                stored_alert_decisions[role][model].shape
+                != (count,)
+                or restored_alert_decisions[role][model].shape
+                != (count,)
+            ):
+                raise ValueError("HEPA alert decision shape differs")
     calibration_ids = trajectory_ids["calibration"]
     calibration_controls = tuple(
         trajectory_id
@@ -1319,25 +1338,30 @@ def assess_hepa_tracer(
     )
     calibrations: Dict[str, Mapping[str, float]] = {}
     calibrated: Dict[str, Dict[str, NDArray[np.float64]]] = {
-        role: {} for role in role_names
+        role: {} for role in HEPA_ASSESSMENT_ROLE_NAMES
     }
     restored_calibrated: Dict[
         str, Dict[str, NDArray[np.float64]]
-    ] = {role: {} for role in role_names}
+    ] = {role: {} for role in HEPA_ASSESSMENT_ROLE_NAMES}
     surface_metrics: Dict[str, Dict[str, Mapping[str, float]]] = {
-        role: {} for role in role_names
+        role: {} for role in HEPA_ASSESSMENT_ROLE_NAMES
     }
     alert_metrics: Dict[str, Dict[str, Mapping[str, Any]]] = {
         role: {}
         for role in ("evaluation_iid", "evaluation_transfer")
     }
     restoration_checks: List[bool] = []
-    for model in model_names:
+    for model in HEPA_MODEL_NAMES:
+        if (
+            model not in stored_model_calibrations
+            or model not in restored_model_calibrations
+        ):
+            raise ValueError("HEPA stored calibration is missing")
         slope, intercept, calibration_brier = fit_logit_calibrator(
             probability_surfaces["calibration"][model],
             labels["calibration"],
         )
-        for role in role_names:
+        for role in HEPA_ASSESSMENT_ROLE_NAMES:
             calibrated[role][model] = calibrate_probability_surface(
                 probability_surfaces[role][model],
                 slope=slope,
@@ -1388,29 +1412,74 @@ def assess_hepa_tracer(
         restoration_checks.append(
             abs(threshold - restored_threshold) <= 1e-6
         )
+        expected_calibration = {
+            "slope": slope,
+            "intercept": intercept,
+            "calibration_brier": calibration_brier,
+            "alert_threshold": threshold,
+        }
+        for stored in (
+            stored_model_calibrations[model],
+            restored_model_calibrations[model],
+        ):
+            restoration_checks.append(
+                set(stored) == set(expected_calibration)
+                and all(
+                    abs(
+                        float(stored[key])
+                        - float(expected_calibration[key])
+                    )
+                    <= 1e-6
+                    for key in expected_calibration
+                )
+            )
         calibrations[model] = {
             "slope": slope,
             "intercept": intercept,
             "calibration_brier": calibration_brier,
             "alert_threshold": threshold,
         }
-        for role in ("evaluation_iid", "evaluation_transfer"):
+        for role in HEPA_ASSESSMENT_ROLE_NAMES:
             original_decisions = (
-                calibrated[role][model][:, -1] > threshold
+                calibrated[role][model][:, -1]
+                > float(
+                    stored_model_calibrations[model][
+                        "alert_threshold"
+                    ]
+                )
             )
             restored_decisions = (
                 restored_calibrated[role][model][:, -1]
-                > restored_threshold
+                > float(
+                    restored_model_calibrations[model][
+                        "alert_threshold"
+                    ]
+                )
             )
-            restoration_checks.append(
-                np.array_equal(original_decisions, restored_decisions)
+            restoration_checks.extend(
+                (
+                    np.array_equal(
+                        original_decisions,
+                        stored_alert_decisions[role][model],
+                    ),
+                    np.array_equal(
+                        restored_decisions,
+                        restored_alert_decisions[role][model],
+                    ),
+                    np.array_equal(
+                        original_decisions, restored_decisions
+                    ),
+                )
             )
-            alert_metrics[role][model] = _trajectory_alert_metrics(
-                decisions=original_decisions,
-                trajectory_ids=trajectory_ids[role],
-                transition_indices=transition_indices[role],
-                onsets=trajectory_onsets[role],
-            )
+            if role in alert_metrics:
+                alert_metrics[role][model] = (
+                    _trajectory_alert_metrics(
+                        decisions=original_decisions,
+                        trajectory_ids=trajectory_ids[role],
+                        transition_indices=transition_indices[role],
+                        onsets=trajectory_onsets[role],
+                    )
+                )
     for role in ("evaluation_iid", "evaluation_transfer"):
         alert_metrics[role]["raw_effect_reference"] = (
             _trajectory_alert_metrics(

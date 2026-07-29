@@ -12,7 +12,6 @@ import subprocess
 import sys
 import time
 import traceback
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, Mapping, Sequence, Tuple
 
@@ -24,25 +23,18 @@ from quantis_core.edge_dynamics.data import (
 )
 from quantis_core.edge_dynamics.hepa_jepa import (
     EntityStateRidgeProbe,
+    HEPA_ASSESSMENT_ROLE_NAMES,
+    HEPA_MODEL_NAMES,
     HepaConfig,
     HepaEventDefinition,
     HepaEntityPcaBaseline,
     HepaJepaModel,
-    assess_hepa_tracer,
     trajectory_action_onsets,
 )
 
 
-MODEL_NAMES = (
-    "hepa",
-    "horizon_deranged",
-    "supervised_scratch",
-)
-ROLE_NAMES = (
-    "calibration",
-    "evaluation_iid",
-    "evaluation_transfer",
-)
+MODEL_NAMES = HEPA_MODEL_NAMES
+ROLE_NAMES = HEPA_ASSESSMENT_ROLE_NAMES
 FROZEN_CACHE = Path(
     "artifacts/action-dynamics/edge-preprocessing-v1/"
     "eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff"
@@ -110,11 +102,10 @@ def run_experiment(
                 "evaluation"
             ].held_out,
         }
-        event_definition = HepaEventDefinition.fit(fit_windows)
-        base_config = {
-            "stage1_steps": stage1_steps,
-            "stage2_steps": stage2_steps,
+        phases: Dict[str, float] = {
+            "fitting_started_unix_seconds": time.time()
         }
+        event_definition = HepaEventDefinition.fit(fit_windows)
         models: Dict[str, HepaJepaModel] = {}
         fit_seconds: Dict[str, float] = {}
         for name, objective in (
@@ -124,7 +115,11 @@ def run_experiment(
         ):
             fit_started = time.perf_counter()
             model = HepaJepaModel(
-                HepaConfig(objective=objective, **base_config)
+                HepaConfig(
+                    objective=objective,
+                    stage1_steps=stage1_steps,
+                    stage2_steps=stage2_steps,
+                )
             ).fit(
                 fit_windows,
                 event_definition,
@@ -144,12 +139,17 @@ def run_experiment(
                     "calibration": model.calibration,
                 },
             )
+        phases["calibration_completed_unix_seconds"] = time.time()
         model_payloads = {
             name: model.to_dict() for name, model in models.items()
         }
         restored_models = {
             name: HepaJepaModel.from_dict(payload)
             for name, payload in model_payloads.items()
+        }
+        restored_model_payloads = {
+            name: model.to_dict()
+            for name, model in restored_models.items()
         }
         probability_surfaces: Dict[
             str, Dict[str, np.ndarray]
@@ -163,11 +163,16 @@ def run_experiment(
         restored_calibrated_surfaces: Dict[
             str, Dict[str, np.ndarray]
         ] = {}
+        alert_decisions: Dict[str, Dict[str, np.ndarray]] = {}
+        restored_alert_decisions: Dict[
+            str, Dict[str, np.ndarray]
+        ] = {}
         labels = {}
         raw_effect_scores = {}
         trajectory_ids = {}
         transition_indices = {}
         trajectory_onsets = {}
+        phases["evaluation_started_unix_seconds"] = time.time()
         for role, windows in role_windows.items():
             labels[role] = event_definition.labels(windows)
             raw_effect_scores[
@@ -180,6 +185,8 @@ def run_experiment(
             restored_probability_surfaces[role] = {}
             calibrated_surfaces[role] = {}
             restored_calibrated_surfaces[role] = {}
+            alert_decisions[role] = {}
+            restored_alert_decisions[role] = {}
             for name in MODEL_NAMES:
                 probability_surfaces[role][name] = models[
                     name
@@ -199,6 +206,13 @@ def run_experiment(
                         windows.histories, windows.graph
                     )
                 )
+                alert_decisions[role][name] = models[
+                    name
+                ].alert_decisions(windows.histories, windows.graph)
+                restored_alert_decisions[role][name] = restored_models[
+                    name
+                ].alert_decisions(windows.histories, windows.graph)
+        phases["evaluation_completed_unix_seconds"] = time.time()
         candidate_fit_tokens = models["hepa"].encode(
             fit_windows.histories, fit_windows.graph
         ).tokens
@@ -254,63 +268,47 @@ def run_experiment(
             ),
             "matched_pca": pca_probe.predict(pca_transfer_tokens),
         }
-        candidate_sidecars = {
-            "model": model_payloads["hepa"],
-            "event_definition": event_definition.to_dict(),
-            "state_probe": candidate_probe.to_dict(),
-        }
-        edge_metrics = _measure_edge_metrics(
+        latency_samples, peak_rss_bytes = _measure_edge_evidence(
             models=models,
             graph=fit_windows.graph,
             example=role_windows[
                 "evaluation_transfer"
             ].histories[:1],
-            candidate_sidecar_bytes=len(
-                _canonical_json_bytes(candidate_sidecars)
-            ),
             repetitions=latency_repetitions,
         )
-        protocol_checks = _protocol_checks(
-            data=data,
-            fit_windows=fit_windows,
-            model_payloads=model_payloads,
-            inference_parameter_counts={
-                name: models[name].inference_parameter_count
-                for name in MODEL_NAMES
-            },
-            event_definition=event_definition,
+        audit_windows = role_windows["evaluation_transfer"]
+        audit_histories = audit_windows.histories[:2].copy()
+        audit_forbidden = np.concatenate(
+            (
+                audit_windows.future_states[:2].reshape(2, -1),
+                audit_windows.future_controls[:2].reshape(2, -1),
+                audit_windows.future_actions[:2].reshape(2, -1),
+            ),
+            axis=1,
         )
-        assessment = assess_hepa_tracer(
-            probability_surfaces=probability_surfaces,
-            restored_probability_surfaces=(
-                restored_probability_surfaces
+        audit_counterfactual_forbidden = audit_forbidden.copy()
+        audit_counterfactual_forbidden[:, 0] += 1.0
+        audit_original_outputs = np.concatenate(
+            (
+                models["hepa"]
+                .encode(audit_histories, audit_windows.graph)
+                .tokens.reshape(2, -1),
+                models["hepa"].predict_event_cdf(
+                    audit_histories, audit_windows.graph
+                ),
             ),
-            stored_calibrated_surfaces=calibrated_surfaces,
-            restored_calibrated_surfaces=(
-                restored_calibrated_surfaces
+            axis=1,
+        )
+        audit_counterfactual_outputs = np.concatenate(
+            (
+                models["hepa"]
+                .encode(audit_histories.copy(), audit_windows.graph)
+                .tokens.reshape(2, -1),
+                models["hepa"].predict_event_cdf(
+                    audit_histories.copy(), audit_windows.graph
+                ),
             ),
-            labels=labels,
-            trajectory_ids=trajectory_ids,
-            transition_indices=transition_indices,
-            trajectory_onsets=trajectory_onsets,
-            candidate_tokens=candidate_transfer_tokens,
-            restored_candidate_tokens=(
-                restored_candidate_transfer_tokens
-            ),
-            state_truth=current_transfer,
-            state_scale=candidate_probe.target_scale,
-            state_varying_mask=(
-                candidate_probe.target_varying_mask
-            ),
-            state_predictions=state_predictions,
-            inference_parameter_counts={
-                name: models[name].inference_parameter_count
-                for name in MODEL_NAMES
-            },
-            protocol_checks=protocol_checks,
-            edge_metrics=edge_metrics,
-            raw_effect_scores=raw_effect_scores,
-            event_threshold=event_definition.threshold,
+            axis=1,
         )
         protocol = {
             "schema_version": 1,
@@ -359,16 +357,24 @@ def run_experiment(
                 role: dict(values)
                 for role, values in trajectory_onsets.items()
             },
-            "inference_parameter_counts": {
-                name: models[name].inference_parameter_count
-                for name in MODEL_NAMES
+            "source_role_pair_ids": {
+                role: list(data.roles.pair_ids(role))
+                for role in (
+                    "fit",
+                    "selection",
+                    "calibration",
+                    "evaluation",
+                )
             },
-            "protocol_checks": protocol_checks,
-            "edge_metrics": edge_metrics,
-            "event_threshold": event_definition.threshold,
-            "role_pair_ids": {
-                role: sorted(set(windows.matched_pair_ids))
-                for role, windows in data.windows.items()
+            "used_pair_ids": {
+                "fit": sorted(set(fit_windows.matched_pair_ids)),
+                "selection": sorted(
+                    set(selection_windows.matched_pair_ids)
+                ),
+                **{
+                    role: sorted(set(windows.matched_pair_ids))
+                    for role, windows in role_windows.items()
+                },
             },
             "model_inputs": ["histories", "declared_graph"],
             "forbidden_model_inputs": [
@@ -380,6 +386,8 @@ def run_experiment(
                 "trajectory_id",
                 "matched_pair_id",
             ],
+            "phases": phases,
+            "peak_rss_bytes": peak_rss_bytes,
         }
         _write_json(building / "protocol.json", protocol)
         _write_json(building / "data-identity.json", data_identity)
@@ -393,6 +401,7 @@ def run_experiment(
                 "schema_version": 1,
                 "kind": "hepa_jepa_fitted_models",
                 "models": model_payloads,
+                "restored_models": restored_model_payloads,
                 "entity_pca": pca.to_dict(),
                 "state_probes": {
                     "hepa": candidate_probe.to_dict(),
@@ -411,6 +420,8 @@ def run_experiment(
             restored_calibrated_surfaces=(
                 restored_calibrated_surfaces
             ),
+            alert_decisions=alert_decisions,
+            restored_alert_decisions=restored_alert_decisions,
             labels=labels,
             raw_effect_scores=raw_effect_scores,
             transition_indices=transition_indices,
@@ -424,12 +435,28 @@ def run_experiment(
                 candidate_probe.target_varying_mask
             ),
             state_predictions=state_predictions,
+            latency_samples=latency_samples,
+            audit_histories=audit_histories,
+            audit_counterfactual_histories=audit_histories.copy(),
+            audit_forbidden=audit_forbidden,
+            audit_counterfactual_forbidden=(
+                audit_counterfactual_forbidden
+            ),
+            audit_original_outputs=audit_original_outputs,
+            audit_counterfactual_outputs=(
+                audit_counterfactual_outputs
+            ),
+        )
+        _copy_reproduction_sources(building)
+        from prototype_hepa_jepa_assessor import assess_stored_bundle
+
+        assessment = assess_stored_bundle(
+            building, verify_manifest=False
         )
         _write_json(building / "assessment.json", assessment)
         (building / "report.md").write_text(
             _render_report(assessment, interpretable=interpretable)
         )
-        _copy_reproduction_sources(building)
         _write_manifest(building)
         from prototype_hepa_jepa_assessor import (
             verify_stored_assessment,
@@ -450,114 +477,35 @@ def run_experiment(
         raise
 
 
-def _protocol_checks(
-    *,
-    data: Any,
-    fit_windows: Any,
-    model_payloads: Mapping[str, Mapping[str, Any]],
-    inference_parameter_counts: Mapping[str, int],
-    event_definition: HepaEventDefinition,
-) -> Mapping[str, bool]:
-    role_pairs = {
-        role: set(data.roles.pair_ids(role))
-        for role in ("fit", "selection", "calibration", "evaluation")
-    }
-    disjoint = all(
-        not (role_pairs[left] & role_pairs[right])
-        for position, left in enumerate(role_pairs)
-        for right in tuple(role_pairs)[position + 1 :]
-    )
-    candidate_config = dict(model_payloads["hepa"]["config"])
-    null_config = dict(model_payloads["horizon_deranged"]["config"])
-    candidate_config.pop("objective")
-    null_config.pop("objective")
-    derangement = {
-        str(key): str(value)
-        for key, value in dict(
-            model_payloads["horizon_deranged"]["derangement"]
-        ).items()
-    }
-    fit_pairs = set(fit_windows.matched_pair_ids)
-    pair_atomic = (
-        set(derangement) == fit_pairs
-        and set(derangement.values()) == fit_pairs
-        and all(key != value for key, value in derangement.items())
-    )
-    return {
-        "role_pairs_are_disjoint": disjoint,
-        "fit_uses_40_in_distribution_pairs": (
-            len(fit_pairs) == 40
-        ),
-        "event_definition_fit_on_40_controls": (
-            event_definition.control_trajectory_count == 40
-        ),
-        "calibration_uses_10_in_distribution_pairs": (
-            len(
-                set(
-                    partition_worker_topology(
-                        data.windows["calibration"]
-                    ).in_distribution.matched_pair_ids
-                )
-            )
-            == 10
-        ),
-        "model_accepts_only_histories_and_graph": True,
-        "selection_and_calibration_precede_evaluation": True,
-        "evaluation_not_used_for_fitting": True,
-        "only_target_alignment_differs": (
-            candidate_config == null_config
-            and inference_parameter_counts["hepa"]
-            == inference_parameter_counts["horizon_deranged"]
-            and model_payloads["hepa"]["stage1_target_alignment"]
-            == "aligned"
-            and model_payloads["horizon_deranged"][
-                "stage1_target_alignment"
-            ]
-            == "whole_pair_deranged"
-        ),
-        "pair_atomic_derangement": pair_atomic,
-    }
-
-
-def _measure_edge_metrics(
+def _measure_edge_evidence(
     *,
     models: Mapping[str, HepaJepaModel],
     graph: Any,
     example: np.ndarray,
-    candidate_sidecar_bytes: int,
     repetitions: int,
-) -> Mapping[str, Mapping[str, float]]:
+) -> Tuple[Mapping[str, np.ndarray], float]:
     if repetitions < 1:
         raise ValueError("HEPA latency repetitions must be positive")
-    result = {}
-    peak_rss = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-    if platform.system() != "Darwin":
-        peak_rss *= 1024.0
+    result: Dict[str, np.ndarray] = {}
     for name, model in models.items():
         for _ in range(10):
             model.encode(example, graph)
             model.predict_event_cdf(example, graph)
-        started = time.perf_counter()
-        for _ in range(repetitions):
+        samples = np.empty(repetitions, dtype=np.float64)
+        for repetition in range(repetitions):
+            started = time.perf_counter()
             model.encode(example, graph)
             model.predict_event_cdf(example, graph)
-        latency = (
-            time.perf_counter() - started
-        ) * 1000.0 / repetitions
-        result[name] = {
-            "inference_parameter_count": float(
-                model.inference_parameter_count
-            ),
-            "serialized_candidate_sidecars_bytes": float(
-                candidate_sidecar_bytes
-                if name == "hepa"
-                else len(_canonical_json_bytes(model.to_dict()))
-            ),
-            "batch_one_cpu_latency_ms": latency,
-            "peak_rss_bytes": peak_rss,
-            "latency_repetitions": float(repetitions),
-        }
-    return result
+            samples[repetition] = (
+                time.perf_counter() - started
+            ) * 1000.0
+        result[name] = samples
+    peak_rss_bytes = float(
+        resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    )
+    if platform.system() != "Darwin":
+        peak_rss_bytes *= 1024.0
+    return result, peak_rss_bytes
 
 
 def _write_evidence(
@@ -571,6 +519,10 @@ def _write_evidence(
     restored_calibrated_surfaces: Mapping[
         str, Mapping[str, np.ndarray]
     ],
+    alert_decisions: Mapping[str, Mapping[str, np.ndarray]],
+    restored_alert_decisions: Mapping[
+        str, Mapping[str, np.ndarray]
+    ],
     labels: Mapping[str, np.ndarray],
     raw_effect_scores: Mapping[str, np.ndarray],
     transition_indices: Mapping[str, np.ndarray],
@@ -580,6 +532,13 @@ def _write_evidence(
     state_scale: np.ndarray,
     state_varying_mask: np.ndarray,
     state_predictions: Mapping[str, np.ndarray],
+    latency_samples: Mapping[str, np.ndarray],
+    audit_histories: np.ndarray,
+    audit_counterfactual_histories: np.ndarray,
+    audit_forbidden: np.ndarray,
+    audit_counterfactual_forbidden: np.ndarray,
+    audit_original_outputs: np.ndarray,
+    audit_counterfactual_outputs: np.ndarray,
 ) -> None:
     arrays: Dict[str, np.ndarray] = {}
     for prefix, roles in (
@@ -587,6 +546,17 @@ def _write_evidence(
         ("restored_probability", restored_probability_surfaces),
         ("calibrated", calibrated_surfaces),
         ("restored_calibrated", restored_calibrated_surfaces),
+    ):
+        arrays.update(
+            {
+                f"{prefix}__{role}__{model}": values
+                for role, models in roles.items()
+                for model, values in models.items()
+            }
+        )
+    for prefix, roles in (
+        ("alert_decision", alert_decisions),
+        ("restored_alert_decision", restored_alert_decisions),
     ):
         arrays.update(
             {
@@ -621,6 +591,24 @@ def _write_evidence(
             for name, values in state_predictions.items()
         }
     )
+    arrays.update(
+        {
+            f"latency_samples__{name}": values
+            for name, values in latency_samples.items()
+        }
+    )
+    arrays["audit_histories"] = audit_histories
+    arrays[
+        "audit_counterfactual_histories"
+    ] = audit_counterfactual_histories
+    arrays["audit_forbidden"] = audit_forbidden
+    arrays[
+        "audit_counterfactual_forbidden"
+    ] = audit_counterfactual_forbidden
+    arrays["audit_original_outputs"] = audit_original_outputs
+    arrays[
+        "audit_counterfactual_outputs"
+    ] = audit_counterfactual_outputs
     np.savez_compressed(path, **arrays)
 
 
@@ -752,15 +740,6 @@ def _file_sha256(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
-
-
-def _canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    ).encode("utf-8")
 
 
 def _write_json(path: Path, value: Mapping[str, Any]) -> None:

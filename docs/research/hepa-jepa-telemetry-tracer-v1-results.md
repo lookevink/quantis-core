@@ -36,8 +36,21 @@ The corrected runner also separates checkpoint production (`fit`) from
 checkpoint choice (`select`), so selection tensors no longer cross the public
 fitting seam. No model architecture, seed, optimizer, step count, label,
 checkpoint choice, gate, or evaluation value changed. The corrected
-calibration uses ten in-distribution pairs and the independent assessor
-reproduces the stored decision byte-for-byte.
+calibration uses ten in-distribution pairs.
+
+Two further scientifically equivalent runs are retained for provenance:
+
+- `artifacts/action-dynamics/prototype-hepa-jepa-v1-superseded-shared-helper-dependency`
+  was produced before the HEPA module owned all of its implementation
+  dependencies; and
+- `artifacts/action-dynamics/prototype-hepa-jepa-v1-invalid-implementation-commit-identity`
+  recorded the pre-implementation Git revision rather than the revision
+  containing the runner it executed.
+
+The final stored-array assessor derives protocol checks, parameter counts,
+edge summaries, calibration, thresholds, and decisions from raw evidence. It
+also reproduces serialized-model tokens, probability surfaces, calibrated
+surfaces, and the public alert-policy decisions byte-for-byte.
 
 ## Frozen treatment
 

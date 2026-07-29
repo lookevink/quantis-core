@@ -1,14 +1,29 @@
-import numpy as np
+from pathlib import Path
 
+import numpy as np
+import pytest
+
+from lab.action_dynamics.prototype_hepa_jepa import (
+    _write_manifest,
+    run_experiment,
+)
+from lab.action_dynamics.prototype_hepa_jepa_assessor import (
+    _verify_manifest,
+)
 from quantis_core.action_conditioned_dynamics import (
     ActionConditionedWindows,
 )
 from quantis_core.edge_dynamics.hepa_jepa import (
+    HEPA_ASSESSMENT_ROLE_NAMES,
+    HEPA_MODEL_NAMES,
     HepaConfig,
     HepaEventDefinition,
     HepaJepaModel,
+    assess_hepa_tracer,
     calibrate_probability_surface,
+    fit_logit_calibrator,
     survival_cdf,
+    trajectory_alert_threshold,
 )
 from quantis_core.graph_telemetry import (
     DeclaredTelemetryGraph,
@@ -75,10 +90,12 @@ def test_hepa_public_outputs_restore_exactly_and_null_capacity_matches() -> None
 
     treatment = HepaJepaModel(HepaConfig(**shared)).fit(
         fit, event
-    ).select(selection, event)
+    ).select(selection, event).fit_calibration(selection, event)
     null = HepaJepaModel(
         HepaConfig(objective="horizon_deranged", **shared)
-    ).fit(fit, event).select(selection, event)
+    ).fit(fit, event).select(
+        selection, event
+    ).fit_calibration(selection, event)
     restored = HepaJepaModel.from_dict(treatment.to_dict())
 
     encoded = treatment.encode(fit.histories[:3], fit.graph)
@@ -87,6 +104,18 @@ def test_hepa_public_outputs_restore_exactly_and_null_capacity_matches() -> None
         fit.histories[:3], fit.graph
     )
     restored_probabilities = restored.predict_event_cdf(
+        fit.histories[:3], fit.graph
+    )
+    calibrated = treatment.calibrated_event_cdf(
+        fit.histories[:3], fit.graph
+    )
+    restored_calibrated = restored.calibrated_event_cdf(
+        fit.histories[:3], fit.graph
+    )
+    decisions = treatment.alert_decisions(
+        fit.histories[:3], fit.graph
+    )
+    restored_decisions = restored.alert_decisions(
         fit.histories[:3], fit.graph
     )
 
@@ -104,6 +133,188 @@ def test_hepa_public_outputs_restore_exactly_and_null_capacity_matches() -> None
     np.testing.assert_allclose(
         probabilities, restored_probabilities, atol=1e-7
     )
+    np.testing.assert_allclose(
+        calibrated, restored_calibrated, atol=1e-7
+    )
+    np.testing.assert_array_equal(decisions, restored_decisions)
+
+
+def test_assessment_recomputes_calibration_and_public_alert_seam() -> None:
+    ids = ("c0", "c1", "t0", "t1")
+    onsets = {"c0": None, "c1": None, "t0": 0, "t1": 0}
+    labels = np.asarray(
+        [
+            [False, False, False],
+            [False, False, False],
+            [False, True, True],
+            [False, True, True],
+        ],
+        dtype=np.bool_,
+    )
+    discriminating = np.asarray(
+        [
+            [0.02, 0.04, 0.06],
+            [0.03, 0.05, 0.07],
+            [0.10, 0.80, 0.92],
+            [0.12, 0.82, 0.94],
+        ],
+        dtype=np.float64,
+    )
+    non_discriminating = np.asarray(
+        [
+            [0.02, 0.04, 0.06],
+            [0.03, 0.05, 0.07],
+            [0.03, 0.05, 0.07],
+            [0.02, 0.04, 0.06],
+        ],
+        dtype=np.float64,
+    )
+    probability_surfaces = {
+        role: {
+            model: (
+                non_discriminating.copy()
+                if role != "calibration"
+                and model == "horizon_deranged"
+                else discriminating.copy()
+            )
+            for model in HEPA_MODEL_NAMES
+        }
+        for role in HEPA_ASSESSMENT_ROLE_NAMES
+    }
+    calibrated_surfaces = {
+        role: {} for role in HEPA_ASSESSMENT_ROLE_NAMES
+    }
+    decisions = {
+        role: {} for role in HEPA_ASSESSMENT_ROLE_NAMES
+    }
+    calibrations = {}
+    for model in HEPA_MODEL_NAMES:
+        slope, intercept, brier = fit_logit_calibrator(
+            probability_surfaces["calibration"][model], labels
+        )
+        for role in HEPA_ASSESSMENT_ROLE_NAMES:
+            calibrated_surfaces[role][model] = (
+                calibrate_probability_surface(
+                    probability_surfaces[role][model],
+                    slope=slope,
+                    intercept=intercept,
+                )
+            )
+        threshold = trajectory_alert_threshold(
+            calibrated_surfaces["calibration"][model],
+            ids,
+            ("c0", "c1"),
+        )
+        calibrations[model] = {
+            "slope": slope,
+            "intercept": intercept,
+            "calibration_brier": brier,
+            "alert_threshold": threshold,
+        }
+        for role in HEPA_ASSESSMENT_ROLE_NAMES:
+            decisions[role][model] = (
+                calibrated_surfaces[role][model][:, -1]
+                > threshold
+            )
+    truth = np.asarray(
+        [[[1.0], [2.0]], [[2.0], [3.0]]], dtype=np.float64
+    )
+    assessment = assess_hepa_tracer(
+        probability_surfaces=probability_surfaces,
+        restored_probability_surfaces=probability_surfaces,
+        stored_calibrated_surfaces=calibrated_surfaces,
+        restored_calibrated_surfaces=calibrated_surfaces,
+        stored_alert_decisions=decisions,
+        restored_alert_decisions=decisions,
+        stored_model_calibrations=calibrations,
+        restored_model_calibrations=calibrations,
+        labels={
+            role: labels.copy()
+            for role in HEPA_ASSESSMENT_ROLE_NAMES
+        },
+        trajectory_ids={
+            role: ids for role in HEPA_ASSESSMENT_ROLE_NAMES
+        },
+        transition_indices={
+            role: np.ones(4, dtype=np.int64)
+            for role in HEPA_ASSESSMENT_ROLE_NAMES
+        },
+        trajectory_onsets={
+            role: onsets
+            for role in HEPA_ASSESSMENT_ROLE_NAMES
+        },
+        candidate_tokens=np.zeros((2, 2, 2), dtype=np.float64),
+        restored_candidate_tokens=np.zeros(
+            (2, 2, 2), dtype=np.float64
+        ),
+        state_truth=truth,
+        state_scale=np.ones((2, 1), dtype=np.float64),
+        state_varying_mask=np.ones((2, 1), dtype=np.bool_),
+        state_predictions={
+            "hepa": truth.copy(),
+            "matched_pca": truth + 1.0,
+        },
+        inference_parameter_counts={
+            "hepa": 10,
+            "horizon_deranged": 10,
+            "supervised_scratch": 10,
+        },
+        protocol_checks={
+            "only_target_alignment_differs": True,
+            "pair_atomic_derangement": True,
+        },
+        edge_metrics={
+            model: {
+                "inference_parameter_count": 10.0,
+                "serialized_candidate_sidecars_bytes": 100.0,
+                "batch_one_cpu_latency_ms": 1.0,
+                "peak_rss_bytes": 1024.0,
+                "latency_repetitions": 3.0,
+            }
+            for model in HEPA_MODEL_NAMES
+        },
+        raw_effect_scores={
+            role: np.asarray([0.0, 0.0, 2.0, 2.0])
+            for role in HEPA_ASSESSMENT_ROLE_NAMES
+        },
+        event_threshold=1.0,
+    )
+
+    assert assessment["passed"] is True
+    assert assessment["gates"][
+        "restoration_reproduces_all_public_outputs"
+    ] is True
+
+
+def test_runner_refuses_to_overwrite_existing_output(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "retained"
+    output.mkdir()
+
+    with pytest.raises(FileExistsError):
+        run_experiment(
+            cache_directory=tmp_path / "missing-cache",
+            output_directory=output,
+            stage1_steps=1,
+            stage2_steps=1,
+            latency_repetitions=1,
+            allow_noninterpretable_smoke=True,
+        )
+
+
+def test_manifest_detects_stored_content_tampering(
+    tmp_path: Path,
+) -> None:
+    payload = tmp_path / "payload.json"
+    payload.write_text('{"value": 1}\n')
+    _write_manifest(tmp_path)
+    _verify_manifest(tmp_path)
+
+    payload.write_text('{"value": 2}\n')
+
+    with pytest.raises(ValueError, match="content identity"):
+        _verify_manifest(tmp_path)
 
 
 def _tiny_windows(
