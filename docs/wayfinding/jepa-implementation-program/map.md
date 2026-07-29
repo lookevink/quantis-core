@@ -47,11 +47,12 @@ disposition for every family.
 - [Test the complete SC-JEPA codebook × multi-resolution interaction](013-test-complete-sc-jepa-interaction.md) — The complete cell had negligible Brier interaction, zero detection interaction, no treatment detections, collapsed per-entity code use, and 2.73× matched-PCA state error; reject the recipe and proceed to CF-JEPA.
 - [Test CF-JEPA mask-free multi-horizon alerting](014-test-cf-jepa-alert-tracer.md) — The EMA target became smoother, lower rank, and state-rich, but three zones lost narrowly to one zone, all neural routes tied at 90% detection, and the 10% control false-alarm rate exceeded the frozen ceiling; reject this recipe and proceed to SD-JEPA.
 - [Test SD-JEPA progression/content telemetry](015-test-sd-jepa-alert-tracer.md) — The split made angular change more event-sensitive than A0, but the designated coordinates did not encode progression and the calibrated transfer policy emitted no alerts; reject the recipe and proceed to Delta-JEPA.
+- [Test Delta-JEPA action-sensitive displacement](016-test-delta-jepa-action-displacement.md) — The displacement was state-rich and predicted observable change, but endpoint concatenation decoded treatment actions much better and every neural cell nearly doubled raw transfer effect error; reject the recipe and proceed to the exact LeWorldModel geometry screen.
 
 ## Not yet specified
 
-- Next execute Delta-JEPA, the exact LeWorldModel/geometry matrix,
-  Causal-JEPA, and MoP-JEPA in that order. Open each tracer ticket only when
+- Next execute the exact LeWorldModel/geometry matrix, Causal-JEPA, and
+  MoP-JEPA in that order. Open each tracer ticket only when
   the preceding result makes its exact smallest falsifier clear.
 - T-JEPA missing-channel robustness, V-JEPA 2.1 deep self-supervision,
   BiJEPA, Koopman-constrained prediction, Phys-JEPA, and seq-JEPA remain
@@ -67,9 +68,9 @@ disposition for every family.
 
 ## Next target
 
-- [Test Delta-JEPA action-sensitive displacement](016-test-delta-jepa-action-displacement.md)
-  — Active. Decode five-step actions from latent displacement against the
-  capacity-matched endpoint-concatenation null and raw rank-32 effect model.
+- Freeze and test the exact LeWorldModel ambient-SIGReg treatment against a
+  bounded subspace geometry screen. Hold the predictor and downstream probe
+  fixed so the experiment isolates where regularization acts.
 
 ## Out of scope
 
