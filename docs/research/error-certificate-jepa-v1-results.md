@@ -15,7 +15,7 @@ sharper than its deranged, raw-only, or constant-conformal controls.
 ## Reproducible evidence
 
 - implementation commit:
-  `1d13b6d6105f2115c4f7ee170fc4ba2619af14ab`;
+  `ad3c3b51890296d2895a5f76c6212e1a6cbd2344`;
 - conclusive immutable artifact:
   `artifacts/action-dynamics/prototype-error-certificate-jepa-v4`;
 - retained superseded artifacts:
@@ -88,7 +88,7 @@ Every safety gate passed in v4:
 - the selected checkpoint and calibration adjustment independently
   recomputed from their declared roles, with no evaluation widening;
 - the candidate bundle was 2.28 MiB; and
-- median local batch-one CPU latency was 0.517 ms.
+- median local batch-one CPU latency was 0.520 ms.
 
 The fitted additive adjustments were `4.29201` for the candidate, `4.32018`
 for raw-only, and `4.29051` for derangement. Their near equality is another
