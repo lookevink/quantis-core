@@ -44,6 +44,7 @@ disposition for every family.
 - [Determine the minimum cross-run and cross-stack corpus diversity](010-determine-cross-stack-corpus-diversity.md) — Seven corpus records collapse to one logical checkout-stack family. A role-clean tracer needs six stacks and at least 765 additional matched pairs; do not fit a cross-stack JEPA until that acquisition prerequisite is met.
 - [Audit the remaining JEPA frontier and select the next tracer](011-audit-remaining-jepa-frontier.md) — The remaining runnable mechanisms are HEPA, the complete SC-JEPA interaction, CF-JEPA, SD-JEPA, Delta-JEPA, exact LeWorldModel plus a bounded geometry screen, Causal-JEPA, and MoP-JEPA. HEPA is first because it is alert-native; modality/backbone ports are not separate hypotheses.
 - [Test a horizon-conditioned event-predictive JEPA alert tracer](012-test-hepa-event-alert-tracer.md) — HEPA learned a monotone, state-rich, edge-feasible probability surface and improved Brier over its deranged null, but detected only 50% of treatments, tied the null, and trailed simpler controls; reject this exact recipe.
+- [Test the complete SC-JEPA codebook × multi-resolution interaction](013-test-complete-sc-jepa-interaction.md) — The complete cell had negligible Brier interaction, zero detection interaction, no treatment detections, collapsed per-entity code use, and 2.73× matched-PCA state error; reject the recipe and proceed to CF-JEPA.
 
 ## Not yet specified
 
@@ -65,9 +66,8 @@ disposition for every family.
 
 ## Next target
 
-- [Test the complete SC-JEPA codebook × multi-resolution interaction](013-test-complete-sc-jepa-interaction.md)
-  — Freeze and execute the four-cell factorial that isolates the codebook,
-  multi-resolution objectives, and their claimed interaction.
+- Specify and test CF-JEPA mask-free multi-horizon forward prediction,
+  including the frozen online-versus-EMA downstream comparison.
 
 ## Out of scope
 
