@@ -51,7 +51,7 @@ disposition for every family.
 - [Test the LeWorldModel bounded geometry screen](017-test-leworld-geometry-screen.md) — No regularized cell was selection-safe. SPHERE-JEPA won the diagnostic selection by a negligible margin, then lost transfer value and state information; ambient and Sub-JEPA collapsed without meeting the UR-JEPA prerequisite. Reject and proceed to Causal-JEPA.
 - [Test Causal-JEPA's entity intervention](018-test-causal-jepa-entity-intervention.md) — Whole-entity masking learned completion beyond persistence but lost to matched coordinate-time masking, regressed raw held-topology effects by more than threefold, and won half of transfer pairs. Reject and proceed to MoP-JEPA.
 - [Test MoP-JEPA hard-assigned predictors](019-test-mop-jepa-hard-assignment.md) — Hard assignment activated and produced transition-valid alternatives, but lost to supervised hard-WTA and raw dynamics, failed conditional-codebook value, and regressed held-topology effects by 4.65×. Reject the recipe.
-- [Test PairEffect-JEPA](020-test-pair-effect-jepa.md) — In progress. Make randomized treatment/control twins the target unit while retaining the raw no-action path.
+- [Test PairEffect-JEPA](020-test-pair-effect-jepa.md) — Matched-twin training was slightly worse than its deranged null and the composed path regressed raw transfer effect by 3.38×. Reject; Contract-JEPA must retain the raw action-conditioned rollout unchanged.
 
 ## Not yet specified
 
