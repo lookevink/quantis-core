@@ -179,6 +179,36 @@ def run_experiment(
                 )
             )
             model.fit(fit_windows).select(selection_windows)
+            checkpoint_payload = model.to_dict()
+            checkpoint_directory = (
+                building / "objective-checkpoints"
+            )
+            checkpoint_directory.mkdir(parents=True, exist_ok=True)
+            _write_json(
+                checkpoint_directory / f"{objective}.json",
+                checkpoint_payload,
+            )
+            checkpoint_model = CfJepaModel.from_dict(
+                checkpoint_payload
+            )
+            for route in ("online", "target"):
+                original = model.encode(
+                    selection_windows.histories[:1],
+                    selection_windows.graph,
+                    route=route,
+                ).temporal_tokens
+                restored = checkpoint_model.encode(
+                    selection_windows.histories[:1],
+                    selection_windows.graph,
+                    route=route,
+                ).temporal_tokens
+                if not np.allclose(
+                    original, restored, atol=1e-7, rtol=0.0
+                ):
+                    raise RuntimeError(
+                        "CF-JEPA objective checkpoint does not restore: "
+                        f"{objective}/{route}"
+                    )
             objectives[objective] = model
             fit_seconds[objective] = (
                 time.perf_counter() - fit_started

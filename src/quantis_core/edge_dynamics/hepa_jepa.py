@@ -234,9 +234,18 @@ class HepaEntityPcaBaseline:
             np.asarray(value, dtype=np.float64)
             for value in payload["centers"]
         )
+        raw_components = tuple(payload["components"])
+        if len(raw_components) != len(centers):
+            raise ValueError("HEPA PCA tensors are invalid")
         components = tuple(
-            np.asarray(value, dtype=np.float64)
-            for value in payload["components"]
+            (
+                np.asarray(value, dtype=np.float64).reshape(
+                    0, len(center)
+                )
+                if len(value) == 0
+                else np.asarray(value, dtype=np.float64)
+            )
+            for value, center in zip(raw_components, centers)
         )
         expected = (len(graph.entities), len(features))
         if (

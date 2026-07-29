@@ -214,6 +214,37 @@ def test_matched_pca_baseline_restores_for_cf_reference() -> None:
     )
 
 
+def test_matched_pca_restores_entity_without_owned_observations() -> None:
+    windows = _tiny_windows(pair_count=4, transition_count=6)
+    histories = windows.histories.copy()
+    futures = windows.future_states.copy()
+    histories[:, :, -1] = 0.0
+    futures[:, :, -1] = 0.0
+    graph = DeclaredTelemetryGraph(
+        entities=windows.graph.entities,
+        bindings=tuple(
+            binding
+            for binding in windows.graph.bindings
+            if binding.entity_id != windows.entity_names[-1]
+        ),
+    )
+    sparse = replace(
+        windows,
+        histories=histories,
+        future_states=futures,
+        graph=graph,
+    )
+    model = HepaEntityPcaBaseline(width=8).fit(sparse)
+    restored = HepaEntityPcaBaseline.from_dict(model.to_dict())
+
+    expected = model.encode(sparse.histories, sparse.graph)
+    actual = restored.encode(sparse.histories, sparse.graph)
+    np.testing.assert_allclose(expected.tokens, actual.tokens, atol=1e-12)
+    np.testing.assert_array_equal(
+        actual.tokens[:, -1], np.zeros_like(actual.tokens[:, -1])
+    )
+
+
 def test_cf_jepa_smoke_artifact_reassesses_from_stored_arrays(
     tmp_path: Path,
 ) -> None:
