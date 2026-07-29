@@ -23,7 +23,15 @@ The complete bundle is retained at:
   `6e2bb61997d7751c7ff8e82760ac1ec96b0b507d57cdcb242c97b975b875f94a`
 - Recorded decision: `reject_causal_jepa_edge_recipe`
 
-The repair changes no model, training, selection, metric, or gate. It restores
-the model over the same full transfer array and then retains the first eight
-rows, making the replay batch partition identical. A new committed official
-run is required; attempt 1 must not be cited as the accepted result.
+The attempted repair changed no model, training, selection, metric, or gate.
+It restored the model over the same full transfer array and then retained the
+first eight rows, making the replay batch partition identical. Official
+attempt 2 nevertheless reproduced the same `1.0728836059570312e-6` maximum
+difference. Two independently restored models agree exactly with each other
+and with the retained restored array; only the original in-memory
+prediction-only model differs at that magnitude.
+
+The frozen `1e-6` tolerance was not relaxed after observing the result.
+Attempt 2 is the accepted official bundle and records this as a safety-gate
+failure. Attempt 1 remains superseded because it triggered the batching
+investigation and predates the explicit retained diagnosis.

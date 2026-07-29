@@ -49,6 +49,7 @@ disposition for every family.
 - [Test SD-JEPA progression/content telemetry](015-test-sd-jepa-alert-tracer.md) — The split made angular change more event-sensitive than A0, but the designated coordinates did not encode progression and the calibrated transfer policy emitted no alerts; reject the recipe and proceed to Delta-JEPA.
 - [Test Delta-JEPA action-sensitive displacement](016-test-delta-jepa-action-displacement.md) — The displacement was state-rich and predicted observable change, but endpoint concatenation decoded treatment actions much better and every neural cell nearly doubled raw transfer effect error; reject the recipe and proceed to the exact LeWorldModel geometry screen.
 - [Test the LeWorldModel bounded geometry screen](017-test-leworld-geometry-screen.md) — No regularized cell was selection-safe. SPHERE-JEPA won the diagnostic selection by a negligible margin, then lost transfer value and state information; ambient and Sub-JEPA collapsed without meeting the UR-JEPA prerequisite. Reject and proceed to Causal-JEPA.
+- [Test Causal-JEPA's entity intervention](018-test-causal-jepa-entity-intervention.md) — Whole-entity masking learned completion beyond persistence but lost to matched coordinate-time masking, regressed raw held-topology effects by more than threefold, and won half of transfer pairs. Reject and proceed to MoP-JEPA.
 
 ## Not yet specified
 
@@ -68,10 +69,10 @@ disposition for every family.
 
 ## Next target
 
-- [Test Causal-JEPA's entity intervention](018-test-causal-jepa-entity-intervention.md)
-  — Active. Compare whole-entity trajectory masking with matched
-  coordinate-time masking and prediction-only controls, requiring observable
-  interaction recovery and held-topology effect value.
+- Freeze and test MoP-JEPA's hard best-of-K predictor specialization against
+  the prior likelihood-trained mixture, supervised best-of-K, single-head,
+  and raw controls. Require proper mixture and observable value, not merely
+  head diversity.
 
 ## Out of scope
 

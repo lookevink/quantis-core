@@ -1,6 +1,6 @@
 # Test Causal-JEPA entity intervention
 
-- Status: active
+- Status: complete
 - Depends on:
   - [Audit remaining JEPA frontier](011-audit-remaining-jepa-frontier.md)
   - [Test LeWorldModel bounded geometry](017-test-leworld-geometry-screen.md)
@@ -20,11 +20,21 @@ Preserve the candidate, both nulls, smoke, failures, and official bundle.
 
 ## Completion
 
-- [ ] Unit tests cover exact masking, matched mask budgets, equal capacity,
+- [x] Unit tests cover exact masking, matched mask budgets, equal capacity,
   restoration, public causality, and non-interpretable assessment.
-- [ ] A retained smoke completes and independently reassesses.
-- [ ] Implementation is reviewed, full-suite clean, and committed before the
+- [x] A retained smoke completes and independently reassesses.
+- [x] Implementation is reviewed, full-suite clean, and committed before the
   official run.
-- [ ] The 1,200-step official matrix and fresh-process assessment complete.
-- [ ] The interaction, downstream disposition, and next MoP-JEPA target are
+- [x] The 1,200-step official matrix and fresh-process assessment complete.
+- [x] The interaction, downstream disposition, and next MoP-JEPA target are
   recorded.
+
+## Outcome
+
+Resolved on 2026-07-29 by the retained
+[result](../../research/causal-jepa-entity-intervention-v1-results.md).
+
+Reject the recipe. Whole-entity masking improved completion over persistence
+but lost to matched coordinate-time masking. It also lost downstream
+selection and transfer, won 50% of held-topology pairs, and produced
+`3.61` times raw transfer effect error. Proceed to MoP-JEPA.
