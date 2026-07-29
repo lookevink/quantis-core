@@ -57,14 +57,14 @@ disposition for every family.
 - [Test SALT-JEPA's static reconstructive teacher](023-test-salt-jepa-static-teacher.md) — The corrected v2 run passed every evidence check, but transfer latent advantage missed 10% and the student retained 1.91× raw transfer effect error. Reject; proceed to exact LeNEPA.
 - [Test exact LeNEPA disposable projection](024-test-lenepa-projection.md) — All twelve protocol checks passed, but projection failed the mechanism gate, every learned cell failed raw forecast safety, and the candidate retained 1.92× raw transfer effect error. Reject; proceed to Discrete-JEPA.
 - [Test Discrete-JEPA semantic tokenization](025-test-discrete-jepa.md) — The hard codebook collapsed to one code per entity, tied P2P-only on forecasts and transition accuracy, and retained 1.92× raw transfer effect error. Reject; proceed to PEIRA.
-- [Test PEIRA inter-view regressor alignment](026-test-peira.md) — Active. Test the exact stochastic-compositional trace objective against pair derangement, retained complete LeJEPA and reconstruction controls, PCA, and raw dynamics.
+- [Test PEIRA inter-view regressor alignment](026-test-peira.md) — Aligned PEIRA learned a real noncollapsed trace mechanism, but lost to derangement and reconstruction controls, retained 1.91× raw transfer effect error, and won three of ten pairs. Reject; proceed to VISReg.
 
 ## Next bounded queue
 
 - Exact LeNEPA and Discrete-JEPA are complete and rejected under tickets 024
   and 025.
-- PEIRA is active under ticket 026, followed by VISReg and an
-  edge-feasibility screen for JEPA-SCORE.
+- PEIRA is complete and rejected under ticket 026.
+- VISReg is next, followed by an edge-feasibility screen for JEPA-SCORE.
 
 ## Not yet specified
 
@@ -84,7 +84,7 @@ disposition for every family.
 
 The generic queue identified by ticket 011, the three locally formulated
 one-stack hypotheses, SALT, exact LeNEPA, and Discrete-JEPA are complete.
-None earned fixed-seed robustness or sealed confirmation. PEIRA is active,
+None earned fixed-seed robustness or sealed confirmation. VISReg is next,
 followed by the rest of the bounded queue.
 Continue to use retained raw dynamics and direct retrieval as the
 shadow-system baselines. Open another JEPA lane only when a recorded

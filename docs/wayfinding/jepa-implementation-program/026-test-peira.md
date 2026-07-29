@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 label: wayfinder:ticket
 title: Test PEIRA inter-view regressor alignment
 ---
@@ -20,7 +20,12 @@ does not reuse Discrete-JEPA's hard codebook.
 
 ## Result
 
-Active. The paper/code boundary, paired views, aligned and deranged cells,
-prior controls, exact moment updates, auxiliary gradient, optimization,
-roles, diagnostics, gates, and artifact contract are frozen before
-implementation or fitting.
+Completed and rejected. Aligned PEIRA learned a strong noncollapsed trace
+signal and sharply separated from pair derangement, but retained `1.91×` raw
+held-topology effect error, lost to the deranged and reconstruction controls,
+won only three of ten transfer pairs, and failed raw safety. The corrected
+float32 replay check changes no scientific metric or decision. Code, the
+673 MiB immutable artifact, and the
+[result record](../../research/peira-telemetry-v1-results.md) are retained.
+
+Proceed to VISReg. Do not carry PEIRA moment or projector state forward.
