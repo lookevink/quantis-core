@@ -56,12 +56,13 @@ disposition for every family.
 - [Test Error-Certificate-JEPA](022-test-error-certificate-jepa.md) — The corrected run passed every safety gate, but achieved only 80% held-topology simultaneous control coverage, detected no treatments, and was no sharper than derangement or constant conformal. Reject.
 - [Test SALT-JEPA's static reconstructive teacher](023-test-salt-jepa-static-teacher.md) — The corrected v2 run passed every evidence check, but transfer latent advantage missed 10% and the student retained 1.91× raw transfer effect error. Reject; proceed to exact LeNEPA.
 - [Test exact LeNEPA disposable projection](024-test-lenepa-projection.md) — All twelve protocol checks passed, but projection failed the mechanism gate, every learned cell failed raw forecast safety, and the candidate retained 1.92× raw transfer effect error. Reject; proceed to Discrete-JEPA.
+- [Test Discrete-JEPA semantic tokenization](025-test-discrete-jepa.md) — Active. Test hard entity-semantic VQ with the complete S2P + P2S + P2P objective against continuous-complete and hard P2P-only controls.
 
 ## Next bounded queue
 
 - Exact LeNEPA is complete and rejected under ticket 024.
-- Discrete-JEPA is next, followed by PEIRA, VISReg, and an edge-feasibility
-  screen for JEPA-SCORE.
+- Discrete-JEPA is active under ticket 025, followed by PEIRA, VISReg, and an
+  edge-feasibility screen for JEPA-SCORE.
 
 ## Not yet specified
 
