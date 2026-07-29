@@ -44,7 +44,7 @@ It is not a claim that JEPA fails generally.
 | PairEffect-JEPA | matched-twin objective, exact action attribution, and edge-feasible inference | effect prediction was worse than derangement; composed transfer effect error was 3.38× raw | reject |
 | task-grounded Contract-JEPA | immutable raw bypass, bounded correction, and a learned effect witness | both controls predicted better; witness produced 100% transfer control false alarms | reject |
 | Error-Certificate-JEPA | exact raw preservation, independently calibrated bounds, and 99.91% point coverage | only 80% simultaneous control coverage, zero treatment detection, no sharpness advantage | reject |
-| SALT-JEPA | exact static teacher, restorable student, aligned latent advantage over derangement | v1 advantage missed 10% and transfer effect error was 1.91× raw; corrected evidence v2 pending | provisional reject |
+| SALT-JEPA | exact static teacher, restorable student, aligned latent advantage over derangement | v2 transfer advantage was 8.89%; transfer effect error remained 1.91× raw | reject |
 
 The linked
 [wayfinding map](../wayfinding/jepa-implementation-program/map.md) binds every

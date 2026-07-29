@@ -54,11 +54,11 @@ disposition for every family.
 - [Test PairEffect-JEPA](020-test-pair-effect-jepa.md) — Matched-twin training was slightly worse than its deranged null and the composed path regressed raw transfer effect by 3.38×. Reject; Contract-JEPA must retain the raw action-conditioned rollout unchanged.
 - [Test task-grounded Contract-JEPA](021-test-task-grounded-contract-jepa.md) — The contract passed every safety gate and improved raw effect error by 1.05%, but both controls were better and the witness produced 100% transfer control false alarms. Reject; Error-Certificate-JEPA must leave the raw mean untouched.
 - [Test Error-Certificate-JEPA](022-test-error-certificate-jepa.md) — The corrected run passed every safety gate, but achieved only 80% held-topology simultaneous control coverage, detected no treatments, and was no sharper than derangement or constant conformal. Reject.
-- [Test SALT-JEPA's static reconstructive teacher](023-test-salt-jepa-static-teacher.md) — The preserved v1 run numerically rejects the recipe, but evidence review requires a corrected v2 rerun before the disposition is final.
+- [Test SALT-JEPA's static reconstructive teacher](023-test-salt-jepa-static-teacher.md) — The corrected v2 run passed every evidence check, but transfer latent advantage missed 10% and the student retained 1.91× raw transfer effect error. Reject; proceed to exact LeNEPA.
 
 ## Next bounded queue
 
-- SALT-JEPA's evidence-review-corrected v2 rerun is active under ticket 023.
+- SALT-JEPA is complete and rejected under ticket 023.
 - Continue in descending expected value with exact LeNEPA projection,
   Discrete-JEPA, PEIRA, VISReg, and an edge-feasibility screen for
   JEPA-SCORE.
@@ -79,11 +79,10 @@ disposition for every family.
 
 ## Conclusion
 
-The generic queue identified by ticket 011 and the three locally formulated
-one-stack hypotheses are complete. None earned fixed-seed robustness or
-sealed confirmation. SALT's v1 numbers also failed, but its corrected v2
-evidence run remains active before exact LeNEPA and the rest of the bounded
-queue.
+The generic queue identified by ticket 011, the three locally formulated
+one-stack hypotheses, and SALT are complete. None earned fixed-seed
+robustness or sealed confirmation. Exact LeNEPA is next, followed by the rest
+of the bounded queue.
 Continue to use retained raw dynamics and direct retrieval as the
 shadow-system baselines. Open another JEPA lane only when a recorded
 prerequisite creates a materially different hypothesis.

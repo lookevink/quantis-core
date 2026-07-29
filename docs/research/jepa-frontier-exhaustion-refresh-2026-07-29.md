@@ -101,12 +101,11 @@ latent-prediction student.” It is edge-runnable because the extra decoder is
 training-only. Its likely ceiling is modest here: masked reconstruction already
 beat complete LeJEPA but still lost badly to raw dynamics.
 
-**Provisional v1 result:** rejected numerically; corrected evidence v2 is
-pending. The frozen teacher remained exact and aligned
-masked-target prediction improved over derangement, but only by 6.96% on
-selection and 4.63% on transfer. The student increased held-topology
-downstream-effect MSE by `1.91×` relative to raw. See the
-[retained result](salt-jepa-telemetry-v1-results.md).
+**Executed result:** rejected. The evidence-review-corrected v2 run passed all
+eleven protocol checks. Aligned masked-target prediction improved over
+derangement by 12.04% on selection but only 8.89% on transfer. The student
+retained `1.91×` raw held-topology downstream-effect MSE. See the
+[retained result](salt-jepa-telemetry-v2-results.md).
 
 ### 4. LeNEPA's disposable prediction projection — lower priority
 
@@ -269,15 +268,15 @@ than derangement or constant conformal. See the
 
 ## Execution outcome
 
-The first three experiments and the initial SALT tracer were
+The first three experiments and the corrected SALT tracer were
 executed with frozen controls, independent stored-evidence assessment, and
-retained artifacts. The first three were rejected before robustness or sealed
-confirmation; SALT awaits its evidence-review-corrected v2 rerun.
+retained artifacts. All four were rejected before robustness or sealed
+confirmation.
 
 Interaction-aware target selection was exercised through matched-pair effect
 supervision and task-grounded witnesses; neither established incremental
-value. SALT was nevertheless run as a bounded exact-recipe omission and its
-v1 numbers failed, pending v2 confirmation. Exact LeNEPA follows. Discrete-JEPA, PEIRA,
+value. SALT was nevertheless run as a bounded exact-recipe omission and also
+failed. Exact LeNEPA follows. Discrete-JEPA, PEIRA,
 VISReg, and approximate JEPA-SCORE remain lower-priority bounded ablations.
 
 This outcome accepts that the stack is intentionally small. The next action

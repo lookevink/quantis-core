@@ -1,5 +1,5 @@
 ---
-status: active
+status: complete
 label: wayfinder:ticket
 title: Test SALT-JEPA static teacher
 ---
@@ -22,10 +22,10 @@ Implement, independently assess, and retain the
 
 ## Result
 
-Correction pending. The preserved v1 run indicates rejection: aligned
-teacher targets improved masked-latent L1 by 6.96% on
-selection and 4.63% on transfer versus derangement, below the 10% mechanism
-gate. The student increased raw held-topology downstream-effect MSE by
-`1.91×` and failed every predictive value gate. An evidence-review-corrected
-v2 rerun must confirm that disposition. See the
-[v1 review record](../../research/salt-jepa-telemetry-v1-results.md).
+Rejected. The evidence-review-corrected v2 run passed all eleven protocol
+checks. Aligned targets improved masked-latent L1 by 12.04% on selection but
+only 8.89% on transfer, below the joint mechanism gate. The student increased
+raw held-topology downstream-effect MSE by `1.91×` and failed three of four
+value gates. See the
+[conclusion-bearing v2 result](../../research/salt-jepa-telemetry-v2-results.md)
+and preserved [v1 review record](../../research/salt-jepa-telemetry-v1-results.md).
