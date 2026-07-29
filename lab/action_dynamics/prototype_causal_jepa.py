@@ -59,6 +59,7 @@ IMPLEMENTATION_SOURCE_PATHS = (
     "tests/test_causal_jepa.py",
     "docs/specs/causal-jepa-entity-intervention-v1.md",
     "docs/research/causal-jepa-primary-source-notes.md",
+    "docs/research/causal-jepa-attempt-1-restore-boundary.md",
     "docs/wayfinding/jepa-implementation-program/"
     "018-test-causal-jepa-entity-intervention.md",
     "src/quantis_core/edge_dynamics/complete_lejepa.py",
@@ -251,8 +252,8 @@ def run_experiment(
                     fit.graph,
                 ),
                 "completion": restored_model.complete_masked_histories(
-                    _window_subset(transfer, np.arange(8))
-                ).predictions,
+                    transfer
+                ).predictions[:8],
                 "attribution_prediction": _attribution_predictions(
                     restored_model, transfer_queries, fit.graph
                 ),
