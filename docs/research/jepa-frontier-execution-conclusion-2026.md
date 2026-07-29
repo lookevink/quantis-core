@@ -41,6 +41,9 @@ It is not a claim that JEPA fails generally.
 | LeWorldModel geometry matrix | SPHERE-JEPA narrowly won selection diagnostic | no regularized cell was raw-safe; state and transfer value regressed | reject; UR prerequisite absent |
 | Causal-JEPA | whole-entity masking beat anchor persistence on completion | matched coordinate-time masking was better; transfer effect was 3.61× raw | reject |
 | MoP-JEPA | 2.224 effective winners, 90.13% gated precision, better NLL than dense JEPA | lost to supervised WTA and raw; transfer effect was 4.65× raw | reject |
+| PairEffect-JEPA | matched-twin objective, exact action attribution, and edge-feasible inference | effect prediction was worse than derangement; composed transfer effect error was 3.38× raw | reject |
+| task-grounded Contract-JEPA | immutable raw bypass, bounded correction, and a learned effect witness | both controls predicted better; witness produced 100% transfer control false alarms | reject |
+| Error-Certificate-JEPA | exact raw preservation, independently calibrated bounds, and 99.91% point coverage | only 80% simultaneous control coverage, zero treatment detection, no sharpness advantage | reject |
 
 The linked
 [wayfinding map](../wayfinding/jepa-implementation-program/map.md) binds every
@@ -115,14 +118,19 @@ The retained implementations cover:
 - episode-predictive retrieval;
 - likelihood-responsibility trajectory mixtures; and
 - hard winner-take-all predictor mixtures with router gating, context
-  shuffling, codebook control, and realized-transition precision.
+  shuffling, codebook control, and realized-transition precision;
+- matched-twin effect prediction with supervised and deranged-pair controls;
+- raw-bypass task-grounded residual contracts with explicit effect witnesses;
+  and
+- JEPA-assisted empirical error certificates with raw-only, deranged, and
+  direct conformal controls.
 
 All candidate inference paths were implemented as bounded CPU/edge paths.
-That closes the prior frozen runnable queue; modality ports and backbone
-changes are not separate scientific hypotheses. It does not literally exhaust
-every known objective family: decision/value anchoring, interaction-aware
-target selection, and a static reconstructive target teacher remain exact
-one-stack omissions.
+That closes the prior frozen runnable queue and the three locally formulated
+one-stack hypotheses. Modality ports and backbone changes are not separate
+scientific hypotheses. It does not literally exhaust every published
+objective family; the techniques below remain conditional on prerequisites
+that the current product lane does not satisfy.
 
 ## Techniques intentionally not run
 
@@ -165,13 +173,12 @@ The next target is not another generic JEPA paper port.
    change; revisit MoP only with repeated conditionally identical contexts or
    an environment that can verify several valid successors.
 
-If the JEPA program continues, start with the locally formulated
-**PairEffect-JEPA** tracer in the
-[exhaustion refresh](jepa-frontier-exhaustion-refresh-2026-07-29.md). It makes
-each randomized treatment/control pair the training unit and predicts the
-paired intervention effect while preserving the frozen raw path. Its required
-comparators are a supervised paired-effect model, a capacity-matched
-deranged-pair null, and raw rank-32 dynamics.
+Do not start another JEPA trainer on the current evidence. The locally
+formulated PairEffect, task-grounded Contract, and Error-Certificate tracers
+have now all failed their matched controls. Reopen a specific conditional
+family only after its measured prerequisite appears—for example real
+missing-channel incidence for T-JEPA, adequately represented recovery for
+BiJEPA, or heteroscedastic/multimodal residuals for belief models.
 
 ## Evidence boundary
 

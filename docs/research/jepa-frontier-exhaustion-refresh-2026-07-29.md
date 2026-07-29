@@ -209,6 +209,12 @@ This is the strongest next tracer because it exploits information the small
 corpus uniquely has rather than asking a generic predictive objective to
 rediscover it.
 
+**Executed result:** rejected. The paired objective was slightly worse than
+its deranged null on selection and transfer observable effect, and composing
+its predicted effect onto raw dynamics increased held-topology downstream
+effect MSE by `3.38×`. See the
+[retained result](pair-effect-jepa-v1-results.md).
+
 ### Contract-JEPA
 
 Define the deployed state as
@@ -224,6 +230,12 @@ already trained reconstruction anchors. A fixed raw bypass by itself is
 therefore **not new**. Contract-JEPA is worth another run only when coupled to
 the decision-anchored objective above or PairEffect supervision. Its real
 hypothesis is hard sufficiency plus task grounding, not “residual JEPA v2.”
+
+**Executed result:** rejected. The bounded residual improved raw transfer
+effect MSE by 1.05%, but the supervised and ungrounded controls were both
+better. The explicit effect witness learned its training quantity yet emitted
+100% false alarms on transfer controls. See the
+[retained result](task-grounded-contract-jepa-v1-results.md).
 
 ### Error-Certificate-JEPA
 
@@ -242,19 +254,25 @@ alone and a conformalized raw residual. The JEPA feature path must improve
 sharpness at fixed coverage and the alert operating point without increasing
 false alarms.
 
-## Recommended order
+**Executed result:** rejected. The corrected run preserved raw exactly and
+passed every safety gate, but held-topology simultaneous control coverage was
+80%, treatment detection was zero, and the learned JEPA bound was no sharper
+than derangement or constant conformal. See the
+[retained result](error-certificate-jepa-v1-results.md).
 
-1. **PairEffect-JEPA**, with a supervised paired-effect control and deranged
-   pair null.
-2. **Contract-JEPA plus a joint alert/effect auxiliary**, with the prior
-   residual implementation as an explicit historical control.
-3. **Error-Certificate-JEPA**, first as raw-only versus raw-plus-JEPA features.
-4. Interaction-aware target sampling as a factorial inside the first two
-   experiments.
-5. SALT, then Discrete-JEPA or the exact LeNEPA projection, only if the first
-   two establish value that a generic latent predictor missed.
-6. PEIRA, VISReg, or approximate JEPA-SCORE only as bounded ablations.
+## Execution outcome
 
-This order accepts that the stack is intentionally small. It focuses the next
-experiments on sufficiency, matched interventions, and a deployable decision
-contract rather than data expansion or another generic representation sweep.
+The first three experiments were executed in order with frozen controls,
+independent stored-evidence assessment, and retained artifacts. All three
+were rejected before robustness or sealed confirmation.
+
+Interaction-aware target selection was exercised through matched-pair effect
+supervision and task-grounded witnesses; neither established incremental
+value. The preregistered condition for escalating to SALT, Discrete-JEPA, or
+the exact LeNEPA projection was therefore not met. PEIRA, VISReg, and
+approximate JEPA-SCORE remain bounded ablations without a promoted encoder or
+offline drift lane, not unexecuted deployment candidates.
+
+This outcome accepts that the stack is intentionally small. The next action
+is shadow deployment of the retained non-JEPA baselines, not data expansion
+or another generic representation sweep.

@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: complete
 label: wayfinder:map
 title: Evaluate the unimplemented JEPA families
 ---
@@ -53,7 +53,7 @@ disposition for every family.
 - [Test MoP-JEPA hard-assigned predictors](019-test-mop-jepa-hard-assignment.md) — Hard assignment activated and produced transition-valid alternatives, but lost to supervised hard-WTA and raw dynamics, failed conditional-codebook value, and regressed held-topology effects by 4.65×. Reject the recipe.
 - [Test PairEffect-JEPA](020-test-pair-effect-jepa.md) — Matched-twin training was slightly worse than its deranged null and the composed path regressed raw transfer effect by 3.38×. Reject; Contract-JEPA must retain the raw action-conditioned rollout unchanged.
 - [Test task-grounded Contract-JEPA](021-test-task-grounded-contract-jepa.md) — The contract passed every safety gate and improved raw effect error by 1.05%, but both controls were better and the witness produced 100% transfer control false alarms. Reject; Error-Certificate-JEPA must leave the raw mean untouched.
-- [Test Error-Certificate-JEPA](022-test-error-certificate-jepa.md) — In progress. Preserve the raw distribution exactly and test whether JEPA features sharpen a calibrated reliability bound.
+- [Test Error-Certificate-JEPA](022-test-error-certificate-jepa.md) — The corrected run passed every safety gate, but achieved only 80% held-topology simultaneous control coverage, detected no treatments, and was no sharper than derangement or constant conformal. Reject.
 
 ## Not yet specified
 
@@ -71,11 +71,13 @@ disposition for every family.
 
 ## Conclusion
 
-The generic queue identified by ticket 011 is complete and none earned
-fixed-seed robustness or sealed confirmation. Tickets 020 onward test the
-remaining one-stack hypotheses that directly anchor representations to
-matched effects, bounded decisions, or prediction reliability. Continue to
-use retained raw dynamics and direct retrieval as the shadow-system baselines.
+The generic queue identified by ticket 011 and the three locally formulated
+one-stack hypotheses are complete. None earned fixed-seed robustness or
+sealed confirmation. Pair anchoring, bounded task grounding, and
+JEPA-assisted error certification each failed against their matched controls.
+Continue to use retained raw dynamics and direct retrieval as the
+shadow-system baselines. Open another JEPA lane only when a recorded
+prerequisite creates a materially different hypothesis.
 
 ## Out of scope
 
