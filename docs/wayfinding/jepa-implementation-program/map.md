@@ -52,11 +52,12 @@ disposition for every family.
 - [Test Causal-JEPA's entity intervention](018-test-causal-jepa-entity-intervention.md) — Whole-entity masking learned completion beyond persistence but lost to matched coordinate-time masking, regressed raw held-topology effects by more than threefold, and won half of transfer pairs. Reject and proceed to MoP-JEPA.
 - [Test MoP-JEPA hard-assigned predictors](019-test-mop-jepa-hard-assignment.md) — Hard assignment activated and produced transition-valid alternatives, but lost to supervised hard-WTA and raw dynamics, failed conditional-codebook value, and regressed held-topology effects by 4.65×. Reject the recipe.
 - [Test PairEffect-JEPA](020-test-pair-effect-jepa.md) — Matched-twin training was slightly worse than its deranged null and the composed path regressed raw transfer effect by 3.38×. Reject; Contract-JEPA must retain the raw action-conditioned rollout unchanged.
+- [Test task-grounded Contract-JEPA](021-test-task-grounded-contract-jepa.md) — In progress. Keep raw action-conditioned dynamics immutable and test only a bounded, task-anchored residual.
 
 ## Not yet specified
 
-- Task-grounded Contract-JEPA and Error-Certificate-JEPA follow ticket 020 in
-  that order under the 2026-07-29 exhaustion refresh.
+- Error-Certificate-JEPA follows ticket 021 under the 2026-07-29 exhaustion
+  refresh.
 - T-JEPA missing-channel robustness, V-JEPA 2.1 deep self-supervision,
   BiJEPA, Koopman-constrained prediction, Phys-JEPA, and seq-JEPA remain
   conditional ablations with the prerequisites recorded in the
