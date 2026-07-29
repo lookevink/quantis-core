@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 label: wayfinder:ticket
 title: Test VISReg scale-shape regularization
 ---
@@ -20,7 +20,13 @@ objective, projector state, or learned representation.
 
 ## Result
 
-Active. The paper/current-code boundary, clean-room equations, paired batch,
-views, candidate/no-detach falsifier, retained controls, explicit direction
-RNG, optimizer, collapse curve, operational gates, and artifact contract are
-frozen before implementation or fitting.
+Completed and rejected. The frozen radial-collapse diagnostic confirmed both
+claimed gradient inequalities, but the detached candidate still collapsed to
+projector rank `1.12`, reached scale loss approximately `1.0`, retained
+`1.97×` raw held-topology effect error, lost to no-detach and reconstruction,
+and won five of ten transfer pairs. All protocol checks pass. Code, the
+1.2 GiB immutable artifact, and the
+[result record](../../research/visreg-telemetry-v1-results.md) are retained.
+
+Proceed to the bounded JEPA-SCORE edge-feasibility screen. Do not carry the
+VISReg projector or regularizer forward.

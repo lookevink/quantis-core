@@ -58,15 +58,15 @@ disposition for every family.
 - [Test exact LeNEPA disposable projection](024-test-lenepa-projection.md) — All twelve protocol checks passed, but projection failed the mechanism gate, every learned cell failed raw forecast safety, and the candidate retained 1.92× raw transfer effect error. Reject; proceed to Discrete-JEPA.
 - [Test Discrete-JEPA semantic tokenization](025-test-discrete-jepa.md) — The hard codebook collapsed to one code per entity, tied P2P-only on forecasts and transition accuracy, and retained 1.92× raw transfer effect error. Reject; proceed to PEIRA.
 - [Test PEIRA inter-view regressor alignment](026-test-peira.md) — Aligned PEIRA learned a real noncollapsed trace mechanism, but lost to derangement and reconstruction controls, retained 1.91× raw transfer effect error, and won three of ten pairs. Reject; proceed to VISReg.
-- [Test VISReg scale-shape regularization](027-test-visreg.md) — Active. Substitute the exact current clean-room VISReg regularizer into complete LeJEPA and compare detached scale/shape decoupling with a no-detach falsifier, exact SIGReg, reconstruction, PCA, and raw dynamics.
+- [Test VISReg scale-shape regularization](027-test-visreg.md) — The frozen small-radius gradient mechanism passed, but the detached candidate collapsed to projector rank 1.12, retained 1.97× raw transfer effect error, and lost to no-detach and reconstruction. Reject; proceed to JEPA-SCORE.
 
 ## Next bounded queue
 
 - Exact LeNEPA and Discrete-JEPA are complete and rejected under tickets 024
   and 025.
 - PEIRA is complete and rejected under ticket 026.
-- VISReg is active under ticket 027, followed by an edge-feasibility screen
-  for JEPA-SCORE.
+- VISReg is complete and rejected under ticket 027.
+- JEPA-SCORE is next as a bounded edge-feasibility screen.
 
 ## Not yet specified
 
@@ -86,8 +86,8 @@ disposition for every family.
 
 The generic queue identified by ticket 011, the three locally formulated
 one-stack hypotheses, SALT, exact LeNEPA, and Discrete-JEPA are complete.
-None earned fixed-seed robustness or sealed confirmation. VISReg is active,
-followed by the rest of the bounded queue.
+None earned fixed-seed robustness or sealed confirmation. JEPA-SCORE is next
+as the final bounded screen in this queue.
 Continue to use retained raw dynamics and direct retrieval as the
 shadow-system baselines. Open another JEPA lane only when a recorded
 prerequisite creates a materially different hypothesis.
