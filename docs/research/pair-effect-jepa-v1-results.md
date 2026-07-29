@@ -16,10 +16,11 @@ the exact tracer, not paired experimental designs or JEPA generally.
 ## Reproducible evidence
 
 - implementation commit:
-  `1d13b6d6105f2115c4f7ee170fc4ba2619af14ab`;
+  `fde8759f686cbde03ac7d893fdba21385882c172`;
 - conclusion-bearing immutable artifact:
-  `artifacts/action-dynamics/prototype-pair-effect-jepa-v2`;
+  `artifacts/action-dynamics/prototype-pair-effect-jepa-v3`;
 - retained superseded artifact:
+  `artifacts/action-dynamics/prototype-pair-effect-jepa-v2` and
   `artifacts/action-dynamics/prototype-pair-effect-jepa-v1`;
 - fitting: 40 in-distribution matched pairs;
 - selection: 10 disjoint in-distribution pairs;
@@ -30,8 +31,10 @@ The artifact contains selected models, composed raw/effect models, stored
 assessment tensors, a fresh independent assessment, copied reproduction
 sources, retained original/restored distributions, and a verified SHA-256
 manifest. It occupies about 91 MB. The v1 artifact reached the same numerical
-result but retained only a restoration scalar, not the original/restored
-arrays required by the frozen contract.
+result but retained only a restoration scalar. The v2 artifact added
+original/restored composed distributions but omitted standalone effect
+outputs. V3 retains and independently compares both, as required by the
+frozen contract.
 
 ## Held-topology result
 
@@ -78,7 +81,7 @@ The candidate passed the engineering and attribution checks:
 - 100% action-and-target hit@1 and 100% no-action specificity;
 - correct action beat no-action and shuffled action on 90% of transfer pairs;
 - 1.42 MiB composed artifact; and
-- 0.445 ms median local batch-one CPU latency.
+- 0.470 ms median local batch-one CPU latency.
 
 It failed raw-safety for both overall and action-overlap MSE. These failures
 are decisive even though the inference path is small and attributable.
