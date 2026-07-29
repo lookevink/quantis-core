@@ -76,6 +76,15 @@ FROZEN_OUTPUT = Path(
     "artifacts/action-dynamics/prototype-lenepa-jepa-v1"
 )
 FROZEN_STEPS = 1600
+FROZEN_SOURCE_CORPUS_SHA256 = (
+    "df03af282f48591216251f22f934b97e1555147df9ed6f6c6d1f7684f9644a26"
+)
+FROZEN_SOURCE_ARTIFACT_MANIFEST_SHA256 = (
+    "d02afa33a5977cba69b255cd1a5f31470751b6681da1ecae31b11e86307e65b1"
+)
+FROZEN_PREPROCESSING_PROTOCOL = (
+    "action_conditioned_jepa_topology_transfer_v1"
+)
 RIDGES = (1e-4, 1e-3, 1e-2, 1e-1, 1.0)
 IMPLEMENTATION_SOURCE_PATHS = (
     "lab/action_dynamics/prototype_lenepa_jepa.py",
@@ -132,6 +141,17 @@ def run_experiment(
     started = time.time()
 
     prepared = load_edge_dynamics_cache(cache)
+    source_is_frozen = bool(
+        prepared.source_corpus_sha256
+        == FROZEN_SOURCE_CORPUS_SHA256
+        and prepared.source_artifact_manifest_sha256
+        == FROZEN_SOURCE_ARTIFACT_MANIFEST_SHA256
+        and prepared.preprocessing_protocol
+        == FROZEN_PREPROCESSING_PROTOCOL
+    )
+    if interpretable and not source_is_frozen:
+        raise ValueError("frozen LeNEPA source identity differs")
+    interpretable = bool(interpretable and source_is_frozen)
     partitions = {
         role: partition_worker_topology(windows)
         for role, windows in prepared.windows.items()
@@ -572,6 +592,11 @@ def run_experiment(
         "kind": "lenepa_assessment_evidence_v1",
         "interpretable": interpretable,
         "implementation_commit": implementation_commit,
+        "source_corpus_sha256": prepared.source_corpus_sha256,
+        "source_artifact_manifest_sha256": (
+            prepared.source_artifact_manifest_sha256
+        ),
+        "preprocessing_protocol": prepared.preprocessing_protocol,
         "graph": fit.graph.to_dict(),
         "entity_names": list(fit.entity_names),
         "state_feature_names": list(fit.state_feature_names),

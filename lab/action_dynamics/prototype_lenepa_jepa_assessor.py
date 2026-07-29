@@ -42,6 +42,15 @@ EVALUATED_ROLES = (
     "iid_evaluation",
     "transfer_evaluation",
 )
+FROZEN_SOURCE_CORPUS_SHA256 = (
+    "df03af282f48591216251f22f934b97e1555147df9ed6f6c6d1f7684f9644a26"
+)
+FROZEN_SOURCE_ARTIFACT_MANIFEST_SHA256 = (
+    "d02afa33a5977cba69b255cd1a5f31470751b6681da1ecae31b11e86307e65b1"
+)
+FROZEN_PREPROCESSING_PROTOCOL = (
+    "action_conditioned_jepa_topology_transfer_v1"
+)
 
 
 def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
@@ -176,14 +185,11 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
     candidate_probe = _read_json(
         root / "models" / "projected_lenepa-probe.json"
     )
+    candidate = LenepaRepresentation.from_dict(candidate_model)
+    expected_bundle = candidate.to_inference_dict()
+    expected_bundle["probe"] = candidate_probe
     bundle_is_deployable = bool(
-        bundle_payload.get("schema_version") == 1
-        and bundle_payload.get("kind")
-        == "lenepa_student_inference_bundle"
-        and "projector_state" not in bundle_payload
-        and bundle_payload.get("network_state")
-        == candidate_model.get("network_state")
-        and bundle_payload.get("probe") == candidate_probe
+        bundle_payload == expected_bundle
         and replay["bundle_replay_max_abs"] <= 1e-6
     )
     latency_samples = np.asarray(
@@ -208,10 +214,11 @@ def assess_stored_bundle(directory: Path) -> Mapping[str, Any]:
         for name in NEURAL_NAMES
         for role in ("selection", "transfer_evaluation")
     )
-    interpretable = bool(
-        frozen_controls
-        and latency["repetitions"] == 100
-        and mechanism_history_coverage
+    interpretable = _recompute_interpretable(
+        metadata=metadata,
+        frozen_controls=frozen_controls,
+        latency_repetitions=latency["repetitions"],
+        mechanism_history_coverage=mechanism_history_coverage,
     )
     protocol_checks = {
         "evidence_arrays_are_finite": finite,
@@ -337,6 +344,27 @@ def verify_stored_assessment(directory: Path) -> Mapping[str, Any]:
             "stored LeNEPA assessment differs from recomputation"
         )
     return reassessed
+
+
+def _recompute_interpretable(
+    *,
+    metadata: Mapping[str, Any],
+    frozen_controls: bool,
+    latency_repetitions: int,
+    mechanism_history_coverage: bool,
+) -> bool:
+    return bool(
+        metadata.get("interpretable") is True
+        and metadata.get("source_corpus_sha256")
+        == FROZEN_SOURCE_CORPUS_SHA256
+        and metadata.get("source_artifact_manifest_sha256")
+        == FROZEN_SOURCE_ARTIFACT_MANIFEST_SHA256
+        and metadata.get("preprocessing_protocol")
+        == FROZEN_PREPROCESSING_PROTOCOL
+        and frozen_controls
+        and latency_repetitions == 100
+        and mechanism_history_coverage
+    )
 
 
 def _windows_from_evidence(

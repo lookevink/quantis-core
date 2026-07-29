@@ -7,6 +7,10 @@ from lab.action_dynamics.prototype_lenepa_jepa import (
     run_experiment,
 )
 from lab.action_dynamics.prototype_lenepa_jepa_assessor import (
+    FROZEN_PREPROCESSING_PROTOCOL,
+    FROZEN_SOURCE_ARTIFACT_MANIFEST_SHA256,
+    FROZEN_SOURCE_CORPUS_SHA256,
+    _recompute_interpretable,
     verify_stored_assessment,
 )
 from quantis_core.action_conditioned_dynamics import (
@@ -297,6 +301,31 @@ def test_lenepa_assessment_rejects_failed_raw_safety() -> None:
     ]
     assert assessment["mechanism_gates"]["projected_prediction_advantage"]
     assert assessment["decision"] == "reject_lenepa_telemetry_recipe"
+
+
+def test_lenepa_nonfrozen_role_cannot_be_promoted() -> None:
+    metadata = {
+        "interpretable": False,
+        "source_corpus_sha256": FROZEN_SOURCE_CORPUS_SHA256,
+        "source_artifact_manifest_sha256": (
+            FROZEN_SOURCE_ARTIFACT_MANIFEST_SHA256
+        ),
+        "preprocessing_protocol": FROZEN_PREPROCESSING_PROTOCOL,
+    }
+
+    assert not _recompute_interpretable(
+        metadata=metadata,
+        frozen_controls=True,
+        latency_repetitions=100,
+        mechanism_history_coverage=True,
+    )
+    metadata["interpretable"] = True
+    assert _recompute_interpretable(
+        metadata=metadata,
+        frozen_controls=True,
+        latency_repetitions=100,
+        mechanism_history_coverage=True,
+    )
 
 
 def test_lenepa_smoke_artifact_reassesses_from_stored_arrays(
