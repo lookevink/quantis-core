@@ -16,8 +16,10 @@ the exact tracer, not paired experimental designs or JEPA generally.
 ## Reproducible evidence
 
 - implementation commit:
-  `90530cf7b07cfdf366c7ed72441e93b4c9871c7a`;
-- immutable artifact:
+  `1d13b6d6105f2115c4f7ee170fc4ba2619af14ab`;
+- conclusion-bearing immutable artifact:
+  `artifacts/action-dynamics/prototype-pair-effect-jepa-v2`;
+- retained superseded artifact:
   `artifacts/action-dynamics/prototype-pair-effect-jepa-v1`;
 - fitting: 40 in-distribution matched pairs;
 - selection: 10 disjoint in-distribution pairs;
@@ -26,7 +28,10 @@ the exact tracer, not paired experimental designs or JEPA generally.
 
 The artifact contains selected models, composed raw/effect models, stored
 assessment tensors, a fresh independent assessment, copied reproduction
-sources, and a verified SHA-256 manifest. It occupies about 93 MiB.
+sources, retained original/restored distributions, and a verified SHA-256
+manifest. It occupies about 91 MB. The v1 artifact reached the same numerical
+result but retained only a restoration scalar, not the original/restored
+arrays required by the frozen contract.
 
 ## Held-topology result
 
@@ -73,7 +78,7 @@ The candidate passed the engineering and attribution checks:
 - 100% action-and-target hit@1 and 100% no-action specificity;
 - correct action beat no-action and shuffled action on 90% of transfer pairs;
 - 1.42 MiB composed artifact; and
-- 0.426 ms median local batch-one CPU latency.
+- 0.445 ms median local batch-one CPU latency.
 
 It failed raw-safety for both overall and action-overlap MSE. These failures
 are decisive even though the inference path is small and attributable.
@@ -91,4 +96,3 @@ full-trajectory correction. It must keep the raw action-conditioned rollout
 unchanged and test whether a bounded, selection-gated residual can add value
 only when the training objective is jointly anchored to the actual alert and
 effect witnesses.
-

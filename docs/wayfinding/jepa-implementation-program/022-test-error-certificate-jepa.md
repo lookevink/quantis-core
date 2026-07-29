@@ -26,5 +26,6 @@ Rejected. The corrected frozen run passed every safety gate and preserved the
 raw distribution exactly, but held-topology simultaneous control coverage was
 only 80%, treatment detection was zero, and the JEPA bound was slightly wider
 than derangement and wider than constant conformal. The invalid float32
-evidence attempt and corrected v2 artifact are both retained. See the
+evidence attempt, precision-corrected v2, and fully evidence-complete v3
+and source-document-complete v4 artifacts are all retained. See the
 [result](../../research/error-certificate-jepa-v1-results.md).

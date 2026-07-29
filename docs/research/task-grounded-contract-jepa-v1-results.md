@@ -16,13 +16,23 @@ false alarms under topology transfer.
 ## Reproducible evidence
 
 - implementation commit:
-  `97f27a3ebaa4561c440759122fa21206186d0fee`;
-- immutable artifact:
+  `1d13b6d6105f2115c4f7ee170fc4ba2619af14ab`;
+- conclusion-bearing immutable artifact:
+  `artifacts/action-dynamics/prototype-task-grounded-contract-jepa-v2`;
+- retained invalid artifact:
   `artifacts/action-dynamics/prototype-task-grounded-contract-jepa-v1`;
-- artifact size: about 142 MiB;
+- artifact size: about 141 MB;
 - 40 fitting, 10 selection, 10 calibration, 20 IID evaluation, and 10
   held-topology evaluation pairs; and
 - independently recomputed assessment and verified SHA-256 manifest.
+
+The v1 artifact is retained but is not conclusion-bearing. Checkpoint
+selection incorrectly included state/effect-score losses and omitted paired
+effect for the ungrounded control. The corrected run selects every cell on
+exactly its own residual plus paired-effect objective and retains
+original/restored tokens, corrections, witnesses, distributions, and alert
+decisions. The candidate and supervised checkpoints remain step 800; the
+ungrounded checkpoint changes from step 800 to step 600.
 
 ## Held-topology result
 
@@ -31,7 +41,7 @@ false alarms under topology transfer.
 | raw rank-32 | 0 | 0.105744 | 0.859940 | 0.143833 |
 | task-grounded Contract-JEPA | 1 | 0.104929 | 0.849399 | 0.142319 |
 | supervised task contract | 1 | 0.105133 | 0.847610 | 0.141778 |
-| ungrounded Contract-JEPA | 1 | 0.099700 | 0.850766 | 0.141466 |
+| ungrounded Contract-JEPA | 1 | 0.099950 | 0.851187 | 0.141531 |
 
 The task-grounded cell improved raw:
 
@@ -52,14 +62,14 @@ downstream effect.
 
 Task grounding strongly trained the explicit effect-score head:
 
-- transfer effect-score MSE was `1.8907`, versus `15.0091` for the ungrounded
+- transfer effect-score MSE was `1.8907`, versus `14.9906` for the ungrounded
   head; and
 - selection effect-score MSE was `2.8089`, versus `23.2547`.
 
 But the corrected paired-effect trajectory itself barely changed:
 
 - selection paired-effect MSE was `1.5178`, versus `1.5212` ungrounded; and
-- transfer paired-effect MSE was `2.6997`, versus `2.7267`.
+- transfer paired-effect MSE was `2.6997`, versus `2.7307`.
 
 The witness learned its supervised quantity, but that signal did not reshape
 the residual representation enough to improve the predictive task.
@@ -89,7 +99,7 @@ Every safety gate passed:
 - 100% attribution, 100% no-action specificity, and 100% action sanity;
 - identical `49,551` training and `41,855` inference parameters per cell;
 - 1.59 MiB candidate bundle; and
-- 0.470 ms median local batch-one CPU latency.
+- 0.506 ms median local batch-one CPU latency.
 
 This validates the contract pattern as a safe way to test auxiliary models.
 It does not justify deploying the learned correction.
@@ -100,4 +110,3 @@ The next tracer should preserve the raw prediction completely and stop trying
 to improve its mean. It should test only whether JEPA features sharpen a
 calibrated error bound over raw-feature and conformal controls. The topology
 drift observed here makes coverage on the held topology a mandatory gate.
-

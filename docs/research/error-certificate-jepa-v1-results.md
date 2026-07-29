@@ -15,10 +15,12 @@ sharper than its deranged, raw-only, or constant-conformal controls.
 ## Reproducible evidence
 
 - implementation commit:
-  `79458ea43dedc3acfe93b6fa6d57b72623242ba8`;
+  `1d13b6d6105f2115c4f7ee170fc4ba2619af14ab`;
 - conclusive immutable artifact:
-  `artifacts/action-dynamics/prototype-error-certificate-jepa-v2`;
-- retained invalid first attempt:
+  `artifacts/action-dynamics/prototype-error-certificate-jepa-v4`;
+- retained superseded artifacts:
+  `artifacts/action-dynamics/prototype-error-certificate-jepa-v3`,
+  `artifacts/action-dynamics/prototype-error-certificate-jepa-v2` and
   `artifacts/action-dynamics/prototype-error-certificate-jepa-v1`;
 - 40 fitting, 10 selection, 10 calibration, 20 IID evaluation, and 10
   held-topology evaluation pairs; and
@@ -27,8 +29,13 @@ sharper than its deranged, raw-only, or constant-conformal controls.
 The first artifact remains reproducible but is not the conclusion-bearing
 run. Its certificate evidence was serialized as float32 while its exact
 calibration gate used a `1e-7` tolerance, producing up to `9.54e-7` of
-round-trip error. The runner now stores calibration evidence losslessly; the
-v2 artifact passes the repaired regression and all safety gates.
+round-trip error. The v2 artifact fixed precision but did not retain
+original/restored arrays or independently recompute role isolation. The v3
+runner stores calibration evidence losslessly, retains original/restored
+forecasts, bounds, and decisions, verifies disjoint role identifiers, and
+recomputes the selected checkpoint from selection evidence, but its copied
+ticket still named v2. The identical v4 rerun binds the corrected ticket and
+passes every safety gate.
 
 ## Held-topology result
 
@@ -66,7 +73,7 @@ measurable reliability signal.
 
 ## Calibration and safety
 
-Every safety gate passed in v2:
+Every safety gate passed in v4:
 
 - all evidence was finite and every bound was non-negative;
 - all three cells had identical `87,409` training and `79,713` inference
@@ -77,9 +84,11 @@ Every safety gate passed in v2:
 - restored forecasts, bounds, and alert decisions matched exactly;
 - learned adjustments and the constant conformal bound independently
   recomputed from calibration-only evidence;
-- role isolation was explicit and no evaluation data widened a bound;
+- fit, selection, calibration, and evaluation identifiers were disjoint;
+- the selected checkpoint and calibration adjustment independently
+  recomputed from their declared roles, with no evaluation widening;
 - the candidate bundle was 2.28 MiB; and
-- median local batch-one CPU latency was 0.495 ms.
+- median local batch-one CPU latency was 0.517 ms.
 
 The fitted additive adjustments were `4.29201` for the candidate, `4.32018`
 for raw-only, and `4.29051` for derangement. Their near equality is another
