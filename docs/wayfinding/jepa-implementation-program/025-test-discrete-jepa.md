@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 label: wayfinder:ticket
 title: Test Discrete-JEPA semantic tokenization
 ---
@@ -19,6 +19,9 @@ backbone, projector, or SIGReg objective.
 
 ## Result
 
-Active. Primary-source ambiguities, telemetry adaptations, cells, controls,
-gates, seeds, roles, and artifact contract are frozen before implementation
-or fitting.
+Completed and rejected. The complete cell collapsed to one code per entity,
+tied the P2P-only control on next-code accuracy and all forecast scores,
+retained `1.92×` raw transfer effect error, and failed every value gate.
+All implementation and conclusion-bearing evidence remains retained under
+`artifacts/action-dynamics/prototype-discrete-jepa-v1`. See the
+[result record](../../research/discrete-jepa-telemetry-v1-results.md).
