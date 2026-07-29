@@ -12,6 +12,7 @@ from quantis_core.action_conditioned_dynamics import (
     GraphVarxConfig,
     GraphVarxDynamics,
     InterventionAction,
+    MixtureTrajectoryDistribution,
     RolloutCandidate,
     rank_action_candidates,
     validate_matched_action_pairs,
@@ -24,6 +25,106 @@ from quantis_core.action_dynamics_synthetic import (
     causal_chain_graph,
     synthetic_action_runs,
 )
+
+
+def test_mixture_trajectory_distribution_preserves_exact_moments() -> None:
+    component_mean = np.asarray(
+        [
+            [
+                [[[0.0]]],
+                [[[2.0]]],
+            ]
+        ],
+        dtype=np.float64,
+    )
+    component_variance = np.asarray(
+        [
+            [
+                [[[1.0]]],
+                [[[4.0]]],
+            ]
+        ],
+        dtype=np.float64,
+    )
+    mixture = MixtureTrajectoryDistribution(
+        component_mean=component_mean,
+        component_variance=component_variance,
+        weight=np.asarray([[0.25, 0.75]], dtype=np.float64),
+    )
+
+    compatible = mixture.as_trajectory_distribution()
+    permuted = MixtureTrajectoryDistribution(
+        component_mean=component_mean[:, ::-1],
+        component_variance=component_variance[:, ::-1],
+        weight=np.asarray([[0.75, 0.25]], dtype=np.float64),
+    ).as_trajectory_distribution()
+
+    np.testing.assert_allclose(compatible.mean, [[[[1.5]]]])
+    np.testing.assert_allclose(compatible.variance, [[[[4.0]]]])
+    np.testing.assert_allclose(permuted.mean, compatible.mean)
+    np.testing.assert_allclose(permuted.variance, compatible.variance)
+
+
+def test_mixture_trajectory_distribution_scores_the_complete_mixture() -> None:
+    means = np.asarray(
+        [[[[[0.0]]], [[[1.0]]]]],
+        dtype=np.float64,
+    )
+    variances = np.ones_like(means)
+    weights = np.asarray([[0.25, 0.75]], dtype=np.float64)
+    observed = np.asarray([[[[0.0]]]], dtype=np.float64)
+    mixture = MixtureTrajectoryDistribution(
+        component_mean=means,
+        component_variance=variances,
+        weight=weights,
+    )
+    permuted = MixtureTrajectoryDistribution(
+        component_mean=means[:, ::-1],
+        component_variance=variances[:, ::-1],
+        weight=weights[:, ::-1],
+    )
+
+    np.testing.assert_allclose(
+        mixture.negative_log_likelihood(observed),
+        [1.268640708091867],
+    )
+    np.testing.assert_allclose(
+        permuted.negative_log_likelihood(observed),
+        mixture.negative_log_likelihood(observed),
+    )
+
+
+def test_mixture_trajectory_distribution_accepts_float32_softmax_roundoff() -> None:
+    weights = np.asarray(
+        [[0.04401057, 0.07157087, 0.07423295, 0.81018573]],
+        dtype=np.float32,
+    ).astype(np.float64)
+
+    distribution = MixtureTrajectoryDistribution(
+        component_mean=np.zeros((1, 4, 1, 1, 1)),
+        component_variance=np.ones((1, 4, 1, 1, 1)),
+        weight=weights,
+    )
+
+    assert distribution.weight.shape == (1, 4)
+
+
+def test_mixture_trajectory_distribution_ignores_masked_coordinates() -> None:
+    distribution = MixtureTrajectoryDistribution(
+        component_mean=np.zeros((1, 1, 1, 1, 2)),
+        component_variance=np.ones((1, 1, 1, 1, 2)),
+        weight=np.ones((1, 1)),
+    )
+    observed = np.asarray([[[[0.0, 100.0]]]])
+    observed_mask = np.asarray([[[[True, False]]]])
+
+    np.testing.assert_allclose(
+        distribution.negative_log_likelihood(
+            observed,
+            observed_mask=observed_mask,
+        ),
+        [0.9189385332046727],
+    )
 
 
 def test_action_manifest_round_trips_a_reversible_intervention() -> None:

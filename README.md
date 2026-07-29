@@ -295,3 +295,14 @@ prediction but remains slightly behind the all-entity control. This is a
 development architecture result, not a world-model claim. See the
 [graph pilot specification](docs/specs/graph-jepa-observability-pilot-v1.md)
 and [result interpretation](docs/research/graph-jepa-observability-pilot-v1-results.md).
+
+## Reproduce the retained edge JEPA tracers
+
+Rejected experiment recipes remain reproducible evidence. The soft
+regime-codebook, event-native trace, multi-hypothesis trajectory, corrected
+multi-hypothesis assessment, exact-SIGReg substitution, complete multi-view
+LeJEPA, and episode-predictive retrieval-JEPA entry points are retained under
+`lab/action_dynamics`. See the
+[JEPA reproduction guide](lab/action_dynamics/JEPA_REPRODUCTION.md) for fresh
+output commands, seeds, artifact identities, and the current artifact-storage
+boundary.

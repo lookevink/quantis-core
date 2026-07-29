@@ -21,6 +21,7 @@ from .models import validate_edge_rollout
 
 
 _OBJECTIVES = ("jepa", "supervised")
+_REGULARIZERS = ("variance_covariance", "sigreg", "none")
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,11 @@ class ActionConditionedJepaConfig:
     context_reconstruction_weight: float = 0.1
     variance_weight: float = 0.05
     covariance_weight: float = 0.01
+    regularizer: str = "variance_covariance"
+    sigreg_weight: float = 0.02
+    sigreg_sketch_dimension: int = 256
+    sigreg_knot_count: int = 17
+    sigreg_projection_seed: int = 1
     variance_floor: float = 1e-4
     objective: str = "jepa"
     zero_initialize_decoder: bool = False
@@ -54,6 +60,9 @@ class ActionConditionedJepaConfig:
             self.transition_rank,
             self.epochs,
             self.batch_size,
+            self.sigreg_sketch_dimension,
+            self.sigreg_knot_count,
+            self.sigreg_projection_seed,
         )
         weights = (
             self.learning_rate,
@@ -62,6 +71,7 @@ class ActionConditionedJepaConfig:
             self.context_reconstruction_weight,
             self.variance_weight,
             self.covariance_weight,
+            self.sigreg_weight,
             self.variance_floor,
         )
         if any(
@@ -78,7 +88,9 @@ class ActionConditionedJepaConfig:
             or not 0.0 <= self.mask_time_fraction < 1.0
             or not 0.0 <= self.mask_entity_fraction < 1.0
             or self.objective not in _OBJECTIVES
+            or self.regularizer not in _REGULARIZERS
             or self.device not in ("auto", "cpu", "mps")
+            or self.sigreg_knot_count < 2
         ):
             raise ValueError("JEPA numeric or categorical controls are invalid")
         if (
@@ -152,6 +164,19 @@ class ActionConditionedJepaConfig:
             ),
             variance_weight=float(payload["variance_weight"]),
             covariance_weight=float(payload["covariance_weight"]),
+            regularizer=str(
+                payload.get("regularizer", "variance_covariance")
+            ),
+            sigreg_weight=float(payload.get("sigreg_weight", 0.02)),
+            sigreg_sketch_dimension=int(
+                payload.get("sigreg_sketch_dimension", 256)
+            ),
+            sigreg_knot_count=int(
+                payload.get("sigreg_knot_count", 17)
+            ),
+            sigreg_projection_seed=int(
+                payload.get("sigreg_projection_seed", 1)
+            ),
             variance_floor=float(payload["variance_floor"]),
             objective=str(payload["objective"]),
             zero_initialize_decoder=bool(
@@ -253,6 +278,8 @@ class ActionConditionedJepaDynamics:
             weight_decay=self.config.weight_decay,
         )
         generator = np.random.default_rng(self.config.seed)
+        sigreg_generator = torch.Generator(device="cpu")
+        sigreg_step = 0
         sample_count = len(windows.histories)
         metrics: List[Mapping[str, float]] = []
         for _ in range(self.config.epochs):
@@ -264,6 +291,7 @@ class ActionConditionedJepaDynamics:
                 "context_reconstruction": 0.0,
                 "variance": 0.0,
                 "covariance": 0.0,
+                "sigreg": 0.0,
             }
             batches = 0
             self._network.train()
@@ -303,8 +331,18 @@ class ActionConditionedJepaDynamics:
                 output = self._network.forward_training(
                     batch, visible_tensor
                 )
+                if self.config.regularizer == "sigreg":
+                    sigreg_generator.manual_seed(
+                        self.config.sigreg_projection_seed
+                        + sigreg_step
+                    )
+                    sigreg_step += 1
                 components = _loss_components(
-                    torch, output, batch, self.config
+                    torch,
+                    output,
+                    batch,
+                    self.config,
+                    sigreg_generator=sigreg_generator,
                 )
                 components["total"].backward()
                 optimizer.step()
@@ -805,11 +843,80 @@ def _sample_visible_mask(
     return visible
 
 
+def sketched_isotropic_gaussian_regularization(
+    embeddings: Any,
+    *,
+    generator: Any,
+    sketch_dimension: int = 256,
+    knot_count: int = 17,
+) -> Any:
+    """Return the LeJEPA sketched Epps-Pulley Gaussian statistic.
+
+    The sample and feature axes are the final two axes. Any leading axes are
+    treated as separate embedding groups, which lets entity-preserving models
+    regularize each entity without mixing entity identity into the samples.
+    """
+
+    if (
+        embeddings.ndim < 2
+        or embeddings.size(-2) < 1
+        or embeddings.size(-1) < 1
+        or isinstance(sketch_dimension, bool)
+        or sketch_dimension < 1
+        or isinstance(knot_count, bool)
+        or knot_count < 2
+    ):
+        raise ValueError("SIGReg inputs or sketch controls are invalid")
+    torch = _require_torch()
+    directions = torch.randn(
+        embeddings.size(-1),
+        sketch_dimension,
+        device="cpu",
+        dtype=embeddings.dtype,
+        generator=generator,
+    ).to(
+        device=embeddings.device,
+        dtype=embeddings.dtype,
+    )
+    directions = directions / directions.norm(
+        p=2, dim=0, keepdim=True
+    )
+    knots = torch.linspace(
+        0.0,
+        3.0,
+        knot_count,
+        device=embeddings.device,
+        dtype=embeddings.dtype,
+    )
+    delta = 3.0 / float(knot_count - 1)
+    quadrature = torch.full(
+        (knot_count,),
+        2.0 * delta,
+        device=embeddings.device,
+        dtype=embeddings.dtype,
+    )
+    quadrature[[0, -1]] = delta
+    gaussian_characteristic = torch.exp(
+        -torch.square(knots) / 2.0
+    )
+    weighted_quadrature = quadrature * gaussian_characteristic
+    projected = (embeddings @ directions).unsqueeze(-1) * knots
+    error = torch.square(
+        projected.cos().mean(dim=-3) - gaussian_characteristic
+    ) + torch.square(projected.sin().mean(dim=-3))
+    statistic = (
+        error @ weighted_quadrature
+    ) * embeddings.size(-2)
+    return statistic.mean()
+
+
 def _loss_components(
     torch: Any,
     output: Mapping[str, Any],
     batch: Mapping[str, Any],
     config: ActionConditionedJepaConfig,
+    *,
+    sigreg_generator: Any,
 ) -> Mapping[str, Any]:
     latent = torch.nn.functional.l1_loss(
         output["predicted_latents"].contiguous(),
@@ -843,13 +950,30 @@ def _loss_components(
             - torch.diag(torch.diag(covariance_matrix))
         )
     )
+    if config.regularizer == "sigreg":
+        sigreg = sketched_isotropic_gaussian_regularization(
+            output["context_tokens"].transpose(0, 1),
+            generator=sigreg_generator,
+            sketch_dimension=config.sigreg_sketch_dimension,
+            knot_count=config.sigreg_knot_count,
+        )
+    else:
+        sigreg = torch.sum(output["context_tokens"]) * 0.0
+    if config.regularizer == "variance_covariance":
+        regularization = (
+            config.variance_weight * variance
+            + config.covariance_weight * covariance
+        )
+    elif config.regularizer == "sigreg":
+        regularization = config.sigreg_weight * sigreg
+    else:
+        regularization = torch.sum(output["context_tokens"]) * 0.0
     total = (
         config.effective_latent_prediction_weight * latent
         + config.effective_reconstruction_weight * reconstruction
         + config.context_reconstruction_weight
         * context_reconstruction
-        + config.variance_weight * variance
-        + config.covariance_weight * covariance
+        + regularization
     )
     return {
         "total": total,
@@ -858,6 +982,7 @@ def _loss_components(
         "context_reconstruction": context_reconstruction,
         "variance": variance,
         "covariance": covariance,
+        "sigreg": sigreg,
     }
 
 

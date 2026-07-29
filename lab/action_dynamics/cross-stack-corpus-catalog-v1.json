@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "kind": "cross_stack_jepa_candidate_corpus_catalog",
+  "corpora": [
+    {
+      "corpus_id": "multimodal-normal-corpus-v2",
+      "extractor": "multimodal",
+      "paths": {
+        "corpus": "artifacts/jepa-world-model-v0/multimodal-normal-corpus-v2/training/corpus.json"
+      },
+      "campaign_id": "multimodal-normal-corpus-v2",
+      "stack_id": "quantis-checkout-python-redis-postgres",
+      "status": "open_development",
+      "assigned_role": "fit",
+      "notes": [
+        "Open nominal development captures.",
+        "The ten seeded schedules are stationary realizations, not distinct workload-shape families.",
+        "No matched intervention/control pairs; this can supplement fit-only normal behavior but cannot complete a stack role."
+      ]
+    },
+    {
+      "corpus_id": "contextual-multimodal-development-v1",
+      "extractor": "multimodal",
+      "paths": {
+        "corpus": "artifacts/jepa-world-model-v1/contextual-multimodal-development/corpus.json"
+      },
+      "campaign_id": "contextual-multimodal-development-v1",
+      "source_campaign_id": "multimodal-normal-corpus-v2",
+      "stack_id": "quantis-checkout-python-redis-postgres",
+      "status": "derived",
+      "notes": [
+        "Contextual preprocessing over exactly the multimodal-normal-corpus-v2 raw captures."
+      ]
+    },
+    {
+      "corpus_id": "contextual-confirmation-v2",
+      "extractor": "multimodal",
+      "paths": {
+        "corpus": "artifacts/jepa-world-model-v2/contextual-confirmation-v2/training-seed-89/corpus.json"
+      },
+      "campaign_id": "contextual-confirmation-v2",
+      "stack_id": "quantis-checkout-python-redis-postgres",
+      "status": "result_bearing_confirmation",
+      "notes": [
+        "Result-bearing confirmation evidence; forbidden from fitting, selection, calibration, and exploratory reassignment."
+      ]
+    },
+    {
+      "corpus_id": "observability-graph-confirmation-v1",
+      "extractor": "event_cache",
+      "paths": {
+        "events": "artifacts/jepa-world-model-v3/hybrid-telemetry-event-cache-v1/events.json"
+      },
+      "campaign_id": "observability-graph-confirmation-v1",
+      "stack_id": "quantis-checkout-python-redis-postgres",
+      "status": "result_bearing_confirmation",
+      "notes": [
+        "Root confirmation campaign represented by the capture identities bound into its structured-event cache.",
+        "Result-bearing confirmation evidence; forbidden from exploratory reassignment."
+      ]
+    },
+    {
+      "corpus_id": "hybrid-telemetry-event-cache-v1",
+      "extractor": "event_cache",
+      "paths": {
+        "events": "artifacts/jepa-world-model-v3/hybrid-telemetry-event-cache-v1/events.json"
+      },
+      "campaign_id": "hybrid-telemetry-event-cache-v1",
+      "source_campaign_id": "observability-graph-confirmation-v1",
+      "stack_id": "quantis-checkout-python-redis-postgres",
+      "status": "derived_confirmation",
+      "notes": [
+        "Structured-event transformation of the observability-graph confirmation captures."
+      ]
+    },
+    {
+      "corpus_id": "action-dynamics-development-v1",
+      "extractor": "action_dynamics",
+      "paths": {
+        "protocol": "artifacts/action-dynamics/development-v1/inputs/protocol.json",
+        "plan": "artifacts/action-dynamics/development-v1/inputs/plan.json",
+        "data_quality": "artifacts/action-dynamics/development-v1/data-quality.json",
+        "attestation": "artifacts/action-dynamics/development-v1/collection-attestation.json"
+      },
+      "campaign_id": "action-dynamics-development-v1",
+      "stack_id": "quantis-checkout-python-redis-postgres",
+      "status": "open_development",
+      "assigned_role": "fit",
+      "notes": [
+        "Only open operational campaign with matched treatment/control evidence.",
+        "Five actions by three worker topologies with eight pairs per observed cell.",
+        "All schedules come from one stationary uniform-random workload family."
+      ]
+    },
+    {
+      "corpus_id": "edge-preprocessing-v1",
+      "extractor": "edge_cache",
+      "paths": {
+        "metadata": "artifacts/action-dynamics/edge-preprocessing-v1/eb54271132f88c9a431b01e786ea66279a563776434cca2290e47e6b7ae9b3ff/metadata.json"
+      },
+      "campaign_id": "edge-preprocessing-v1",
+      "source_campaign_id": "action-dynamics-development-v1",
+      "stack_id": "quantis-checkout-python-redis-postgres",
+      "status": "derived",
+      "notes": [
+        "Role-split window cache derived from action-dynamics-development-v1.",
+        "Its fit, selection, calibration, and evaluation partitions are within one stack and cannot satisfy cross-stack role separation."
+      ]
+    }
+  ]
+}

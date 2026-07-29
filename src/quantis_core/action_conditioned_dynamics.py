@@ -1340,6 +1340,131 @@ class TrajectoryDistribution:
         )
 
 
+@dataclass(frozen=True)
+class MixtureTrajectoryDistribution:
+    """Exchangeable mixture over complete observable trajectories."""
+
+    component_mean: NDArray[np.float64]
+    component_variance: NDArray[np.float64]
+    weight: NDArray[np.float64]
+
+    def __post_init__(self) -> None:
+        if (
+            self.component_mean.ndim != 5
+            or self.component_variance.shape
+            != self.component_mean.shape
+            or self.weight.ndim != 2
+            or self.weight.shape
+            != self.component_mean.shape[:2]
+            or not 1 <= self.component_mean.shape[1] <= 4
+            or not np.all(np.isfinite(self.component_mean))
+            or not np.all(np.isfinite(self.component_variance))
+            or not np.all(np.isfinite(self.weight))
+            or np.any(self.component_variance <= 0.0)
+            or np.any(self.weight < 1e-12)
+            or not np.allclose(
+                np.sum(self.weight, axis=1),
+                1.0,
+                rtol=0.0,
+                atol=1e-6,
+            )
+        ):
+            raise ValueError("mixture trajectory distribution is invalid")
+        normalized_weight = np.asarray(
+            self.weight, dtype=np.float64
+        ) / np.sum(
+            np.asarray(self.weight, dtype=np.float64),
+            axis=1,
+            keepdims=True,
+        )
+        object.__setattr__(self, "weight", normalized_weight)
+
+    def as_trajectory_distribution(self) -> TrajectoryDistribution:
+        """Return the exact diagonal marginal moments."""
+
+        expanded_weight = self.weight[:, :, None, None, None]
+        mean = np.sum(
+            expanded_weight * self.component_mean,
+            axis=1,
+        )
+        second_moment = np.sum(
+            expanded_weight
+            * (
+                self.component_variance
+                + np.square(self.component_mean)
+            ),
+            axis=1,
+        )
+        variance = np.maximum(
+            second_moment - np.square(mean),
+            np.finfo(np.float64).tiny,
+        )
+        return TrajectoryDistribution(
+            mean=np.asarray(mean, dtype=np.float64),
+            variance=np.asarray(variance, dtype=np.float64),
+        )
+
+    def negative_log_likelihood(
+        self,
+        observed: NDArray[np.float64],
+        *,
+        observed_mask: Optional[NDArray[np.bool_]] = None,
+    ) -> NDArray[np.float64]:
+        """Return the exact normalized mixture log score per sample."""
+
+        values = np.asarray(observed, dtype=np.float64)
+        if values.shape != self.component_mean.shape[:1] + (
+            self.component_mean.shape[2:]
+        ):
+            raise ValueError(
+                "observed trajectory does not match mixture distribution"
+            )
+        mask = (
+            np.ones(values.shape, dtype=np.bool_)
+            if observed_mask is None
+            else np.asarray(observed_mask, dtype=np.bool_)
+        )
+        coordinate_count = np.sum(mask, axis=(1, 2, 3))
+        if (
+            mask.shape != values.shape
+            or np.any(coordinate_count == 0)
+            or not np.all(np.isfinite(values[mask]))
+        ):
+            raise ValueError("observed trajectory mask is invalid")
+        difference = np.where(
+            mask[:, None],
+            values[:, None] - self.component_mean,
+            0.0,
+        )
+        component_terms = -0.5 * (
+            np.square(difference)
+            / self.component_variance
+            + np.log(self.component_variance)
+            + np.log(2.0 * np.pi)
+        )
+        component_terms = np.where(
+            mask[:, None],
+            component_terms,
+            0.0,
+        )
+        component_log_density = np.sum(
+            component_terms,
+            axis=(2, 3, 4),
+        )
+        weighted = np.log(self.weight) + component_log_density
+        maximum = np.max(weighted, axis=1)
+        log_density = maximum + np.log(
+            np.sum(
+                np.exp(weighted - maximum[:, None]),
+                axis=1,
+            )
+        )
+        return np.asarray(
+            -log_density / coordinate_count,
+            dtype=np.float64,
+        )
+
+
 def persistence_rollout(
     histories: NDArray[np.float64],
     rollout_horizon: int,
