@@ -1,5 +1,5 @@
 ---
-status: complete
+status: in_progress
 label: wayfinder:map
 title: Evaluate the unimplemented JEPA families
 ---
@@ -51,9 +51,12 @@ disposition for every family.
 - [Test the LeWorldModel bounded geometry screen](017-test-leworld-geometry-screen.md) — No regularized cell was selection-safe. SPHERE-JEPA won the diagnostic selection by a negligible margin, then lost transfer value and state information; ambient and Sub-JEPA collapsed without meeting the UR-JEPA prerequisite. Reject and proceed to Causal-JEPA.
 - [Test Causal-JEPA's entity intervention](018-test-causal-jepa-entity-intervention.md) — Whole-entity masking learned completion beyond persistence but lost to matched coordinate-time masking, regressed raw held-topology effects by more than threefold, and won half of transfer pairs. Reject and proceed to MoP-JEPA.
 - [Test MoP-JEPA hard-assigned predictors](019-test-mop-jepa-hard-assignment.md) — Hard assignment activated and produced transition-valid alternatives, but lost to supervised hard-WTA and raw dynamics, failed conditional-codebook value, and regressed held-topology effects by 4.65×. Reject the recipe.
+- [Test PairEffect-JEPA](020-test-pair-effect-jepa.md) — In progress. Make randomized treatment/control twins the target unit while retaining the raw no-action path.
 
 ## Not yet specified
 
+- Task-grounded Contract-JEPA and Error-Certificate-JEPA follow ticket 020 in
+  that order under the 2026-07-29 exhaustion refresh.
 - T-JEPA missing-channel robustness, V-JEPA 2.1 deep self-supervision,
   BiJEPA, Koopman-constrained prediction, Phys-JEPA, and seq-JEPA remain
   conditional ablations with the prerequisites recorded in the
@@ -63,16 +66,16 @@ disposition for every family.
 - Fit variational or generative latent futures only after a selection-role
   diagnostic demonstrates irreducible conditional uncertainty or a
   predictably nonzero deterministic residual.
-- CHARM and other cross-stack semantic methods remain blocked by ticket 010's
-  acquisition prerequisite.
+- CHARM and other cross-stack semantic methods are out of scope under the
+  deliberate one-stack product boundary. Ticket 010 remains an audit artifact.
 
 ## Conclusion
 
-All materially distinct, currently runnable omissions identified by ticket
-011 have now been executed. None earned fixed-seed robustness or sealed
-confirmation. Do not train another JEPA recipe on the one-stack corpus until a
-recorded prerequisite changes; use the retained raw dynamics and direct
-retrieval controls as the next shadow-system baselines.
+The generic queue identified by ticket 011 is complete and none earned
+fixed-seed robustness or sealed confirmation. Tickets 020 onward test the
+remaining one-stack hypotheses that directly anchor representations to
+matched effects, bounded decisions, or prediction reliability. Continue to
+use retained raw dynamics and direct retrieval as the shadow-system baselines.
 
 ## Out of scope
 
