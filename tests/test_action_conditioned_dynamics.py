@@ -109,6 +109,25 @@ def test_mixture_trajectory_distribution_accepts_float32_softmax_roundoff() -> N
     assert distribution.weight.shape == (1, 4)
 
 
+def test_mixture_trajectory_distribution_accepts_eight_mop_heads() -> None:
+    distribution = MixtureTrajectoryDistribution(
+        component_mean=np.zeros((2, 8, 1, 1, 1)),
+        component_variance=np.ones((2, 8, 1, 1, 1)),
+        weight=np.full((2, 8), 1.0 / 8.0),
+    )
+
+    assert distribution.weight.shape == (2, 8)
+
+
+def test_mixture_trajectory_distribution_rejects_more_than_eight_heads() -> None:
+    with pytest.raises(ValueError):
+        MixtureTrajectoryDistribution(
+            component_mean=np.zeros((1, 9, 1, 1, 1)),
+            component_variance=np.ones((1, 9, 1, 1, 1)),
+            weight=np.full((1, 9), 1.0 / 9.0),
+        )
+
+
 def test_mixture_trajectory_distribution_ignores_masked_coordinates() -> None:
     distribution = MixtureTrajectoryDistribution(
         component_mean=np.zeros((1, 1, 1, 1, 2)),

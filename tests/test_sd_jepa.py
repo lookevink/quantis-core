@@ -176,7 +176,7 @@ def test_sd_jepa_smoke_artifact_reassesses_from_stored_arrays(
     verify_artifact_manifest(output)
 
 
-def _tiny_windows(
+def tiny_action_conditioned_windows(
     *,
     pair_count: int,
     transition_count: int,
@@ -262,3 +262,6 @@ def _tiny_windows(
         action_feature_names=action_names,
         graph=graph,
     )
+
+
+_tiny_windows = tiny_action_conditioned_windows

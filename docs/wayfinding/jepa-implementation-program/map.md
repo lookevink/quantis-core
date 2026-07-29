@@ -50,11 +50,10 @@ disposition for every family.
 - [Test Delta-JEPA action-sensitive displacement](016-test-delta-jepa-action-displacement.md) — The displacement was state-rich and predicted observable change, but endpoint concatenation decoded treatment actions much better and every neural cell nearly doubled raw transfer effect error; reject the recipe and proceed to the exact LeWorldModel geometry screen.
 - [Test the LeWorldModel bounded geometry screen](017-test-leworld-geometry-screen.md) — No regularized cell was selection-safe. SPHERE-JEPA won the diagnostic selection by a negligible margin, then lost transfer value and state information; ambient and Sub-JEPA collapsed without meeting the UR-JEPA prerequisite. Reject and proceed to Causal-JEPA.
 - [Test Causal-JEPA's entity intervention](018-test-causal-jepa-entity-intervention.md) — Whole-entity masking learned completion beyond persistence but lost to matched coordinate-time masking, regressed raw held-topology effects by more than threefold, and won half of transfer pairs. Reject and proceed to MoP-JEPA.
+- [Test MoP-JEPA hard-assigned predictors](019-test-mop-jepa-hard-assignment.md) — In progress under a frozen hard-WTA, context-dependence, transition-precision, proper-score, and edge-safety contract.
 
 ## Not yet specified
 
-- Next execute Causal-JEPA and MoP-JEPA in that order. Open each tracer ticket only when
-  the preceding result makes its exact smallest falsifier clear.
 - T-JEPA missing-channel robustness, V-JEPA 2.1 deep self-supervision,
   BiJEPA, Koopman-constrained prediction, Phys-JEPA, and seq-JEPA remain
   conditional ablations with the prerequisites recorded in the

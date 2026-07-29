@@ -1340,6 +1340,9 @@ class TrajectoryDistribution:
         )
 
 
+MAX_MIXTURE_COMPONENT_COUNT = 8
+
+
 @dataclass(frozen=True)
 class MixtureTrajectoryDistribution:
     """Exchangeable mixture over complete observable trajectories."""
@@ -1356,7 +1359,9 @@ class MixtureTrajectoryDistribution:
             or self.weight.ndim != 2
             or self.weight.shape
             != self.component_mean.shape[:2]
-            or not 1 <= self.component_mean.shape[1] <= 4
+            or not 1
+            <= self.component_mean.shape[1]
+            <= MAX_MIXTURE_COMPONENT_COUNT
             or not np.all(np.isfinite(self.component_mean))
             or not np.all(np.isfinite(self.component_variance))
             or not np.all(np.isfinite(self.weight))
