@@ -66,9 +66,9 @@ disposition for every family.
 
 ## Next target
 
-- Specify and test SD-JEPA’s orthogonal progression/content subspaces against
-  a same-width unsplit representation, using event localization as the
-  primary mechanism output.
+- [Test SD-JEPA progression/content telemetry](015-test-sd-jepa-alert-tracer.md)
+  — Active. Freeze canonical A2 against same-width A0 and A2-full, with
+  angular semantic-event localization as the primary mechanism output.
 
 ## Out of scope
 
