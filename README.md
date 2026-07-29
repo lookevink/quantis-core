@@ -298,11 +298,87 @@ and [result interpretation](docs/research/graph-jepa-observability-pilot-v1-resu
 
 ## Reproduce the retained edge JEPA tracers
 
-Rejected experiment recipes remain reproducible evidence. The soft
-regime-codebook, event-native trace, multi-hypothesis trajectory, corrected
-multi-hypothesis assessment, exact-SIGReg substitution, complete multi-view
-LeJEPA, and episode-predictive retrieval-JEPA entry points are retained under
-`lab/action_dynamics`. See the
-[JEPA reproduction guide](lab/action_dynamics/JEPA_REPRODUCTION.md) for fresh
-output commands, seeds, artifact identities, and the current artifact-storage
-boundary.
+Rejected experiment recipes remain reproducible evidence. Twenty-two tracers
+were run against the shared evaluation contract; none passed its frozen
+observable-safety, mechanism, and operational-value gates. All runners,
+assessors, and result documents are retained under `lab/action_dynamics`. The
+full decision log is the
+[wayfinding map](docs/wayfinding/jepa-implementation-program/map.md);
+reproduction commands, seeds, and artifact identities are in the
+[JEPA reproduction guide](lab/action_dynamics/JEPA_REPRODUCTION.md).
+
+- **Soft regime-codebook JEPA** — Broad code usage and improved state probing
+  did not preserve effect prediction or alert calibration.
+- **Event-native trace JEPA** — A compact non-collapsed trace encoder learned
+  the bounded path grammar but added no aligned alert or investigation value
+  over its shuffled null.
+- **Multi-hypothesis trajectory JEPA** — Distinct alternatives emerged but the
+  mixture lost to its supervised control and badly regressed raw prediction. A
+  v2 assessor applies the corrected scoring contract to the immutable v1
+  sidecars.
+- **Exact SIGReg LeJEPA substitution** — The regularizer broadened latent rank
+  but worsened observable-state probing, earned zero correction gain, and
+  detected no treatment trajectories.
+- **Complete multi-view LeJEPA** — The predictor-free objective learned a
+  restorable, state-accessible representation but lost to masked reconstruction
+  and nearly doubled raw downstream-effect error.
+- **Episode-predictive retrieval JEPA** — The causal query map was
+  edge-feasible but reached only 40% transfer hit@1 while raw telemetry and
+  PCA retrieved every transfer mechanism; direct retrieval is retained as the
+  investigation baseline.
+- **HEPA event-predictive alerting** — Learned a monotone, state-rich
+  probability surface and improved Brier over its deranged null, but detected
+  only 50% of treatments and trailed simpler controls.
+- **Complete SC-JEPA codebook × multi-resolution interaction** — Negligible
+  Brier interaction, zero detection interaction, no treatment detections,
+  collapsed per-entity code use, and 2.73× matched-PCA state error.
+- **CF-JEPA mask-free multi-horizon alerting** — The EMA target became
+  smoother, lower rank, and state-rich, but three alert zones narrowly lost to
+  one and the 10% control false-alarm rate exceeded the frozen ceiling.
+- **SD-JEPA progression/content localization** — Angular change became more
+  event-sensitive but the designated progression coordinates did not encode
+  progression and the calibrated transfer policy emitted no alerts.
+- **Delta-JEPA action-sensitive displacement** — The learned displacement
+  contained a real action signal but endpoint concatenation decoded treatment
+  actions much better and every neural cell nearly doubled raw transfer effect
+  error.
+- **LeWorldModel bounded geometry screen** — No regularized cell was
+  selection-safe; SPHERE-JEPA won the diagnostic selection by a negligible
+  margin and then lost transfer value and state information. Sub-JEPA and
+  ambient cells collapsed without meeting the UR-JEPA prerequisite.
+- **Causal-JEPA entity intervention** — Whole-entity masking learned
+  completion beyond persistence but lost to matched coordinate-time masking and
+  regressed raw held-topology effects by more than threefold.
+- **MoP-JEPA hard-assigned predictors** — Hard assignment activated and
+  produced transition-valid alternatives but lost to supervised hard-WTA and
+  raw dynamics, regressing held-topology effects by 4.65×.
+- **PairEffect-JEPA** — Matched-twin training was slightly worse than its
+  deranged null and the composed path regressed raw transfer effect by 3.38×.
+- **Task-grounded Contract-JEPA** — Passed every safety gate and improved raw
+  effect error by 1.05%, but both controls predicted better and the effect
+  witness produced 100% transfer control false alarms.
+- **Error-Certificate-JEPA** — Passed every safety gate but achieved only 80%
+  held-topology simultaneous control coverage, detected no treatments, and was
+  no sharper than derangement or constant conformal.
+- **SALT-JEPA static reconstructive teacher** — The corrected v2 run passed
+  every evidence check but the transfer latent advantage was 8.89%, below the
+  10% mechanism threshold, and the student retained 1.91× raw transfer effect
+  error.
+- **Exact LeNEPA disposable projection** — All twelve protocol checks passed
+  but projection failed the mechanism gate, every learned cell failed raw
+  forecast safety, and the candidate retained 1.92× raw transfer effect error.
+- **Discrete-JEPA semantic tokenization** — The hard codebook collapsed to one
+  code per entity, tied P2P-only on forecasts and transition accuracy, and
+  retained 1.92× raw transfer effect error.
+- **PEIRA inter-view regressor alignment** — Aligned PEIRA learned a real
+  non-collapsed trace mechanism but lost to derangement and reconstruction
+  controls, retained 1.91× raw transfer effect error, and won three of ten
+  pairs.
+- **VISReg scale-shape regularization** — Its small-radius gradient mechanism
+  passed, but the detached candidate collapsed to projector rank 1.12,
+  retained 1.97× raw transfer effect error, and lost to no-detach and
+  reconstruction controls.
+
+Raw action-conditioned dynamics and direct retrieval remain the shadow-system
+baselines. Exact JEPA-SCORE edge alerting is the active final bounded screen
+under [ticket 028](docs/wayfinding/jepa-implementation-program/map.md).

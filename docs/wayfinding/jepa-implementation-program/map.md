@@ -59,6 +59,7 @@ disposition for every family.
 - [Test Discrete-JEPA semantic tokenization](025-test-discrete-jepa.md) — The hard codebook collapsed to one code per entity, tied P2P-only on forecasts and transition accuracy, and retained 1.92× raw transfer effect error. Reject; proceed to PEIRA.
 - [Test PEIRA inter-view regressor alignment](026-test-peira.md) — Aligned PEIRA learned a real noncollapsed trace mechanism, but lost to derangement and reconstruction controls, retained 1.91× raw transfer effect error, and won three of ten pairs. Reject; proceed to VISReg.
 - [Test VISReg scale-shape regularization](027-test-visreg.md) — The frozen small-radius gradient mechanism passed, but the detached candidate collapsed to projector rank 1.12, retained 1.97× raw transfer effect error, and lost to no-detach and reconstruction. Reject; proceed to JEPA-SCORE.
+- [Test exact JEPA-SCORE edge alerting](028-test-jepa-score.md) — In progress under a frozen exact-Jacobian, action-blind, raw-delta-controlled alert contract.
 
 ## Next bounded queue
 
@@ -66,7 +67,8 @@ disposition for every family.
   and 025.
 - PEIRA is complete and rejected under ticket 026.
 - VISReg is complete and rejected under ticket 027.
-- JEPA-SCORE is next as a bounded edge-feasibility screen.
+- JEPA-SCORE is frozen and in progress as the final bounded edge-feasibility
+  screen.
 
 ## Not yet specified
 
