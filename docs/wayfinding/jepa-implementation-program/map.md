@@ -45,13 +45,13 @@ disposition for every family.
 - [Audit the remaining JEPA frontier and select the next tracer](011-audit-remaining-jepa-frontier.md) — The remaining runnable mechanisms are HEPA, the complete SC-JEPA interaction, CF-JEPA, SD-JEPA, Delta-JEPA, exact LeWorldModel plus a bounded geometry screen, Causal-JEPA, and MoP-JEPA. HEPA is first because it is alert-native; modality/backbone ports are not separate hypotheses.
 - [Test a horizon-conditioned event-predictive JEPA alert tracer](012-test-hepa-event-alert-tracer.md) — HEPA learned a monotone, state-rich, edge-feasible probability surface and improved Brier over its deranged null, but detected only 50% of treatments, tied the null, and trailed simpler controls; reject this exact recipe.
 - [Test the complete SC-JEPA codebook × multi-resolution interaction](013-test-complete-sc-jepa-interaction.md) — The complete cell had negligible Brier interaction, zero detection interaction, no treatment detections, collapsed per-entity code use, and 2.73× matched-PCA state error; reject the recipe and proceed to CF-JEPA.
+- [Test CF-JEPA mask-free multi-horizon alerting](014-test-cf-jepa-alert-tracer.md) — The EMA target became smoother, lower rank, and state-rich, but three zones lost narrowly to one zone, all neural routes tied at 90% detection, and the 10% control false-alarm rate exceeded the frozen ceiling; reject this recipe and proceed to SD-JEPA.
 
 ## Not yet specified
 
-- After HEPA, execute the complete SC-JEPA interaction, CF-JEPA, SD-JEPA,
-  Delta-JEPA, the exact LeWorldModel/geometry matrix, Causal-JEPA, and
-  MoP-JEPA in that order. Open each tracer ticket only when the preceding
-  result makes its exact smallest falsifier clear.
+- Next execute SD-JEPA, Delta-JEPA, the exact LeWorldModel/geometry matrix,
+  Causal-JEPA, and MoP-JEPA in that order. Open each tracer ticket only when
+  the preceding result makes its exact smallest falsifier clear.
 - T-JEPA missing-channel robustness, V-JEPA 2.1 deep self-supervision,
   BiJEPA, Koopman-constrained prediction, Phys-JEPA, and seq-JEPA remain
   conditional ablations with the prerequisites recorded in the
@@ -66,8 +66,9 @@ disposition for every family.
 
 ## Next target
 
-- Specify and test CF-JEPA mask-free multi-horizon forward prediction,
-  including the frozen online-versus-EMA downstream comparison.
+- Specify and test SD-JEPA’s orthogonal progression/content subspaces against
+  a same-width unsplit representation, using event localization as the
+  primary mechanism output.
 
 ## Out of scope
 

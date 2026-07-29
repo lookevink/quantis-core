@@ -215,6 +215,48 @@ The exact content-addressed cache, frozen schedule, source-clean commit, and
 require `--allow-noninterpretable-smoke`, cannot use the frozen result path,
 and are structurally ineligible for an advance decision.
 
+## CF-JEPA mask-free multi-horizon alerting
+
+Run the frozen three-objective fit and five-route Gaussian alert comparison:
+
+```bash
+.venv/bin/python -m lab.action_dynamics.prototype_cf_jepa \
+  --output artifacts/action-dynamics/reproductions/cf-jepa-rerun-001
+```
+
+Independently verify the manifest and rederive calibrations, thresholds,
+geometry, state retention, alerts, restoration, and the decision from stored
+arrays:
+
+```bash
+.venv/bin/python -m \
+  lab.action_dynamics.prototype_cf_jepa_assessor \
+  artifacts/action-dynamics/reproductions/cf-jepa-rerun-001
+```
+
+- Seed: `14014`
+- Exact schedule: 300 steps per objective, checkpoints every 50, four crops,
+  cosine learning rate and EMA schedules, 100 latency repetitions
+- Implementation commit:
+  `3b7cb81a277b5d7c48a6946735c9e5e0012bcc54`
+- Official CF-JEPA revision:
+  `4968faf731c8c56e89d78d944716e212392eb5a0`
+- Specification:
+  `docs/specs/cf-jepa-alert-tracer-v1.md`
+- Primary-source notes:
+  `docs/research/cf-jepa-primary-source-notes.md`
+- Result interpretation:
+  `docs/research/cf-jepa-alert-v1-results.md`
+- Published local artifact:
+  `artifacts/action-dynamics/prototype-cf-jepa-alert-v1`
+- Published manifest SHA-256:
+  `59dd147c359501d2ff10d32117c2dfbd5e65f836ec5ce31a3b19c149e7fd2c08`
+
+The frozen path is non-overwriting. Smoke overrides require
+`--allow-noninterpretable-smoke` and cannot advance. Selected objective
+payloads are written and restored under `objective-checkpoints/` before the
+runner starts the next cell; failed staging bundles are preserved.
+
 ## Artifact availability
 
 The experiment artifacts are currently local and excluded by the repository's
