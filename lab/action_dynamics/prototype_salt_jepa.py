@@ -14,20 +14,36 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 
 import numpy as np
 
-from lab.action_dynamics.prototype_complete_lejepa import (
-    _action_sanity_evidence,
-    _attribution_evidence,
-    _downstream_pair_errors,
-    _forecast_scores,
-    _state_probe,
-    _transfer_queries,
-)
-from lab.action_dynamics.prototype_salt_jepa_assessor import (
-    REPRESENTATION_NAMES,
-    SALT_NAMES,
-    assess_stored_bundle,
-    verify_stored_assessment,
-)
+try:
+    from lab.action_dynamics.prototype_complete_lejepa import (
+        _action_sanity_evidence,
+        _attribution_evidence,
+        _downstream_pair_errors,
+        _forecast_scores,
+        _state_probe,
+        _transfer_queries,
+    )
+    from lab.action_dynamics.prototype_salt_jepa_assessor import (
+        REPRESENTATION_NAMES,
+        SALT_NAMES,
+        assess_stored_bundle,
+        verify_stored_assessment,
+    )
+except ModuleNotFoundError:
+    from prototype_complete_lejepa import (
+        _action_sanity_evidence,
+        _attribution_evidence,
+        _downstream_pair_errors,
+        _forecast_scores,
+        _state_probe,
+        _transfer_queries,
+    )
+    from prototype_salt_jepa_assessor import (
+        REPRESENTATION_NAMES,
+        SALT_NAMES,
+        assess_stored_bundle,
+        verify_stored_assessment,
+    )
 from quantis_core.action_conditioned_dynamics import (
     ActionConditionedWindows,
 )

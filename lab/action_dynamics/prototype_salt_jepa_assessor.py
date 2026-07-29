@@ -9,13 +9,22 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 
 import numpy as np
 
-from lab.action_dynamics.prototype_complete_lejepa import (
-    _action_sanity_from_predictions,
-    _attribution_scores_from_predictions,
-    _downstream_pair_errors,
-    _forecast_scores,
-    _state_probe,
-)
+try:
+    from lab.action_dynamics.prototype_complete_lejepa import (
+        _action_sanity_from_predictions,
+        _attribution_scores_from_predictions,
+        _downstream_pair_errors,
+        _forecast_scores,
+        _state_probe,
+    )
+except ModuleNotFoundError:
+    from prototype_complete_lejepa import (
+        _action_sanity_from_predictions,
+        _attribution_scores_from_predictions,
+        _downstream_pair_errors,
+        _forecast_scores,
+        _state_probe,
+    )
 from quantis_core.action_conditioned_dynamics import (
     ActionConditionedWindows,
 )
