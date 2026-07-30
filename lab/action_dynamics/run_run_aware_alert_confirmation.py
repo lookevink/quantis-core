@@ -42,7 +42,7 @@ from run_lab_pilot import (
 from run_richer_regime_retry import _stack_identity
 
 
-_CONTRACT = "run-aware-alert-confirmation-contract-v1.json"
+_CONTRACT = "run-aware-alert-confirmation-contract-v2.json"
 
 
 def preflight_confirmation(repository: Path) -> Mapping[str, Any]:
@@ -220,6 +220,16 @@ def collect_confirmation(
 
     root = Path(repository).resolve()
     _require_prepared_source(root, output)
+    contract = RunAwareAlertContract.from_dict(
+        _read_object(
+            root / "lab" / "action_dynamics" / _CONTRACT
+        )
+    )
+    parallel_jobs = int(
+        cast(Mapping[str, Any], contract.payload["collection"])[
+            "parallel_jobs"
+        ]
+    )
     captures = output / "cases"
     if captures.exists():
         raise FileExistsError("run-aware alert captures exist")
@@ -239,14 +249,14 @@ def collect_confirmation(
         compose_file=(
             root / "lab" / "action_dynamics" / "compose.yaml"
         ),
-        project_prefix="quantis-run-aware-alert-v1",
+        project_prefix="quantis-run-aware-alert-v2",
         application_image_id=manifest.image_digests["application"],
         application_build_context_sha256=str(
             _read_object(output / "inputs" / "plan.json")[
                 "application_build_context_sha256"
             ]
         ),
-        parallel_jobs=6,
+        parallel_jobs=parallel_jobs,
         attestation_path=output / "collection-attestation.json",
     )
 
@@ -535,7 +545,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         type=Path,
         default=Path(
             "artifacts/action-dynamics/"
-            "run-aware-alert-confirmation-v1-attempt-001"
+            "run-aware-alert-confirmation-v2-attempt-001"
         ),
     )
     parsed = parser.parse_args(arguments)

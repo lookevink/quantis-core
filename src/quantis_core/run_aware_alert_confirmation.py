@@ -56,7 +56,7 @@ class RunAwareAlertContract:
         }
         if (
             set(payload) != required
-            or payload.get("schema_version") != 1
+            or payload.get("schema_version") not in {1, 2}
             or payload.get("kind")
             != "run_aware_alert_confirmation_contract"
             or payload.get("status") != "frozen_pre_collection"
@@ -75,11 +75,14 @@ class RunAwareAlertContract:
         gates = _mapping(self.payload, "decision_gates")
         execution = _mapping(self.payload, "execution")
         claim = _mapping(self.payload, "claim")
+        schema_version = int(self.payload["schema_version"])
+        expected_seed = 26073079 if schema_version == 1 else 26073080
+        expected_parallel_jobs = 6 if schema_version == 1 else 4
         if (
             base.get("path")
             != "lab/action_dynamics/development-protocol-v1.json"
             or not _is_sha256(base.get("canonical_sha256"))
-            or self.payload.get("generator_seed") != 26073079
+            or self.payload.get("generator_seed") != expected_seed
             or core.get("kind")
             != "contractive_low_rank_action_dynamics"
             or core.get("rank") != 32
@@ -90,7 +93,7 @@ class RunAwareAlertContract:
             != {
                 "pair_count": 120,
                 "capture_count": 240,
-                "parallel_jobs": 6,
+                "parallel_jobs": expected_parallel_jobs,
                 "automatic_retry": False,
                 "overwrite": False,
             }
@@ -176,6 +179,31 @@ class RunAwareAlertContract:
         payload["evidence_boundary"] = str(
             self.payload["evidence_boundary"]
         )
+        parallel_jobs = int(
+            _mapping(self.payload, "collection")["parallel_jobs"]
+        )
+        collection = dict(
+            cast(Mapping[str, Any], payload["collection"])
+        )
+        collection["parallel_jobs"] = parallel_jobs
+        payload["collection"] = collection
+        scheduling = dict(
+            cast(Mapping[str, Any], payload["scheduling"])
+        )
+        scheduling["lane_count"] = parallel_jobs
+        scheduling["batch_count"] = (
+            int(collection["pair_count"]) + parallel_jobs - 1
+        ) // parallel_jobs
+        scheduling["pairs_per_batch"] = parallel_jobs
+        scheduling["lane_assignment"] = (
+            "After deterministic seeded permutation, pair ordinal "
+            f"modulo {parallel_jobs}."
+        )
+        scheduling["batch_assignment"] = (
+            "After deterministic seeded permutation, floor(pair "
+            f"ordinal divided by {parallel_jobs})."
+        )
+        payload["scheduling"] = scheduling
         analysis = dict(cast(Mapping[str, Any], payload["analysis"]))
         analysis.update(
             {

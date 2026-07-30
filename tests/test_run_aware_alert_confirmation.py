@@ -1,4 +1,8 @@
+import copy
+import hashlib
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -6,7 +10,12 @@ import pytest
 from lab.action_dynamics.assess_run_aware_alert_confirmation import (
     assess_run_aware_alert_arrays_independently,
 )
+from quantis_core.action_dynamics_lab import (
+    prepare_action_collection,
+    validate_action_collection_attestation,
+)
 from quantis_core.run_aware_alert_confirmation import (
+    RunAwareAlertContract,
     assign_pair_roles,
     conformal_run_threshold,
     resettable_cusum,
@@ -55,6 +64,144 @@ def test_pair_roles_are_cell_balanced_and_frozen() -> None:
         assert action_roles.count("score_reference") == 6
         assert action_roles.count("threshold_calibration") == 6
         assert action_roles.count("sealed_evaluation") == 12
+
+
+def test_v2_contract_changes_only_seed_and_collection_concurrency(
+    tmp_path: Path,
+) -> None:
+    repository = Path(__file__).resolve().parents[1]
+    payload = json.loads(
+        (
+            repository
+            / "lab"
+            / "action_dynamics"
+            / "run-aware-alert-confirmation-contract-v2.json"
+        ).read_text()
+    )
+    v1_payload = json.loads(
+        (
+            repository
+            / "lab"
+            / "action_dynamics"
+            / "run-aware-alert-confirmation-contract-v1.json"
+        ).read_text()
+    )
+
+    contract = RunAwareAlertContract.from_dict(payload)
+    RunAwareAlertContract.from_dict(v1_payload)
+
+    assert contract.payload["generator_seed"] == 26073080
+    assert contract.payload["collection"]["parallel_jobs"] == 4
+    normalized_v1 = copy.deepcopy(v1_payload)
+    normalized_v2 = copy.deepcopy(payload)
+    for normalized in (normalized_v1, normalized_v2):
+        normalized["schema_version"] = 0
+        normalized["evidence_boundary"] = ""
+        normalized["generator_seed"] = 0
+        normalized["collection"]["parallel_jobs"] = 0
+        normalized["execution"]["contract_module"]["sha256"] = ""
+        normalized["execution"]["runner"]["sha256"] = ""
+    assert normalized_v2 == normalized_v1
+    base = json.loads(
+        (
+            repository
+            / "lab"
+            / "action_dynamics"
+            / "development-protocol-v1.json"
+        ).read_text()
+    )
+    protocol = contract.materialize_collection_protocol(
+        base, execution_source_commit="a" * 40
+    )
+    manifests, assignments = prepare_action_collection(
+        protocol,
+        image_digests={
+            "application": "sha256:" + "1" * 64,
+        },
+        observation_schema_sha256="2" * 64,
+    )
+    assert protocol.parallel_jobs == 4
+    assert protocol.scheduling["lane_count"] == 4
+    assert protocol.scheduling["batch_count"] == 30
+    assert protocol.scheduling["pairs_per_batch"] == 4
+    assert protocol.scheduling["lane_assignment"].endswith(
+        "modulo 4."
+    )
+    assert protocol.scheduling["batch_assignment"].endswith(
+        "divided by 4)."
+    )
+    assert {assignment.lane for assignment in assignments} == {
+        1,
+        2,
+        3,
+        4,
+    }
+    assert max(
+        sum(item.batch == batch for item in assignments)
+        for batch in {item.batch for item in assignments}
+    ) == 8
+    assert max(item.batch for item in assignments) == 30
+
+    prepared = tmp_path / "prepared"
+    manifest_directory = prepared / "manifests"
+    manifest_directory.mkdir(parents=True)
+    protocol_payload = protocol.to_dict()
+    plan_payload = {"schema_version": 1, "kind": "test_plan"}
+    (prepared / "protocol.json").write_text(
+        json.dumps(protocol_payload)
+    )
+    (prepared / "plan.json").write_text(json.dumps(plan_payload))
+    manifest_by_case = {
+        item.action_case.case_id: item for item in manifests
+    }
+    attested_cases = []
+    for assignment in assignments:
+        manifest_path = (
+            manifest_directory / f"{assignment.case_id}.json"
+        )
+        manifest_path.write_text(
+            json.dumps(manifest_by_case[assignment.case_id].to_dict())
+        )
+        attested_cases.append(
+            {
+                **assignment.to_dict(),
+                "manifest_sha256": hashlib.sha256(
+                    manifest_path.read_bytes()
+                ).hexdigest(),
+            }
+        )
+    attestation = {
+        "schema_version": 1,
+        "kind": "action_dynamics_collection_attestation",
+        "protocol_sha256": hashlib.sha256(
+            json.dumps(
+                protocol_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest(),
+        "plan_sha256": hashlib.sha256(
+            json.dumps(
+                plan_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest(),
+        "case_count": len(assignments),
+        "pair_count": len(assignments) // 2,
+        "parallel_jobs": 4,
+        "application_image_id": "sha256:" + "1" * 64,
+        "application_build_context_sha256": "3" * 64,
+        "cases": attested_cases,
+    }
+    validate_action_collection_attestation(
+        attestation, prepared, assignments
+    )
+
+    drifted = copy.deepcopy(payload)
+    drifted["collection"]["parallel_jobs"] = 6
+    with pytest.raises(ValueError, match="choices drifted"):
+        RunAwareAlertContract.from_dict(drifted)
 
 
 def test_conformal_run_threshold_uses_strict_five_percent_rank() -> None:

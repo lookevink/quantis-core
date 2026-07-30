@@ -389,6 +389,9 @@ class ActionCollectionProtocol:
             "instrumentation_pilot": 30,
             "development": 120,
         }[self.stage]
+        parallel_jobs = _required_integer(
+            self.collection, "parallel_jobs"
+        )
         if (
             _required_integer(self.collection, "pair_count")
             != expected_pairs
@@ -396,10 +399,7 @@ class ActionCollectionProtocol:
                 self.collection, "expected_capture_count"
             )
             != expected_pairs * 2
-            or _required_integer(
-                self.collection, "parallel_jobs"
-            )
-            != 6
+            or parallel_jobs not in {4, 6}
             or self.collection.get("overwrite") is not False
         ):
             raise ValueError(
@@ -475,7 +475,8 @@ class ActionCollectionProtocol:
                 kind, _required_mapping(self.action_library, kind)
             )
         if (
-            _required_integer(self.scheduling, "lane_count") != 6
+            _required_integer(self.scheduling, "lane_count")
+            != parallel_jobs
             or self.scheduling.get("twins_run_sequentially_in_lane")
             is not True
             or self.scheduling.get("fresh_project_between_twins")
@@ -1931,7 +1932,7 @@ def assess_prepared_action_collection(
         for assignment in assignments
     }
     attestation = _read_object(attestation_path)
-    _validate_attestation(
+    validate_action_collection_attestation(
         attestation,
         Path(prepared_directory),
         assignments,
@@ -2728,13 +2729,19 @@ def _validate_design(stage: str, design: Mapping[str, Any]) -> None:
         raise ValueError("smoke design quotas differ from cells")
 
 
-def _validate_attestation(
+def validate_action_collection_attestation(
     attestation: Mapping[str, Any],
     prepared: Path,
     assignments: Sequence[CaptureAssignment],
 ) -> None:
+    """Validate collection provenance against one prepared plan."""
+
     protocol = _read_object(prepared / "protocol.json")
     plan = _read_object(prepared / "plan.json")
+    expected_parallel_jobs = _required_integer(
+        _required_mapping(protocol, "collection"),
+        "parallel_jobs",
+    )
     if (
         attestation.get("schema_version") != 1
         or attestation.get("kind")
@@ -2764,7 +2771,7 @@ def _validate_attestation(
         )
         or attestation.get("case_count") != len(assignments)
         or attestation.get("pair_count") != len(assignments) // 2
-        or attestation.get("parallel_jobs") != 6
+        or attestation.get("parallel_jobs") != expected_parallel_jobs
         or not isinstance(attestation.get("cases"), list)
         or not isinstance(
             attestation.get("application_image_id"), str

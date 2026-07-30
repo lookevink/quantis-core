@@ -1,1 +1,1 @@
-../../../docs/specs/run-aware-alert-confirmation-v1.md
+../../../docs/specs/run-aware-alert-confirmation-v2.md
