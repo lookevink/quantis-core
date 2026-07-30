@@ -491,6 +491,9 @@ def _verify_qualified_sources(
 ) -> None:
     source = qualified.get("source_content_manifest")
     captures = source.get("capture_sha256") if isinstance(source, dict) else None
+    manifests = (
+        source.get("manifest_sha256") if isinstance(source, dict) else None
+    )
     names = {
         "capture_manifest_sha256": "capture-manifest.json",
         "runner_log_sha256": "runner.log",
@@ -501,6 +504,21 @@ def _verify_qualified_sources(
     }
     if not isinstance(captures, dict):
         raise ValueError("MPRM-JEPA qualified sources are absent")
+    manifest_directory = output / "inputs" / "manifests"
+    manifest_paths = {
+        path.stem: path
+        for path in manifest_directory.glob("*.json")
+    }
+    if (
+        not isinstance(manifests, dict)
+        or set(manifest_paths) != set(manifests)
+        or any(
+            _canonical_sha256(_read_object(manifest_paths[case_id]))
+            != expected
+            for case_id, expected in manifests.items()
+        )
+    ):
+        raise ValueError("MPRM-JEPA prepared manifest drifted")
     for case_id, evidence in captures.items():
         if not isinstance(evidence, dict):
             raise ValueError("MPRM-JEPA qualified source entry is invalid")

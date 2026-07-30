@@ -55,6 +55,10 @@ def assess_stored_mprm_selection(
         or _file_sha256(prediction_manifest_path)
         != expected_prediction_manifest_sha256
         or not isinstance(prediction_hashes, dict)
+        or prediction_manifest.get("model_freeze_manifest_sha256")
+        != expected_model_freeze_sha256
+        or prediction_manifest.get("qualified_corpus_sha256")
+        != expected_qualified_corpus_sha256
         or any(
             not (predictions_directory / name).is_file()
             or _file_sha256(predictions_directory / name) != expected
