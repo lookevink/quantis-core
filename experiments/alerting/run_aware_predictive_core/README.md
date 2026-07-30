@@ -1,6 +1,6 @@
 # Run-aware predictive-core alert confirmation
 
-Status: **v1 invalid; v2 frozen pre-collection**
+Status: **confirmed**
 
 ## Objective
 
@@ -19,9 +19,9 @@ useful warning system under a frozen 5% control-run false-alarm budget.
 - [Primary references and adaptation notes](references.md)
 - Intended immutable artifact:
   `artifacts/action-dynamics/run-aware-alert-confirmation-v2-attempt-001`
-- Conclusion-bearing findings are pending the one sealed execution; the
-  retained result document will replace the pending capsule entry without
-  replacing the artifact.
+- The sealed v2 execution passed all raw qualification and alert decision
+  gates. The conclusion-bearing metrics and evidence hashes are retained in
+  [findings.md](findings.md).
 
 ## Primary references and adaptation
 
