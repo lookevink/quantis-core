@@ -2,7 +2,10 @@
 
 ## Status
 
-Active; executable contract frozen, scientific execution not yet started.
+Complete; exact recipe rejected by the primary and independent assessors.
+
+See the
+[result](../../research/mean-preserving-residual-mixture-jepa-v1-results.md).
 
 ## Objective
 

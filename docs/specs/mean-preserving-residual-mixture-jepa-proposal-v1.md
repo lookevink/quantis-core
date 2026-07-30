@@ -1,10 +1,10 @@
 # Mean-preserving residual mixture JEPA executable contract v1
 
-**Status:** Frozen pre-fit experiment contract.
+**Status:** Complete; exact recipe rejected.
 
-**Recommendation:** Go for fit and model freeze. This is the highest-upside next JEPA tracer
-because it preserves the richer-regime multi-hypothesis thesis while removing
-the observed point-forecast regression by construction.
+**Recommendation:** Do not advance this recipe. The valid fresh selection run
+and independent assessor rejected it. See the
+[result](../research/mean-preserving-residual-mixture-jepa-v1-results.md).
 
 ## Executive summary
 
