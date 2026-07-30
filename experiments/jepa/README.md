@@ -42,6 +42,7 @@ paths already bound into published artifacts.
 - [Evaluation ladder](../../docs/specs/jepa-experiment-ladder-v1.md)
 - [Wayfinding map](../../docs/wayfinding/jepa-implementation-program/map.md)
 - [Reproduction guide](../../lab/action_dynamics/JEPA_REPRODUCTION.md)
+- [Release distribution contract](releases/)
 
 Run `python tools/sync_experiment_catalog.py --check` after changing
 catalog metadata or capsule links.

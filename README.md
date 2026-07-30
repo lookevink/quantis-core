@@ -180,6 +180,20 @@ Experiment code is retained. Published
 artifact directories are immutable, and every rerun must use a fresh output
 directory.
 
+The 23 authoritative JEPA bundles can be packaged as content-addressed GitHub
+Release assets without committing their binaries:
+
+```bash
+make artifacts-plan
+make artifacts-pack
+make artifacts-record
+```
+
+Review and commit the recorded index, then run `make artifacts-publish-plan`.
+The plan performs read-only GitHub checks and prints only the missing or
+recoverable upload operations. The upload command remains explicit and creates
+or resumes a draft release only from that clean index-recording commit.
+
 Read:
 
 - [artifact policy](artifacts/README.md);

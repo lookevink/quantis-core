@@ -23,6 +23,7 @@ The small-radius mechanism passed, but the detached candidate collapsed and reta
 ## Artifact
 
 - Local artifact: `artifacts/action-dynamics/prototype-visreg-v1`
+- Fetch after distribution metadata is recorded: `python tools/artifacts.py fetch visreg`
 - Published artifact directories are immutable.
 - The artifact is intentionally not duplicated into this capsule;
   its manifest and result document bind the evidence identity.

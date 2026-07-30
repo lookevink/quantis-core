@@ -20,6 +20,7 @@ Distinct alternatives emerged, but the mixture lost to its supervised control an
 ## Artifact
 
 - Local artifact: `artifacts/action-dynamics/prototype-multi-hypothesis-jepa-v1`
+- Fetch after distribution metadata is recorded: `python tools/artifacts.py fetch multi_hypothesis`
 - Published artifact directories are immutable.
 - The artifact is intentionally not duplicated into this capsule;
   its manifest and result document bind the evidence identity.

@@ -18,6 +18,7 @@ Broad code usage and improved state probing did not preserve effect prediction o
 ## Artifact
 
 - Local artifact: `artifacts/action-dynamics/prototype-regime-codebook-jepa-v1`
+- Fetch after distribution metadata is recorded: `python tools/artifacts.py fetch regime_codebook`
 - Published artifact directories are immutable.
 - The artifact is intentionally not duplicated into this capsule;
   its manifest and result document bind the evidence identity.

@@ -23,6 +23,7 @@ Whole-entity masking learned completion beyond persistence but lost to matched c
 ## Artifact
 
 - Local artifact: `artifacts/action-dynamics/prototype-causal-jepa-v1`
+- Fetch after distribution metadata is recorded: `python tools/artifacts.py fetch causal_jepa`
 - Published artifact directories are immutable.
 - The artifact is intentionally not duplicated into this capsule;
   its manifest and result document bind the evidence identity.

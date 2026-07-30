@@ -54,6 +54,13 @@ Run `make check` for the fast catalog, documentation, maintenance-tool type,
 and catalog-test checks before committing. Run `make full-check` before
 merging changes that affect execution or model behavior.
 
+Artifact publication is a separate evidence operation. Run
+`make artifacts-plan`, `make artifacts-pack`, and `make artifacts-record`;
+review and commit the content-addressed index; then inspect
+`make artifacts-publish-plan`. Real upload requires the explicit
+`tools/artifacts.py publish --execute --target <COMMIT_SHA>` interface and a
+clean worktree. Never replace an existing release asset in place.
+
 Changes to OTLP semantics must include an independently worked JSON fixture.
 Regenerate Collector evidence with `./lab/otel/run-roundtrip.sh`; never edit
 capture, compiled-telemetry, or verification artifacts by hand.

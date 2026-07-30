@@ -381,11 +381,14 @@ advance even when their numerical evidence matches the published result.
 
 ## Artifact availability
 
-The experiment artifacts are currently local and excluded by the repository's
-broad `artifacts/*` ignore rule. The compact result documents and identities
-describe the evidence, while exact reruns also require the generated
-development corpus and preprocessing cache. A shared clone-to-reproduce
-workflow therefore needs content-addressed external artifact storage or a
-deliberate Git LFS policy; ordinary Git is unsuitable for the current bundles,
-which include a 261 MiB multi-hypothesis artifact and multi-gigabyte source
-caches.
+The experiment artifacts remain excluded by the repository's broad
+`artifacts/*` ignore rule. `tools/artifacts.py` now provides deterministic
+packing, GitHub Release publication, verified fetching, and safe extraction
+for the 23 conclusion-bearing bundles. The first distribution has not yet been
+uploaded; until its index is recorded under `experiments/jepa/releases`, the
+artifacts remain local-only.
+
+Shared development corpora, preprocessing caches, smoke runs, and failed
+attempts are intentionally outside the first release. They retain their local
+provenance status and can be published separately without mixing them into the
+authoritative conclusion-bearing set.

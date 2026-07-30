@@ -21,6 +21,7 @@ The raw-preserving certificate passed safety gates but missed held-topology simu
 ## Artifact
 
 - Local artifact: `artifacts/action-dynamics/prototype-error-certificate-jepa-v5`
+- Fetch after distribution metadata is recorded: `python tools/artifacts.py fetch error_certificate_jepa`
 - Published artifact directories are immutable.
 - The artifact is intentionally not duplicated into this capsule;
   its manifest and result document bind the evidence identity.

@@ -22,6 +22,7 @@ Exact Jacobian/SVD scoring passed every protocol and edge gate but detected only
 ## Artifact
 
 - Local artifact: `artifacts/action-dynamics/prototype-jepa-score-v1`
+- Fetch after distribution metadata is recorded: `python tools/artifacts.py fetch jepa_score`
 - Published artifact directories are immutable.
 - The artifact is intentionally not duplicated into this capsule;
   its manifest and result document bind the evidence identity.

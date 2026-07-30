@@ -22,6 +22,7 @@ The EMA target was smooth and state-rich, but three alert zones lost to one and 
 ## Artifact
 
 - Local artifact: `artifacts/action-dynamics/prototype-cf-jepa-alert-v1`
+- Fetch after distribution metadata is recorded: `python tools/artifacts.py fetch cf_jepa`
 - Published artifact directories are immutable.
 - The artifact is intentionally not duplicated into this capsule;
   its manifest and result document bind the evidence identity.

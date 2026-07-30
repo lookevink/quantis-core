@@ -22,6 +22,7 @@ CATALOG_PATH = REPOSITORY_ROOT / "experiments/jepa/catalog.json"
 CAPSULE_ROOT = CATALOG_PATH.parent
 SLUG_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 VALID_STATUSES = {"active", "accepted", "rejected", "blocked", "superseded"}
+RESERVED_DIRECTORIES = {"__pycache__", "releases"}
 
 
 class CatalogError(ValueError):
@@ -224,6 +225,10 @@ def render_capsule_readme(
             "## Artifact",
             "",
             f"- Local artifact: `{experiment['artifact']}`",
+            (
+                "- Fetch after distribution metadata is recorded: "
+                f"`python tools/artifacts.py fetch {experiment['slug']}`"
+            ),
             "- Published artifact directories are immutable.",
             "- The artifact is intentionally not duplicated into this capsule;",
             "  its manifest and result document bind the evidence identity.",
@@ -276,6 +281,7 @@ def render_program_readme(
             "- [Evaluation ladder](../../docs/specs/jepa-experiment-ladder-v1.md)",
             "- [Wayfinding map](../../docs/wayfinding/jepa-implementation-program/map.md)",
             "- [Reproduction guide](../../lab/action_dynamics/JEPA_REPRODUCTION.md)",
+            "- [Release distribution contract](releases/)",
             "",
             "Run `python tools/sync_experiment_catalog.py --check` after changing",
             "catalog metadata or capsule links.",
@@ -327,7 +333,7 @@ def synchronize(*, check: bool) -> List[str]:
             if (
                 child.is_dir()
                 and child not in expected_directories
-                and child.name != "__pycache__"
+                and child.name not in RESERVED_DIRECTORIES
             ):
                 problems.append(f"uncataloged capsule directory: {child}")
     return problems
