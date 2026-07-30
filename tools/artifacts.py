@@ -851,20 +851,34 @@ def _remote_release(
         [
             "gh",
             "api",
-            f"repos/{repository}/releases/tags/{tag}",
+            f"repos/{repository}/releases?per_page=100",
+            "--paginate",
+            "--slurp",
         ],
         text=True,
         capture_output=True,
         check=False,
     )
     if result.returncode != 0:
-        if "404" in result.stderr or "Not Found" in result.stderr:
-            return None
         raise ArtifactDistributionError(result.stderr.strip())
-    value = json.loads(result.stdout)
-    if not isinstance(value, dict):
-        raise ArtifactDistributionError("GitHub returned an invalid release")
-    return value
+    pages = json.loads(result.stdout)
+    if not isinstance(pages, list):
+        raise ArtifactDistributionError(
+            "GitHub returned an invalid release listing"
+        )
+    for page in pages:
+        if not isinstance(page, list):
+            raise ArtifactDistributionError(
+                "GitHub returned an invalid release listing page"
+            )
+        for value in page:
+            if not isinstance(value, dict):
+                raise ArtifactDistributionError(
+                    "GitHub returned an invalid release"
+                )
+            if value.get("tag_name") == tag:
+                return value
+    return None
 
 
 def _remote_tag_commit(*, repository: str, tag: str) -> Optional[str]:
@@ -1061,7 +1075,10 @@ def publish(
             starter_asset_ids=[],
         )
     else:
-        if remote_tag_commit != target:
+        if (
+            remote_tag_commit is not None
+            and remote_tag_commit != target
+        ):
             raise ArtifactDistributionError(
                 "existing release tag resolves to a different commit"
             )

@@ -340,8 +340,12 @@ def test_publish_defaults_to_a_non_mutating_command_plan(
     fake_gh = fake_bin / "gh"
     fake_gh.write_text(
         f"""#!{sys.executable}
+import json
 import sys
 
+if any("/releases?per_page=100" in value for value in sys.argv):
+    print(json.dumps([[]]))
+    raise SystemExit(0)
 print("HTTP 404: Not Found", file=sys.stderr)
 raise SystemExit(1)
 """
@@ -632,6 +636,7 @@ def test_publish_resumes_a_matching_partial_draft(tmp_path: Path) -> None:
     fake_bin.mkdir()
     log = tmp_path / "gh-log.jsonl"
     remote = {
+        "tag_name": "evidence-jepa-frontier-v1",
         "draft": True,
         "target_commitish": target,
         "assets": [
@@ -668,9 +673,10 @@ with Path(os.environ["GH_TEST_LOG"]).open("a") as stream:
     stream.write(json.dumps(sys.argv[1:]) + "\\n")
 if sys.argv[1] == "api" and "--method" not in sys.argv:
     if "/git/ref/tags/" in sys.argv[-1]:
-        print({json.dumps(json.dumps({"object": {"type": "commit", "sha": target}}))})
+        print("HTTP 404: Not Found", file=sys.stderr)
+        raise SystemExit(1)
     else:
-        print({json.dumps(json.dumps(remote))})
+        print({json.dumps(json.dumps([[remote]]))})
 raise SystemExit(0)
 """
     )
@@ -696,6 +702,8 @@ raise SystemExit(0)
     assert result.returncode == 0, result.stderr
     calls = [json.loads(line) for line in log.read_text().splitlines()]
     assert calls[0][0] == "api"
+    assert calls[0][1].endswith("/releases?per_page=100")
+    assert calls[0][-2:] == ["--paginate", "--slurp"]
     assert not any(call[:2] == ["release", "create"] for call in calls)
     assert any(
         call[:3] == ["api", "--method", "DELETE"] for call in calls
@@ -769,6 +777,9 @@ def test_publish_rejects_a_preexisting_release_tag(tmp_path: Path) -> None:
 import json
 import sys
 
+if any("/releases?per_page=100" in value for value in sys.argv):
+    print(json.dumps([[]]))
+    raise SystemExit(0)
 if "/git/ref/tags/" in sys.argv[-1]:
     print(json.dumps({{"object": {{"type": "commit", "sha": {json.dumps(target)}}}}}))
     raise SystemExit(0)
