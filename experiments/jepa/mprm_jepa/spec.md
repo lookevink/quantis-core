@@ -1,0 +1,1 @@
+../../../docs/specs/mean-preserving-residual-mixture-jepa-proposal-v1.md

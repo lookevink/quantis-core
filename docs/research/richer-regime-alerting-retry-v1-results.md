@@ -184,3 +184,9 @@ The next campaign must make protocol-aware action realization/recovery a shard
 qualification gate, bind any recollection amendment into every replacement
 manifest and attestation, and use trajectory-held-out conditional
 multimodality screening. Until then, the richer-regime question remains open.
+
+The recommended next target is the
+[mean-preserving residual mixture JEPA](../specs/mean-preserving-residual-mixture-jepa-proposal-v1.md):
+anchor the predictive mixture to the raw rank-32 mean, learn only weighted
+residual forecast hypotheses, freeze the models before collection, and assess
+them on a new provenance-complete selection campaign.

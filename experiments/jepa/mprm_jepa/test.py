@@ -1,0 +1,1 @@
+../../../tests/test_mprm_jepa.py

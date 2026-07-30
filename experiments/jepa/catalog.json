@@ -514,6 +514,38 @@
           "url": "https://arxiv.org/abs/2510.05949"
         }
       ]
+    },
+    {
+      "slug": "mprm_jepa",
+      "title": "Mean-preserving residual mixture JEPA",
+      "status": "active",
+      "summary": "The executable selection tracer is frozen and ready for fit-only model freezing; no fresh selection evidence has been collected.",
+      "runner": "lab/action_dynamics/run_mprm_jepa.py",
+      "assessor": "lab/action_dynamics/assess_mprm_jepa.py",
+      "supporting_scripts": [
+        "lab/action_dynamics/mprm_jepa_model.py",
+        "lab/action_dynamics/run_mprm_selection.py"
+      ],
+      "spec": "docs/specs/mean-preserving-residual-mixture-jepa-proposal-v1.md",
+      "findings": [
+        "docs/research/mean-preserving-residual-mixture-jepa-freeze-v1.md"
+      ],
+      "implementation": "src/quantis_core/mprm_jepa.py",
+      "tests": [
+        "tests/test_mprm_jepa.py"
+      ],
+      "ticket": "docs/wayfinding/jepa-implementation-program/029-test-mprm-jepa.md",
+      "artifact": "artifacts/action-dynamics/mprm-jepa-selection-v1-attempt-001",
+      "supporting_artifacts": [
+        "artifacts/action-dynamics/richer-regime-retry-v1",
+        "artifacts/action-dynamics/richer-regime-retry-v1-validity-audit-v4"
+      ],
+      "citations": [
+        {
+          "title": "Quantis multi-hypothesis JEPA scoring contract",
+          "path": "docs/specs/multi-hypothesis-jepa-scoring-contract-v1.md"
+        }
+      ]
     }
   ]
 }

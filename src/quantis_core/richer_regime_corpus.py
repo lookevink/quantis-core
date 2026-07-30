@@ -57,13 +57,13 @@ def load_richer_regime_windows(
     """Load qualified role roots without allowing cross-role fallback."""
 
     if (
-        set(role_directories) not in ({"fit", "selection"},)
+        set(role_directories) not in ({"fit"}, {"fit", "selection"})
         or any(not Path(path).is_dir() for path in role_directories.values())
     ):
         raise ValueError("richer-regime role directories are invalid")
     runs_by_role: Dict[str, Tuple[ActionConditionedRun, ...]] = {}
     hashes_by_role: Dict[str, Mapping[str, str]] = {}
-    for role in ("fit", "selection"):
+    for role in role_directories:
         root = Path(role_directories[role])
         role_runs = []
         family_hashes = {}
@@ -160,12 +160,13 @@ def load_richer_regime_windows(
     fit_pairs = {
         run.manifest.matched_pair_id for run in runs_by_role["fit"]
     }
-    selection_pairs = {
-        run.manifest.matched_pair_id
-        for run in runs_by_role["selection"]
-    }
-    if fit_pairs & selection_pairs:
-        raise ValueError("richer-regime roles overlap by matched pair")
+    if "selection" in runs_by_role:
+        selection_pairs = {
+            run.manifest.matched_pair_id
+            for run in runs_by_role["selection"]
+        }
+        if fit_pairs & selection_pairs:
+            raise ValueError("richer-regime roles overlap by matched pair")
     compiler = ActionTrajectoryCompiler(
         context_length=20, rollout_horizon=10
     ).fit(runs_by_role["fit"])

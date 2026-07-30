@@ -1,0 +1,1 @@
+../../../lab/action_dynamics/run_mprm_jepa.py

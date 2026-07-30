@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "kind": "mean_preserving_residual_mixture_jepa_protocol",
+  "status": "frozen_pre_fit_contract",
+  "generator_namespace": "quantis:mprm-jepa:selection:v1",
+  "generator_seed": 26072931,
+  "evidence_boundary": "Open-development selection tracer on the fixed local Docker Compose stack. The retained richer-regime v1 fit role may fit parameters. No exposed v1/v2 selection evidence may be read. Passing authorizes a separate calibration and held-out evaluation contract; it does not authorize production paging.",
+  "fit_source": {
+    "campaign": "artifacts/action-dynamics/richer-regime-retry-v1",
+    "role": "fit",
+    "required_pair_count": 90,
+    "validity_audit": "artifacts/action-dynamics/richer-regime-retry-v1-validity-audit-v4",
+    "validity_audit_artifact_manifest_sha256": "ce8cef807ba1feb557465b2868e8f9a5e955994211800f192fe424c021671c80",
+    "forbidden_selection_campaigns": [
+      "artifacts/action-dynamics/richer-regime-retry-v1/selection",
+      "artifacts/action-dynamics/richer-regime-retry-v2"
+    ]
+  },
+  "recipe": {
+    "component_count": 4,
+    "state_latent_width": 12,
+    "context_width": 16,
+    "predictor_width": 128,
+    "epochs": 40,
+    "batch_size": 256,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "ema_decay": 0.996,
+    "latent_weight": 0.2,
+    "target_reconstruction_weight": 0.1,
+    "context_reconstruction_weight": 0.05,
+    "component_variance_floor": 0.0001,
+    "mixture_weight_floor": 1e-09,
+    "seed": 307,
+    "optimizer": "torch.optim.AdamW",
+    "target": "observable_residual_from_frozen_raw_rank_32_mean",
+    "residual_centering": "float64_weighted_mean_subtraction",
+    "raw_anchor_rank": 32,
+    "raw_variance": "fit_role_residual_variance_only_no_selection_calibration"
+  },
+  "controls": [
+    "raw_rank_32_predictive_core",
+    "one_component_anchored_jepa_residual",
+    "supervised_four_component_mean_preserving_residual_mixture",
+    "capacity_matched_anchored_single_gaussian",
+    "unanchored_four_component_jepa_diagnostic",
+    "mprm_jepa_candidate"
+  ],
+  "selection_design": {
+    "action_kinds": [
+      "worker_pause",
+      "postgres_lock",
+      "redis_enqueue_delay",
+      "redis_dequeue_delay",
+      "api_rejection"
+    ],
+    "worker_replica_values": [
+      1,
+      2,
+      3
+    ],
+    "workload_families": [
+      "steady",
+      "ramp_or_burst",
+      "periodic_or_multiphase"
+    ],
+    "replicates_per_cell": 2,
+    "required_pair_count": 90,
+    "required_capture_count": 180,
+    "parallel_jobs": 6,
+    "automatic_retry": false,
+    "pair_retry": false,
+    "overwrite": false
+  },
+  "trajectory": {
+    "point_count": 108,
+    "sample_period_seconds": 0.25
+  },
+  "workload": {
+    "families": {
+      "steady": {
+        "minimum_requests_per_window": 6,
+        "maximum_requests_per_window": 10
+      },
+      "ramp_or_burst": {
+        "minimum_requests_per_window": 4,
+        "maximum_requests_per_window": 11,
+        "burst_start_index": 36,
+        "burst_stop_index": 48,
+        "burst_extra_requests": 8
+      },
+      "periodic_or_multiphase": {
+        "minimum_requests_per_window": 4,
+        "maximum_requests_per_window": 8,
+        "phase_window_count": 12,
+        "high_phase_extra_requests": 6
+      }
+    },
+    "api_rejection_requests_per_window": 12,
+    "drain_phase_start_index": 84,
+    "drain_phase_stop_index": 92,
+    "probe_phase_start_index": 92,
+    "probe_requests_per_window": 8,
+    "twins_share_exact_schedule": true
+  },
+  "selection_gates": {
+    "candidate_log_score_margin": 0.01,
+    "raw_mean_mse_relative_tolerance": 0.001,
+    "mean_identity_absolute_tolerance": 1e-10,
+    "energy_score_relative_regression_max": 0.01,
+    "supported_pair_rate_min": 0.2,
+    "supported_component_weight_min": 0.1,
+    "supported_standardized_separation_min": 1.0,
+    "workload_family_log_score_regression_max": 0.01,
+    "paired_randomization_p_value_max": 0.05,
+    "paired_randomization_draws": 99999,
+    "paired_randomization_seed": 26072932,
+    "paired_randomization_statistic": "mean_pair_balanced_candidate_minus_raw_log_score",
+    "paired_randomization_tail": "less_than_or_equal",
+    "energy_score_draws": 256,
+    "energy_sampler": "sha256_antithetic_common_random_multi_hypothesis_energy_v1"
+  },
+  "edge_envelope": {
+    "serialized_bytes_max": 4194304,
+    "batch_one_p95_latency_ms_max": 5.0,
+    "runtime_cpu": "Apple M1 Max",
+    "runtime_architecture": "arm64",
+    "python": "3.9.6",
+    "torch": "2.5.1",
+    "torch_threads": 1,
+    "network_dependency": false,
+    "accelerator_dependency": false
+  },
+  "supersedes": {
+    "raw_variance_calibration": "For this selection-only tracer, every variance is fitted on the fit role and frozen before collection; calibration-role variance adjustment is deferred.",
+    "held_out_topology_support_gate": "The original contract's held-out-topology support gate is deferred to a separate evaluation proposal. This tracer gates the complete fresh factorial selection campaign only.",
+    "capacity_control": "The candidate must beat the capacity-matched anchored single Gaussian by the same 0.01 log-score margin."
+  }
+}

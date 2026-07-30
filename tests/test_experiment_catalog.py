@@ -27,9 +27,10 @@ def test_jepa_catalog_has_complete_generated_capsules() -> None:
     catalog = module.load_catalog()
     experiments = module.validate_catalog(catalog)
 
-    assert len(experiments) == 23
+    assert len(experiments) == 24
     assert {experiment["status"] for experiment in experiments} == {
-        "rejected"
+        "active",
+        "rejected",
     }
     assert module.synchronize(check=True) == []
 

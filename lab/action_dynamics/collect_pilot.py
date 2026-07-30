@@ -155,9 +155,16 @@ def collect_action_cases(
             compose_file, project_prefix, parallel_jobs
         )
 
+    is_mprm = protocol.get("kind") == (
+        "mprm_jepa_selection_executor_protocol"
+    )
     attestation = {
         "schema_version": 1,
-        "kind": "action_dynamics_collection_attestation",
+        "kind": (
+            "mprm_jepa_collection_attestation_v1"
+            if is_mprm
+            else "action_dynamics_collection_attestation"
+        ),
         "execution_id": execution_id,
         "started_unix_nano": started,
         "completed_unix_nano": time.time_ns(),
@@ -186,6 +193,14 @@ def collect_action_cases(
             ),
         ),
     }
+    if is_mprm:
+        attestation["campaign_bindings"] = protocol.get(
+            "campaign_bindings"
+        )
+        attestation["manifest_sha256"] = {
+            case_id: _canonical_sha256(_read_object(path))
+            for case_id, path in sorted(manifests.items())
+        }
     attestation_path.write_text(
         json.dumps(
             attestation,
@@ -196,6 +211,10 @@ def collect_action_cases(
         + "\n"
     )
     return attestation
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _collect_case(

@@ -33,6 +33,7 @@ paths already bound into published artifacts.
 | [PEIRA inter-view regressor alignment](peira/) | rejected | Aligned PEIRA learned a real non-collapsed mechanism but lost to derangement and reconstruction controls and retained 1.91× raw effect error. |
 | [VISReg scale-shape regularization](visreg/) | rejected | The small-radius mechanism passed, but the detached candidate collapsed and retained 1.97× raw transfer effect error. |
 | [Exact JEPA-SCORE edge alerting](jepa_score/) | rejected | Exact Jacobian/SVD scoring passed every protocol and edge gate but detected only 10% of IID treatments and no transfer treatments. |
+| [Mean-preserving residual mixture JEPA](mprm_jepa/) | active | The executable selection tracer is frozen and ready for fit-only model freezing; no fresh selection evidence has been collected. |
 
 ## Shared program material
 
