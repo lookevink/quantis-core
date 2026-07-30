@@ -7,6 +7,7 @@ dist/
 build/
 artifacts/*
 !artifacts/.gitkeep
+!artifacts/README.md
 !artifacts/evaluation/
 !artifacts/evaluation/**
 !artifacts/otlp-replay/

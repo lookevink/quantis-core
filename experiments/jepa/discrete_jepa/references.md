@@ -1,0 +1,1 @@
+../../../docs/research/discrete-jepa-primary-source-notes.md

@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/009-freeze-retrieval-jepa-utility-contract.md

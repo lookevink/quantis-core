@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/026-test-peira.md

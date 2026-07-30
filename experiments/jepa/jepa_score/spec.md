@@ -1,0 +1,1 @@
+../../../docs/specs/jepa-score-edge-screen-v1.md

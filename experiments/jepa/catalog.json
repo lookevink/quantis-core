@@ -1,0 +1,497 @@
+{
+  "schema_version": 1,
+  "program": "jepa",
+  "evidence_boundary": "Open-development evidence on the fixed Quantis checkout stack; no entry authorizes production paging.",
+  "experiments": [
+    {
+      "slug": "regime_codebook",
+      "title": "Soft regime-codebook JEPA",
+      "status": "rejected",
+      "summary": "Broad code usage and improved state probing did not preserve effect prediction or alert calibration.",
+      "runner": "lab/action_dynamics/prototype_regime_codebook_jepa.py",
+      "spec": "docs/specs/regime-codebook-jepa-prototype-v1.md",
+      "findings": ["docs/research/regime-codebook-jepa-prototype-v1-results.md"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/002-regime-codebook-jepa-tracer.md",
+      "artifact": "artifacts/action-dynamics/prototype-regime-codebook-jepa-v1",
+      "citations": [
+        {
+          "title": "Quantis soft regime-codebook formulation",
+          "path": "docs/specs/regime-codebook-jepa-prototype-v1.md"
+        }
+      ]
+    },
+    {
+      "slug": "event_native_trace",
+      "title": "Event-native trace JEPA",
+      "status": "rejected",
+      "summary": "The trace encoder learned the bounded path grammar but added no aligned alert or investigation value over its shuffled null.",
+      "runner": "lab/action_dynamics/prototype_event_native_trace_jepa.py",
+      "spec": "docs/specs/event-native-trace-jepa-prototype-v1.md",
+      "findings": ["docs/research/event-native-trace-jepa-prototype-v1-results.md"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/003-event-native-trace-jepa-tracer.md",
+      "artifact": "artifacts/action-dynamics/prototype-event-native-trace-jepa-v1",
+      "citations": [
+        {
+          "title": "Quantis event-native trace formulation",
+          "path": "docs/specs/event-native-trace-jepa-prototype-v1.md"
+        }
+      ]
+    },
+    {
+      "slug": "multi_hypothesis",
+      "title": "Multi-hypothesis trajectory JEPA",
+      "status": "rejected",
+      "summary": "Distinct alternatives emerged, but the mixture lost to its supervised control and badly regressed raw prediction.",
+      "runner": "lab/action_dynamics/prototype_multi_hypothesis_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_multi_hypothesis_jepa_v2_assessor.py",
+      "spec": "docs/specs/multi-hypothesis-jepa-prototype-v2.md",
+      "supporting_specs": [
+        "docs/specs/multi-hypothesis-jepa-prototype-v1.md",
+        "docs/specs/multi-hypothesis-jepa-scoring-contract-v1.md"
+      ],
+      "findings": ["docs/research/multi-hypothesis-jepa-prototype-v2-results.md"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/005-test-multi-hypothesis-jepa-tracer.md",
+      "artifact": "artifacts/action-dynamics/prototype-multi-hypothesis-jepa-v1",
+      "citations": [
+        {
+          "title": "Quantis likelihood-mixture scoring contract",
+          "path": "docs/specs/multi-hypothesis-jepa-scoring-contract-v1.md"
+        }
+      ]
+    },
+    {
+      "slug": "sigreg_lejepa",
+      "title": "Exact SIGReg LeJEPA substitution",
+      "status": "rejected",
+      "summary": "SIGReg broadened latent rank but worsened state probing, earned zero correction gain, and detected no treatments.",
+      "runner": "lab/action_dynamics/prototype_sigreg_lejepa.py",
+      "spec": "docs/specs/sigreg-lejepa-prototype-v1.md",
+      "findings": ["docs/research/sigreg-lejepa-prototype-v1-results.md"],
+      "references": ["docs/research/lejepa-sigreg-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/action_conditioned_jepa.py",
+      "tests": ["tests/test_sigreg.py", "tests/test_sigreg_tracer.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/006-test-exact-sigreg-lejepa-tracer.md",
+      "artifact": "artifacts/action-dynamics/prototype-sigreg-lejepa-v1",
+      "citations": [
+        {
+          "title": "LeJEPA: Provable and Scalable Self-Supervised Learning Without the Heuristics",
+          "url": "https://arxiv.org/abs/2511.08544"
+        },
+        {
+          "title": "Pinned official LeJEPA implementation",
+          "url": "https://github.com/galilai-group/lejepa/tree/c293d291ca87cd4fddee9d3fffe4e914c7272052"
+        }
+      ]
+    },
+    {
+      "slug": "complete_lejepa",
+      "title": "Complete multi-view LeJEPA",
+      "status": "rejected",
+      "summary": "The predictor-free representation was restorable and state-accessible but lost to reconstruction and nearly doubled raw effect error.",
+      "runner": "lab/action_dynamics/prototype_complete_lejepa.py",
+      "assessor": "lab/action_dynamics/prototype_complete_lejepa_assessor.py",
+      "spec": "docs/specs/complete-lejepa-telemetry-contract-v1.md",
+      "findings": ["docs/research/complete-lejepa-telemetry-prototype-v1-results.md"],
+      "references": ["docs/research/lejepa-sigreg-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/complete_lejepa.py",
+      "tests": ["tests/test_complete_lejepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/008-test-complete-multi-view-lejepa-tracer.md",
+      "artifact": "artifacts/action-dynamics/prototype-complete-lejepa-v1",
+      "citations": [
+        {
+          "title": "LeJEPA",
+          "url": "https://arxiv.org/abs/2511.08544"
+        }
+      ]
+    },
+    {
+      "slug": "retrieval_jepa",
+      "title": "Episode-predictive Retrieval-JEPA",
+      "status": "rejected",
+      "summary": "The query map was causal and edge-feasible, but raw telemetry and PCA retrieved every transfer mechanism while JEPA reached 40% hit@1.",
+      "runner": "lab/action_dynamics/prototype_retrieval_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_retrieval_jepa_assessor.py",
+      "spec": "docs/specs/retrieval-jepa-evidence-contract-v1.md",
+      "findings": ["docs/research/retrieval-jepa-prototype-v1-results.md"],
+      "references": ["docs/research/retrieval-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/retrieval_jepa.py",
+      "tests": ["tests/test_retrieval_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/009-freeze-retrieval-jepa-utility-contract.md",
+      "artifact": "artifacts/action-dynamics/prototype-retrieval-jepa-v1",
+      "citations": [
+        {
+          "title": "Retrieval-JEPA primary-source notes and adaptation boundary",
+          "path": "docs/research/retrieval-jepa-primary-source-notes.md"
+        }
+      ]
+    },
+    {
+      "slug": "hepa",
+      "title": "HEPA event-predictive alerting",
+      "status": "rejected",
+      "summary": "HEPA learned a monotone, state-rich probability surface but detected only 50% of treatments and trailed simpler controls.",
+      "runner": "lab/action_dynamics/prototype_hepa_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_hepa_jepa_assessor.py",
+      "spec": "docs/specs/hepa-jepa-telemetry-tracer-v1.md",
+      "findings": ["docs/research/hepa-jepa-telemetry-tracer-v1-results.md"],
+      "implementation": "src/quantis_core/edge_dynamics/hepa_jepa.py",
+      "tests": ["tests/test_hepa_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/012-test-hepa-event-alert-tracer.md",
+      "artifact": "artifacts/action-dynamics/prototype-hepa-jepa-v1",
+      "citations": [
+        {
+          "title": "HEPA: A Horizon-Conditioned Event Predictive Architecture",
+          "url": "https://arxiv.org/abs/2605.11130"
+        }
+      ]
+    },
+    {
+      "slug": "sc_jepa",
+      "title": "SC-JEPA codebook × multi-resolution interaction",
+      "status": "rejected",
+      "summary": "The complete interaction had negligible Brier value, zero detection interaction, and collapsed per-entity code use.",
+      "runner": "lab/action_dynamics/prototype_sc_jepa_interaction.py",
+      "assessor": "lab/action_dynamics/prototype_sc_jepa_interaction_assessor.py",
+      "spec": "docs/specs/sc-jepa-interaction-v1.md",
+      "findings": ["docs/research/sc-jepa-interaction-v1-results.md"],
+      "references": ["docs/research/sc-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/sc_jepa.py",
+      "tests": ["tests/test_sc_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/013-test-complete-sc-jepa-interaction.md",
+      "artifact": "artifacts/action-dynamics/prototype-sc-jepa-interaction-v1",
+      "citations": [
+        {
+          "title": "SC-JEPA",
+          "url": "https://arxiv.org/abs/2602.04643"
+        }
+      ]
+    },
+    {
+      "slug": "cf_jepa",
+      "title": "CF-JEPA mask-free multi-horizon alerting",
+      "status": "rejected",
+      "summary": "The EMA target was smooth and state-rich, but three alert zones lost to one and control false alarms exceeded the ceiling.",
+      "runner": "lab/action_dynamics/prototype_cf_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_cf_jepa_assessor.py",
+      "spec": "docs/specs/cf-jepa-alert-tracer-v1.md",
+      "findings": ["docs/research/cf-jepa-alert-v1-results.md"],
+      "references": ["docs/research/cf-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/cf_jepa.py",
+      "tests": ["tests/test_cf_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/014-test-cf-jepa-alert-tracer.md",
+      "artifact": "artifacts/action-dynamics/prototype-cf-jepa-alert-v1",
+      "citations": [
+        {
+          "title": "CF-JEPA",
+          "url": "https://arxiv.org/abs/2606.07031"
+        }
+      ]
+    },
+    {
+      "slug": "sd_jepa",
+      "title": "SD-JEPA progression/content localization",
+      "status": "rejected",
+      "summary": "Angular change became event-sensitive, but the designated progression coordinates did not encode progression and transfer emitted no alerts.",
+      "runner": "lab/action_dynamics/prototype_sd_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_sd_jepa_assessor.py",
+      "spec": "docs/specs/sd-jepa-alert-tracer-v1.md",
+      "findings": ["docs/research/sd-jepa-alert-v1-results.md"],
+      "references": ["docs/research/sd-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/sd_jepa.py",
+      "tests": ["tests/test_sd_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/015-test-sd-jepa-alert-tracer.md",
+      "artifact": "artifacts/action-dynamics/prototype-sd-jepa-alert-v1",
+      "citations": [
+        {
+          "title": "SD-JEPA",
+          "url": "https://arxiv.org/abs/2605.31111"
+        }
+      ]
+    },
+    {
+      "slug": "delta_jepa",
+      "title": "Delta-JEPA action-sensitive displacement",
+      "status": "rejected",
+      "summary": "The displacement contained a real action signal, but endpoint concatenation decoded actions better and raw effect prediction remained much stronger.",
+      "runner": "lab/action_dynamics/prototype_delta_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_delta_jepa_assessor.py",
+      "spec": "docs/specs/delta-jepa-action-displacement-tracer-v1.md",
+      "findings": ["docs/research/delta-jepa-action-displacement-v1-results.md"],
+      "references": ["docs/research/delta-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/delta_jepa.py",
+      "tests": ["tests/test_delta_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/016-test-delta-jepa-action-displacement.md",
+      "artifact": "artifacts/action-dynamics/prototype-delta-jepa-v1",
+      "citations": [
+        {
+          "title": "Delta-JEPA",
+          "url": "https://arxiv.org/abs/2606.31232"
+        }
+      ]
+    },
+    {
+      "slug": "leworld_geometry",
+      "title": "LeWorldModel bounded geometry screen",
+      "status": "rejected",
+      "summary": "No regularized cell was raw-safe; SPHERE-JEPA narrowly won a diagnostic before losing transfer value and state information.",
+      "runner": "lab/action_dynamics/prototype_leworld_geometry.py",
+      "assessor": "lab/action_dynamics/prototype_leworld_geometry_assessor.py",
+      "spec": "docs/specs/leworld-geometry-screen-v1.md",
+      "findings": ["docs/research/leworld-geometry-screen-v1-results.md"],
+      "references": ["docs/research/leworld-geometry-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/leworld_geometry.py",
+      "tests": ["tests/test_leworld_geometry.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/017-test-leworld-geometry-screen.md",
+      "artifact": "artifacts/action-dynamics/prototype-leworld-geometry-v1",
+      "citations": [
+        {
+          "title": "LeWorldModel",
+          "url": "https://arxiv.org/abs/2603.19312"
+        },
+        {
+          "title": "Geometry-family primary-source matrix",
+          "path": "docs/research/leworld-geometry-primary-source-notes.md"
+        }
+      ]
+    },
+    {
+      "slug": "causal_jepa",
+      "title": "Causal-JEPA entity intervention",
+      "status": "rejected",
+      "summary": "Whole-entity masking learned completion beyond persistence but lost to matched coordinate-time masking and regressed raw effects.",
+      "runner": "lab/action_dynamics/prototype_causal_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_causal_jepa_assessor.py",
+      "spec": "docs/specs/causal-jepa-entity-intervention-v1.md",
+      "findings": [
+        "docs/research/causal-jepa-entity-intervention-v1-results.md",
+        "docs/research/causal-jepa-attempt-1-restore-boundary.md"
+      ],
+      "references": ["docs/research/causal-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/causal_jepa.py",
+      "tests": ["tests/test_causal_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/018-test-causal-jepa-entity-intervention.md",
+      "artifact": "artifacts/action-dynamics/prototype-causal-jepa-v1",
+      "citations": [
+        {
+          "title": "Causal-JEPA",
+          "url": "https://arxiv.org/abs/2602.11389"
+        }
+      ]
+    },
+    {
+      "slug": "mop_jepa",
+      "title": "MoP-JEPA hard-assigned predictors",
+      "status": "rejected",
+      "summary": "Hard assignment activated, but the alternatives lost to supervised hard-WTA, a static codebook, and raw dynamics.",
+      "runner": "lab/action_dynamics/prototype_mop_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_mop_jepa_assessor.py",
+      "spec": "docs/specs/mop-jepa-hard-assignment-v1.md",
+      "findings": ["docs/research/mop-jepa-hard-assignment-v1-results.md"],
+      "references": ["docs/research/mop-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/mop_jepa.py",
+      "tests": ["tests/test_mop_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/019-test-mop-jepa-hard-assignment.md",
+      "artifact": "artifacts/action-dynamics/prototype-mop-jepa-v1",
+      "citations": [
+        {
+          "title": "MoP-JEPA",
+          "url": "https://arxiv.org/abs/2607.05238"
+        }
+      ]
+    },
+    {
+      "slug": "pair_effect_jepa",
+      "title": "PairEffect-JEPA",
+      "status": "rejected",
+      "summary": "Matched-twin training was slightly worse than its deranged null and the composed path regressed raw transfer effect.",
+      "runner": "lab/action_dynamics/prototype_pair_effect_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_pair_effect_jepa_assessor.py",
+      "spec": "docs/specs/pair-effect-jepa-tracer-v1.md",
+      "findings": ["docs/research/pair-effect-jepa-v1-results.md"],
+      "implementation": "src/quantis_core/edge_dynamics/pair_effect_jepa.py",
+      "tests": ["tests/test_pair_effect_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/020-test-pair-effect-jepa.md",
+      "artifact": "artifacts/action-dynamics/prototype-pair-effect-jepa-v3",
+      "citations": [
+        {
+          "title": "Quantis matched-twin effect formulation and related work",
+          "path": "docs/specs/pair-effect-jepa-tracer-v1.md"
+        }
+      ]
+    },
+    {
+      "slug": "contract_jepa",
+      "title": "Task-grounded Contract-JEPA",
+      "status": "rejected",
+      "summary": "The raw-preserving contract passed every safety gate and improved raw effect error by 1.05%, but both controls were better and witness calibration failed.",
+      "runner": "lab/action_dynamics/prototype_task_grounded_contract_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_task_grounded_contract_jepa_assessor.py",
+      "spec": "docs/specs/task-grounded-contract-jepa-tracer-v1.md",
+      "findings": ["docs/research/task-grounded-contract-jepa-v1-results.md"],
+      "implementation": "src/quantis_core/edge_dynamics/task_grounded_contract_jepa.py",
+      "tests": ["tests/test_task_grounded_contract_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/021-test-task-grounded-contract-jepa.md",
+      "artifact": "artifacts/action-dynamics/prototype-task-grounded-contract-jepa-v2",
+      "citations": [
+        {
+          "title": "Quantis task-grounded residual contract and related work",
+          "path": "docs/specs/task-grounded-contract-jepa-tracer-v1.md"
+        }
+      ]
+    },
+    {
+      "slug": "error_certificate_jepa",
+      "title": "Error-Certificate-JEPA",
+      "status": "rejected",
+      "summary": "The raw-preserving certificate passed safety gates but missed held-topology simultaneous coverage, detected no treatments, and was not sharper than controls.",
+      "runner": "lab/action_dynamics/prototype_error_certificate_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_error_certificate_jepa_assessor.py",
+      "spec": "docs/specs/error-certificate-jepa-tracer-v1.md",
+      "findings": ["docs/research/error-certificate-jepa-v1-results.md"],
+      "implementation": "src/quantis_core/edge_dynamics/error_certificate_jepa.py",
+      "tests": ["tests/test_error_certificate_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/022-test-error-certificate-jepa.md",
+      "artifact": "artifacts/action-dynamics/prototype-error-certificate-jepa-v5",
+      "citations": [
+        {
+          "title": "Quantis JEPA-assisted certificate formulation and controls",
+          "path": "docs/specs/error-certificate-jepa-tracer-v1.md"
+        }
+      ]
+    },
+    {
+      "slug": "salt_jepa",
+      "title": "SALT-JEPA static reconstructive teacher",
+      "status": "rejected",
+      "summary": "The corrected run passed its evidence checks, but transfer latent advantage missed the gate and effect error remained 1.91× raw.",
+      "runner": "lab/action_dynamics/prototype_salt_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_salt_jepa_assessor.py",
+      "spec": "docs/specs/salt-jepa-telemetry-tracer-v1.md",
+      "findings": [
+        "docs/research/salt-jepa-telemetry-v2-results.md",
+        "docs/research/salt-jepa-telemetry-v1-results.md"
+      ],
+      "references": ["docs/research/salt-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/salt_jepa.py",
+      "tests": ["tests/test_salt_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/023-test-salt-jepa-static-teacher.md",
+      "artifact": "artifacts/action-dynamics/prototype-salt-jepa-v2",
+      "citations": [
+        {
+          "title": "SALT: Compute-Efficient Video SSL with Frozen Teachers",
+          "url": "https://arxiv.org/abs/2509.24317"
+        }
+      ]
+    },
+    {
+      "slug": "lenepa",
+      "title": "Exact LeNEPA disposable projection",
+      "status": "rejected",
+      "summary": "All protocol checks passed, but projection failed its mechanism gate and every learned cell failed raw forecast safety.",
+      "runner": "lab/action_dynamics/prototype_lenepa_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_lenepa_jepa_assessor.py",
+      "spec": "docs/specs/lenepa-telemetry-tracer-v1.md",
+      "findings": ["docs/research/lenepa-telemetry-v1-results.md"],
+      "references": ["docs/research/lenepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/lenepa_jepa.py",
+      "tests": ["tests/test_lenepa_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/024-test-lenepa-projection.md",
+      "artifact": "artifacts/action-dynamics/prototype-lenepa-jepa-v1",
+      "citations": [
+        {
+          "title": "LeNEPA",
+          "url": "https://arxiv.org/abs/2607.00958"
+        }
+      ]
+    },
+    {
+      "slug": "discrete_jepa",
+      "title": "Discrete-JEPA semantic tokenization",
+      "status": "rejected",
+      "summary": "The hard codebook collapsed to one code per entity, tied its control, and retained 1.92× raw transfer effect error.",
+      "runner": "lab/action_dynamics/prototype_discrete_jepa.py",
+      "assessor": "lab/action_dynamics/prototype_discrete_jepa_assessor.py",
+      "spec": "docs/specs/discrete-jepa-telemetry-tracer-v1.md",
+      "findings": ["docs/research/discrete-jepa-telemetry-v1-results.md"],
+      "references": ["docs/research/discrete-jepa-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/discrete_jepa.py",
+      "tests": ["tests/test_discrete_jepa.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/025-test-discrete-jepa.md",
+      "artifact": "artifacts/action-dynamics/prototype-discrete-jepa-v1",
+      "citations": [
+        {
+          "title": "Discrete-JEPA",
+          "url": "https://arxiv.org/abs/2506.14373"
+        }
+      ]
+    },
+    {
+      "slug": "peira",
+      "title": "PEIRA inter-view regressor alignment",
+      "status": "rejected",
+      "summary": "Aligned PEIRA learned a real non-collapsed mechanism but lost to derangement and reconstruction controls and retained 1.91× raw effect error.",
+      "runner": "lab/action_dynamics/prototype_peira.py",
+      "assessor": "lab/action_dynamics/prototype_peira_assessor.py",
+      "spec": "docs/specs/peira-telemetry-tracer-v1.md",
+      "findings": ["docs/research/peira-telemetry-v1-results.md"],
+      "references": ["docs/research/peira-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/peira.py",
+      "tests": ["tests/test_peira.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/026-test-peira.md",
+      "artifact": "artifacts/action-dynamics/prototype-peira-v1",
+      "citations": [
+        {
+          "title": "PEIRA",
+          "url": "https://arxiv.org/abs/2605.17671"
+        }
+      ]
+    },
+    {
+      "slug": "visreg",
+      "title": "VISReg scale-shape regularization",
+      "status": "rejected",
+      "summary": "The small-radius mechanism passed, but the detached candidate collapsed and retained 1.97× raw transfer effect error.",
+      "runner": "lab/action_dynamics/prototype_visreg.py",
+      "assessor": "lab/action_dynamics/prototype_visreg_assessor.py",
+      "spec": "docs/specs/visreg-telemetry-tracer-v1.md",
+      "findings": ["docs/research/visreg-telemetry-v1-results.md"],
+      "references": ["docs/research/visreg-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/visreg.py",
+      "tests": ["tests/test_visreg.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/027-test-visreg.md",
+      "artifact": "artifacts/action-dynamics/prototype-visreg-v1",
+      "citations": [
+        {
+          "title": "VISReg",
+          "url": "https://arxiv.org/abs/2606.02572"
+        },
+        {
+          "title": "Pinned VISReg implementation",
+          "url": "https://github.com/HaiyuWu/visreg/tree/47b1cf4d725b6cbc76dae1394eb46acc2d282fc1"
+        }
+      ]
+    },
+    {
+      "slug": "jepa_score",
+      "title": "Exact JEPA-SCORE edge alerting",
+      "status": "rejected",
+      "summary": "Exact Jacobian/SVD scoring passed every protocol and edge gate but detected only 10% of IID treatments and no transfer treatments.",
+      "runner": "lab/action_dynamics/prototype_jepa_score.py",
+      "assessor": "lab/action_dynamics/prototype_jepa_score_assessor.py",
+      "supporting_scripts": ["lab/action_dynamics/prototype_jepa_score_latency.py"],
+      "spec": "docs/specs/jepa-score-edge-screen-v1.md",
+      "findings": ["docs/research/jepa-score-edge-screen-v1-results.md"],
+      "references": ["docs/research/jepa-score-primary-source-notes.md"],
+      "implementation": "src/quantis_core/edge_dynamics/jepa_score.py",
+      "tests": ["tests/test_jepa_score.py"],
+      "ticket": "docs/wayfinding/jepa-implementation-program/028-test-jepa-score.md",
+      "artifact": "artifacts/action-dynamics/prototype-jepa-score-v1",
+      "citations": [
+        {
+          "title": "Gaussian Embeddings: How JEPAs Secretly Learn Your Data Density",
+          "url": "https://arxiv.org/abs/2510.05949"
+        }
+      ]
+    }
+  ]
+}

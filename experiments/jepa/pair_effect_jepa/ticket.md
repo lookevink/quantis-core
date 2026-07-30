@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/020-test-pair-effect-jepa.md

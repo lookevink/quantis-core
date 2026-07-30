@@ -1,0 +1,1 @@
+../../../docs/specs/regime-codebook-jepa-prototype-v1.md

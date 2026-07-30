@@ -1,0 +1,1 @@
+../../../docs/specs/sigreg-lejepa-prototype-v1.md

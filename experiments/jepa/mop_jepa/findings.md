@@ -1,0 +1,1 @@
+../../../docs/research/mop-jepa-hard-assignment-v1-results.md

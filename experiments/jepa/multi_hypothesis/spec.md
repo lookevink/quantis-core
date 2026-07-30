@@ -1,0 +1,1 @@
+../../../docs/specs/multi-hypothesis-jepa-prototype-v2.md

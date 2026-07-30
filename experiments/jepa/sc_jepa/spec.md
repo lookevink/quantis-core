@@ -1,0 +1,1 @@
+../../../docs/specs/sc-jepa-interaction-v1.md

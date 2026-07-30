@@ -1,0 +1,1 @@
+../../../docs/specs/multi-hypothesis-jepa-scoring-contract-v1.md

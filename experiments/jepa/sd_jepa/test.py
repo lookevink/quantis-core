@@ -1,0 +1,1 @@
+../../../tests/test_sd_jepa.py

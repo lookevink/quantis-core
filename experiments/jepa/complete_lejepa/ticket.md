@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/008-test-complete-multi-view-lejepa-tracer.md

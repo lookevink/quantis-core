@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/028-test-jepa-score.md

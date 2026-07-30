@@ -1,0 +1,1 @@
+../../../tests/test_error_certificate_jepa.py

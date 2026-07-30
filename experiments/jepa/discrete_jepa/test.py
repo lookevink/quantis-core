@@ -1,0 +1,1 @@
+../../../tests/test_discrete_jepa.py

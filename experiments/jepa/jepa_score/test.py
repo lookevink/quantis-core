@@ -1,0 +1,1 @@
+../../../tests/test_jepa_score.py

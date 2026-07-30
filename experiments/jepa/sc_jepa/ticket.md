@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/013-test-complete-sc-jepa-interaction.md

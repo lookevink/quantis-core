@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/006-test-exact-sigreg-lejepa-tracer.md

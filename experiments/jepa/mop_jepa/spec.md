@@ -1,0 +1,1 @@
+../../../docs/specs/mop-jepa-hard-assignment-v1.md

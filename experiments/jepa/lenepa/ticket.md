@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/024-test-lenepa-projection.md

@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/025-test-discrete-jepa.md

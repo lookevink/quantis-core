@@ -1,0 +1,1 @@
+../../../docs/specs/complete-lejepa-telemetry-contract-v1.md

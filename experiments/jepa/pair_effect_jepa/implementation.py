@@ -1,0 +1,1 @@
+../../../src/quantis_core/edge_dynamics/pair_effect_jepa.py

@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/023-test-salt-jepa-static-teacher.md

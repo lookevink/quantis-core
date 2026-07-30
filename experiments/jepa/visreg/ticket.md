@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/027-test-visreg.md

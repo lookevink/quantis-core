@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/021-test-task-grounded-contract-jepa.md

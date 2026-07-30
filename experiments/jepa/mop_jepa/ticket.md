@@ -1,0 +1,1 @@
+../../../docs/wayfinding/jepa-implementation-program/019-test-mop-jepa-hard-assignment.md

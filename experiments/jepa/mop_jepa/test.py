@@ -1,0 +1,1 @@
+../../../tests/test_mop_jepa.py
