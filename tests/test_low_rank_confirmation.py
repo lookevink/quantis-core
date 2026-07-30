@@ -24,7 +24,7 @@ def _contract() -> LowRankConfirmationContract:
         _repository()
         / "lab"
         / "action_dynamics"
-        / "low-rank-confirmation-contract-v1.json"
+        / "low-rank-confirmation-contract-v2.json"
     )
     return LowRankConfirmationContract.from_dict(
         json.loads(path.read_text())
@@ -202,7 +202,7 @@ def test_independent_assessor_rejects_model_not_bound_to_contract(
         repository
         / "lab"
         / "action_dynamics"
-        / "low-rank-confirmation-contract-v1.json"
+        / "low-rank-confirmation-contract-v2.json"
     )
     model = tmp_path / "different-model.json"
     source = tmp_path / "artifact-manifest.json"

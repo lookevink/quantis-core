@@ -45,11 +45,11 @@ class LowRankConfirmationContract:
         }
         if (
             set(payload) != required
-            or payload.get("schema_version") != 1
+            or payload.get("schema_version") != 2
             or payload.get("kind")
             != "low_rank_action_dynamics_confirmation_contract"
             or payload.get("status") != "frozen_pre_collection"
-            or payload.get("generator_seed") != 26073041
+            or payload.get("generator_seed") != 26073051
         ):
             raise ValueError("low-rank confirmation contract is invalid")
         contract = cls(

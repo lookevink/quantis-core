@@ -52,7 +52,7 @@ def preflight_confirmation(repository: Path) -> Mapping[str, Any]:
         root
         / "lab"
         / "action_dynamics"
-        / "low-rank-confirmation-contract-v1.json"
+        / "low-rank-confirmation-contract-v2.json"
     )
     contract = LowRankConfirmationContract.from_dict(
         _read_object(contract_path)
@@ -165,7 +165,7 @@ def prepare_confirmation(
     lab = root / "lab" / "action_dynamics"
     contract = LowRankConfirmationContract.from_dict(
         _read_object(
-            lab / "low-rank-confirmation-contract-v1.json"
+            lab / "low-rank-confirmation-contract-v2.json"
         )
     )
     source_commit = _git_source_commit(root)
@@ -233,7 +233,7 @@ def collect_confirmation(
         compose_file=(
             root / "lab" / "action_dynamics" / "compose.yaml"
         ),
-        project_prefix="quantis-low-rank-confirmation-v1",
+        project_prefix="quantis-low-rank-confirmation-v2",
         application_image_id=manifest.image_digests[
             "application"
         ],
@@ -276,7 +276,7 @@ def score_confirmation(
         root
         / "lab"
         / "action_dynamics"
-        / "low-rank-confirmation-contract-v1.json"
+        / "low-rank-confirmation-contract-v2.json"
     )
     contract = LowRankConfirmationContract.from_dict(
         _read_object(contract_path)
@@ -520,7 +520,7 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
         type=Path,
         default=Path(
             "artifacts/action-dynamics/"
-            "low-rank-confirmation-v1-attempt-001"
+            "low-rank-confirmation-v2-attempt-001"
         ),
     )
     parsed = parser.parse_args(arguments)
