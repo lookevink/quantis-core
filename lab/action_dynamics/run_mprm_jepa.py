@@ -104,14 +104,19 @@ def preflight_mprm_jepa(
             {
                 relative[len(fit_prefix) :]: expected
                 for relative, expected in source_index.items()
-                if relative.startswith(fit_prefix)
+                if relative.startswith(
+                    (
+                        fit_prefix + "campaign/",
+                        fit_prefix + "fit/",
+                    )
+                )
             }
             if isinstance(source_index, dict)
             else {}
         )
         gates["fit_campaign_content_identity"] = bool(fit_hashes) and all(
-            (fit / relative).is_file()
-            and _file_sha256(fit / relative) == expected
+            _fit_source_path(fit, relative).is_file()
+            and _file_sha256(_fit_source_path(fit, relative)) == expected
             for relative, expected in fit_hashes.items()
         )
     runtime = {
@@ -570,6 +575,11 @@ def _canonical_sha256(value: Any) -> str:
 
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _fit_source_path(fit: Path, relative: str) -> Path:
+    direct = fit / relative
+    return direct if direct.is_file() else fit / "fit" / relative
 
 
 def main(arguments: Optional[Sequence[str]] = None) -> int:
