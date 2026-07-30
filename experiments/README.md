@@ -15,6 +15,7 @@ under `lab`; immutable evidence stays under `artifacts`.
 | Contextual metrics + logs JEPA | Do aligned bounded events improve compact predictive state? | [Scientific interpretation](../docs/research/jepa-v2-scientific-interpretation.md) |
 | Graph observability | Can entity ownership and declared topology preserve useful state? | [Pilot result](../docs/research/graph-jepa-observability-pilot-v1-results.md) |
 | Action-conditioned edge dynamics | Which compact dynamics and detector methods survive held-topology evaluation? | [Result](../docs/research/edge-dynamics-development-v1-results.md) |
+| Run-aware alerting | Can a confirmed predictive core yield useful warnings under a frozen control-run false-alarm budget? | [Technique directory](alerting/) |
 | JEPA frontier | Does any materially distinct JEPA technique add alert, prediction, or investigation value? | [Technique directory](jepa/) |
 
 ## Organization rule

@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "kind": "run_aware_alert_confirmation_contract",
+  "status": "frozen_pre_collection",
+  "base_collection_protocol": {
+    "path": "lab/action_dynamics/development-protocol-v1.json",
+    "canonical_sha256": "d11e043521a7ca355b48faf58ca46b1a82d1b6f12a08c4e2175b9f14cf6ad1dc"
+  },
+  "generator_seed": 26073079,
+  "evidence_boundary": "Sealed confirmation of one run-aware alert policy around the previously confirmed predictive core. Pair roles are assigned before scoring by the frozen action-topology-stratified lexicographic rule. Score-reference controls define empirical tail probabilities; disjoint threshold-calibration controls define the run-level threshold; only sealed-evaluation twins determine usefulness. No model fitting, policy selection, threshold-rule change, retry, or role change may observe this campaign.",
+  "predictive_core": {
+    "kind": "contractive_low_rank_action_dynamics",
+    "rank": 32,
+    "model_path": "artifacts/action-dynamics/edge-development-v1-reviewed2/models/contractive_low_rank.json",
+    "model_sha256": "c3456d1314c0d186167c9b63fce608cf65ec923e004c626dfd0343c3fe8b582d",
+    "confirmation_assessment_path": "artifacts/action-dynamics/low-rank-confirmation-v3-attempt-001/confirmation-assessment.json",
+    "confirmation_assessment_sha256": "ad4cf9013e5e5911eace7ddff6d331680a84fa33dc66c3a6d999b579641ef11f",
+    "confirmation_status": "confirmed",
+    "compiler_metadata_path": "artifacts/action-dynamics/edge-preprocessing-v1/d02afa33a5977cba69b255cd1a5f31470751b6681da1ecae31b11e86307e65b1/metadata.json",
+    "compiler_metadata_sha256": "bd5ac058235daa9697dc8eda7e249ff381b08cd3be23d63d3d1f53144d8f0a03",
+    "compiler_artifact_manifest_path": "artifacts/action-dynamics/edge-preprocessing-v1/d02afa33a5977cba69b255cd1a5f31470751b6681da1ecae31b11e86307e65b1/artifact-manifest.json",
+    "compiler_artifact_manifest_sha256": "e27836e81841c90e0c37258f69558dc8c65d6ed012a89a1d47c8f59ffd85dff3"
+  },
+  "collection": {
+    "pair_count": 120,
+    "capture_count": 240,
+    "parallel_jobs": 6,
+    "automatic_retry": false,
+    "overwrite": false
+  },
+  "role_split": {
+    "unit": "matched_pair",
+    "stratification": [
+      "action_kind",
+      "worker_topology"
+    ],
+    "ordering": "lexicographic_matched_pair_id_within_cell",
+    "score_reference_positions": [
+      0,
+      1
+    ],
+    "threshold_calibration_positions": [
+      2,
+      3
+    ],
+    "sealed_evaluation_positions": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "score_reference_pair_count": 30,
+    "threshold_calibration_pair_count": 30,
+    "sealed_evaluation_pair_count": 60
+  },
+  "policy": {
+    "score": "mean_normalized_one_step_squared_error",
+    "actions_visible_at_inference": false,
+    "tail_probability": "empirical_upper_with_plus_one",
+    "cusum_update": "max(0,previous-log(p)-log(4))",
+    "alpha": 0.05,
+    "threshold_unit": "control_trajectory_cusum_maximum",
+    "threshold_quantile": "ceil((n+1)*(1-alpha))th_order_statistic",
+    "crossing": "strictly_greater",
+    "alert_latched_once_per_run": true
+  },
+  "decision_gates": {
+    "control_false_alarm_rate_max": 0.05,
+    "unacceptable_control_false_alarm_rate": 0.15,
+    "false_alarm_exact_p_value_max": 0.05,
+    "treatment_pre_onset_alert_rate_max": 0.05,
+    "treatment_detection_rate_min": 0.9,
+    "within_active_intervention_detection_rate_min": 0.85,
+    "median_detection_delay_transitions_max": 8.0,
+    "per_action_family_detection_rate_min": 0.75,
+    "candidate_detection_advantage_over_persistence_min": 0.1,
+    "candidate_within_active_advantage_over_persistence_min": 0.1
+  },
+  "execution": {
+    "contract_module": {
+      "path": "src/quantis_core/run_aware_alert_confirmation.py",
+      "sha256": "7e96d79b5ccb674089753a9df745126e02d1c5b8214bd58d1c5bbc5d3dd127e7"
+    },
+    "runner": {
+      "path": "lab/action_dynamics/run_run_aware_alert_confirmation.py",
+      "sha256": "59cfc2f39de59c07dafd89b205c1d91990dca1b600e0ff5dd5897e55b585e84b"
+    },
+    "independent_assessor": {
+      "path": "lab/action_dynamics/assess_run_aware_alert_confirmation.py",
+      "sha256": "727cc189146de78a05b3e72d801d51b81ae43708812bb2bce03ef2207953d95f"
+    }
+  },
+  "claim": {
+    "supported": "On the fixed Quantis checkout lab and declared intervention library, the confirmed rank-32 predictive core yields useful run-aware warnings when its hidden-action one-step residual is passed through the frozen resettable policy at a five-percent run-level false-alarm budget.",
+    "excluded": [
+      "production paging readiness",
+      "cross-stack or production transfer",
+      "unknown intervention detection",
+      "root-cause attribution",
+      "adaptive calibration under drift",
+      "more than one alert per run"
+    ],
+    "failure_outcome": "Any raw qualification or decision-gate failure blocks the useful-warning claim; the result remains definitive for this frozen policy without post-collection tuning.",
+    "pass_decision": "confirm_predictive_core_yields_useful_run_aware_warnings",
+    "failure_decision": "do_not_confirm_useful_run_aware_warnings"
+  }
+}

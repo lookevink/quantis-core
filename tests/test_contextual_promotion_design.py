@@ -220,10 +220,11 @@ def test_contextual_promotion_frozen_hash_manifest_is_well_formed():
             "low_rank_confirmation.py",
             "observability_graph_corpus.py",
             "richer_regime_corpus.py",
-            "richer_regime_preflight.py",
-            "richer_regime_retry.py",
-            "structured_events.py",
-        }
+                "richer_regime_preflight.py",
+                "richer_regime_retry.py",
+                "run_aware_alert_confirmation.py",
+                "structured_events.py",
+            }
     } | {
         "src/quantis_core/py.typed",
         "pyproject.toml",
