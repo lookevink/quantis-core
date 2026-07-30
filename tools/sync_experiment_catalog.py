@@ -83,6 +83,23 @@ def validate_catalog(
             repository_root / "artifacts",
             message=f"{slug}: artifact escapes artifacts/",
         )
+        supporting_artifacts = experiment.get(
+            "supporting_artifacts", []
+        )
+        if not isinstance(supporting_artifacts, list) or any(
+            not isinstance(value, str)
+            or not value.startswith("artifacts/")
+            for value in supporting_artifacts
+        ):
+            raise CatalogError(
+                f"{slug}: supporting artifacts must live under artifacts/"
+            )
+        for supporting_artifact in supporting_artifacts:
+            _require_within(
+                repository_root / supporting_artifact,
+                repository_root / "artifacts",
+                message=f"{slug}: supporting artifact escapes artifacts/",
+            )
 
         citations = experiment.get("citations")
         if not isinstance(citations, list) or not citations:
@@ -225,6 +242,12 @@ def render_capsule_readme(
             "## Artifact",
             "",
             f"- Local artifact: `{experiment['artifact']}`",
+            *(
+                f"- Supporting artifact: `{artifact}`"
+                for artifact in experiment.get(
+                    "supporting_artifacts", []
+                )
+            ),
             (
                 "- Fetch after distribution metadata is recorded: "
                 f"`python tools/artifacts.py fetch {experiment['slug']}`"

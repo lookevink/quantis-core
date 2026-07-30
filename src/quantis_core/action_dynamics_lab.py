@@ -3453,6 +3453,84 @@ def _assess_pairs(
     return results
 
 
+def load_action_case_metric_series(
+    directory: Path,
+    manifest: LabActionCaptureManifest,
+) -> Mapping[str, Tuple[float, ...]]:
+    """Load complete, aligned metric series for protocol-aware pair audit."""
+
+    capture = read_otlp_capture(
+        Path(directory) / "collector-metrics.jsonl"
+    )
+    series: Dict[str, Tuple[float, ...]] = {}
+    for metric_name in {
+        point.metric_name for point in capture.points
+    }:
+        points = sorted(
+            (
+                point
+                for point in capture.points
+                if point.metric_name == metric_name
+            ),
+            key=lambda point: point.time_unix_nano,
+        )
+        if (
+            len(points) == manifest.action_case.point_count
+            and all(point.number_value is not None for point in points)
+            and len({point.time_unix_nano for point in points})
+            == manifest.action_case.point_count
+        ):
+            series[metric_name] = tuple(
+                float(point.number_value)  # type: ignore[arg-type]
+                for point in points
+            )
+    required = set(_ACTION_LAB_FEATURE_NAMES) | set(
+        _ACTION_LAB_EVIDENCE_METRIC_NAMES
+    )
+    if not required <= set(series):
+        raise ValueError("action case metric series is incomplete")
+    return series
+
+
+def assess_action_pair_metric_series(
+    protocol: ActionCollectionProtocol,
+    manifests: Sequence[LabActionCaptureManifest],
+    metric_series_by_case: Mapping[
+        str, Mapping[str, Sequence[float]]
+    ],
+) -> Tuple[Mapping[str, Any], ...]:
+    """Apply frozen action-specific effect and recovery semantics."""
+
+    case_ids = {
+        manifest.action_case.case_id for manifest in manifests
+    }
+    pairs: Dict[str, list[LabActionCaptureManifest]] = {}
+    for manifest in manifests:
+        pairs.setdefault(
+            manifest.action_case.matched_pair_id, []
+        ).append(manifest)
+    if (
+        not manifests
+        or len(case_ids) != len(manifests)
+        or set(metric_series_by_case) != case_ids
+        or any(
+            len(pair) != 2
+            or sum(bool(item.action_case.actions) for item in pair)
+            != 1
+            or any(
+                len(item.action_case.actions) > 1 for item in pair
+            )
+            for pair in pairs.values()
+        )
+    ):
+        raise ValueError("action pair metric-series identity is invalid")
+    cases = {
+        case_id: {"metric_series": dict(series)}
+        for case_id, series in metric_series_by_case.items()
+    }
+    return tuple(_assess_pairs(protocol, manifests, cases))
+
+
 def _restart_probe_is_live(
     series: Mapping[str, Sequence[float]],
     probe_start: int,

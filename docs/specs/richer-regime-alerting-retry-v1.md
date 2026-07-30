@@ -65,6 +65,12 @@ permits one whole-shard recollection in a new campaign directory because the
 failure preceded treatment and any model outcome. It does not change the
 scientific protocol, schedules, candidate, or gates.
 
+Post-run protocol-aware audit cleared every pair's action-specific effect and
+recovery gates, but found that the replacement manifests did not bind this
+amendment. The retained campaign therefore does not satisfy this contract's
+scientific intent; see the
+[results and validity audit](../research/richer-regime-alerting-retry-v1-results.md).
+
 ## Claim boundary
 
 This is local-stack, open-development evidence. A failed exact recipe may be

@@ -41,7 +41,7 @@
       "slug": "multi_hypothesis",
       "title": "Multi-hypothesis trajectory JEPA",
       "status": "rejected",
-      "summary": "Distinct alternatives emerged, but the mixture badly regressed raw prediction both originally and in a stronger three-regime retry.",
+      "summary": "The original corrected experiment rejected the mixture; a stronger three-regime retry produced unfavorable diagnostics but was methodologically inconclusive.",
       "runner": "lab/action_dynamics/prototype_multi_hypothesis_jepa.py",
       "assessor": "lab/action_dynamics/prototype_multi_hypothesis_jepa_v2_assessor.py",
       "spec": "docs/specs/multi-hypothesis-jepa-prototype-v2.md",
@@ -58,14 +58,22 @@
         "lab/action_dynamics/run_richer_regime_retry.py",
         "lab/action_dynamics/run_richer_regime_preflight.py",
         "lab/action_dynamics/retry_multi_hypothesis_jepa.py",
-        "lab/action_dynamics/assess_richer_regime_multi_hypothesis.py"
+        "lab/action_dynamics/assess_richer_regime_multi_hypothesis.py",
+        "lab/action_dynamics/audit_richer_regime_validity.py"
       ],
       "tests": [
         "tests/test_richer_regime_retry.py",
-        "tests/test_richer_regime_preflight.py"
+        "tests/test_richer_regime_preflight.py",
+        "tests/test_richer_regime_validity_audit.py"
       ],
       "ticket": "docs/wayfinding/jepa-implementation-program/005-test-multi-hypothesis-jepa-tracer.md",
       "artifact": "artifacts/action-dynamics/prototype-multi-hypothesis-jepa-v1",
+      "supporting_artifacts": [
+        "artifacts/action-dynamics/richer-regime-retry-v1",
+        "artifacts/action-dynamics/richer-regime-retry-v2",
+        "artifacts/action-dynamics/richer-regime-multi-hypothesis-jepa-v1",
+        "artifacts/action-dynamics/richer-regime-retry-v1-validity-audit-v4"
+      ],
       "citations": [
         {
           "title": "Quantis likelihood-mixture scoring contract",

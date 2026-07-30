@@ -71,6 +71,29 @@ def test_jepa_catalog_paths_cannot_escape_repository() -> None:
         module.validate_catalog(catalog)
 
 
+def test_jepa_catalog_renders_supporting_artifact_identities() -> None:
+    module = _catalog_module()
+    catalog = module.load_catalog()
+    experiment = catalog["experiments"][0]
+    experiment["supporting_artifacts"] = [
+        "artifacts/action-dynamics/supporting-v1"
+    ]
+
+    validated = module.validate_catalog(catalog)
+    rendered = module.render_capsule_readme(
+        validated[0],
+        evidence_boundary=catalog["evidence_boundary"],
+    )
+
+    assert (
+        "- Supporting artifact: "
+        "`artifacts/action-dynamics/supporting-v1`"
+    ) in rendered
+    experiment["supporting_artifacts"] = ["artifacts/../outside"]
+    with pytest.raises(module.CatalogError, match="escapes artifacts"):
+        module.validate_catalog(catalog)
+
+
 def test_repository_markdown_links_resolve() -> None:
     path = ROOT / "tools/check_markdown_links.py"
     spec = importlib.util.spec_from_file_location("check_markdown_links", path)

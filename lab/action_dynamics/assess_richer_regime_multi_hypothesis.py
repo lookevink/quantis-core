@@ -11,6 +11,8 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from audit_richer_regime_validity import verify_validity_audit
+
 
 _VALID_MODELS = (
     "multi_hypothesis_jepa",
@@ -18,12 +20,42 @@ _VALID_MODELS = (
     "capacity_matched_single_gaussian",
     "raw_low_rank",
 )
+_REPORTED_ARTIFACT_MANIFEST_SHA256 = (
+    "084a5d45d85f310358bacafbf5fba1736aa0649815ff1f21d133ec88f17f42b3"
+)
+_REPORTED_RECIPE_PROTOCOL_SHA256 = (
+    "ee6a84fb79bb4ba87b07062218740815d2b593734a3d7c15a7bac020932e220c"
+)
+_REPORTED_VALIDITY_AUDIT_MANIFEST_SHA256 = (
+    "ce8cef807ba1feb557465b2868e8f9a5e955994211800f192fe424c021671c80"
+)
 
 
-def verify_stored_retry(directory: Path) -> Mapping[str, Any]:
+def verify_stored_retry(
+    directory: Path,
+    *,
+    expected_manifest_sha256: str = (
+        _REPORTED_ARTIFACT_MANIFEST_SHA256
+    ),
+    expected_protocol_sha256: str = _REPORTED_RECIPE_PROTOCOL_SHA256,
+    validity_audit: Path = Path(
+        "artifacts/action-dynamics/"
+        "richer-regime-retry-v1-validity-audit-v4"
+    ),
+    expected_validity_audit_manifest_sha256: str = (
+        _REPORTED_VALIDITY_AUDIT_MANIFEST_SHA256
+    ),
+) -> Mapping[str, Any]:
     """Verify hashes and recompute rejection from prediction sidecars."""
 
     root = Path(directory)
+    if (
+        _file_sha256(root / "artifact-manifest.json")
+        != expected_manifest_sha256
+        or _file_sha256(root / "protocol.json")
+        != expected_protocol_sha256
+    ):
+        raise ValueError("retry artifact or recipe identity differs")
     manifest = _read_object(root / "artifact-manifest.json")
     raw_hashes = manifest.get("sha256")
     if (
@@ -43,6 +75,12 @@ def verify_stored_retry(directory: Path) -> Mapping[str, Any]:
     ):
         raise ValueError("retry artifact hashes differ")
     diagnosis = _read_object(root / "failure-diagnosis.json")
+    validity = verify_validity_audit(
+        validity_audit,
+        expected_manifest_sha256=(
+            expected_validity_audit_manifest_sha256
+        ),
+    )
     with np.load(
         root / "predictions" / "selection-inputs.npz",
         allow_pickle=False,
@@ -54,6 +92,12 @@ def verify_stored_retry(directory: Path) -> Mapping[str, Any]:
         trajectory_ids = tuple(
             str(value) for value in arrays["trajectory_ids"]
         )
+    if (
+        observed.ndim != 4
+        or action_active.shape != observed.shape[:2]
+        or len(trajectory_ids) != len(observed)
+    ):
+        raise ValueError("stored selection inputs are invalid")
     metrics = {
         name: _model_metrics(
             root,
@@ -106,7 +150,16 @@ def verify_stored_retry(directory: Path) -> Mapping[str, Any]:
             "richer_regime_multi_hypothesis_independent_assessment"
         ),
         "verified": True,
-        "decision": decision,
+        "artifact_manifest_sha256": expected_manifest_sha256,
+        "recipe_protocol_sha256": expected_protocol_sha256,
+        "stored_numeric_decision": decision,
+        "scientific_status": validity["scientific_status"],
+        "stored_model_decision_admissible": validity[
+            "stored_model_decision_admissible"
+        ],
+        "validity_audit_manifest_sha256": (
+            expected_validity_audit_manifest_sha256
+        ),
         "gates": gates,
         "metrics": metrics,
     }
@@ -305,8 +358,36 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
             "richer-regime-multi-hypothesis-jepa-v1"
         ),
     )
+    parser.add_argument(
+        "--validity-audit",
+        type=Path,
+        default=Path(
+            "artifacts/action-dynamics/"
+            "richer-regime-retry-v1-validity-audit-v4"
+        ),
+    )
+    parser.add_argument(
+        "--expected-manifest-sha256",
+        default=_REPORTED_ARTIFACT_MANIFEST_SHA256,
+    )
+    parser.add_argument(
+        "--expected-protocol-sha256",
+        default=_REPORTED_RECIPE_PROTOCOL_SHA256,
+    )
+    parser.add_argument(
+        "--expected-validity-audit-manifest-sha256",
+        default=_REPORTED_VALIDITY_AUDIT_MANIFEST_SHA256,
+    )
     parsed = parser.parse_args(arguments)
-    assessment = verify_stored_retry(parsed.artifact)
+    assessment = verify_stored_retry(
+        parsed.artifact,
+        expected_manifest_sha256=parsed.expected_manifest_sha256,
+        expected_protocol_sha256=parsed.expected_protocol_sha256,
+        validity_audit=parsed.validity_audit,
+        expected_validity_audit_manifest_sha256=(
+            parsed.expected_validity_audit_manifest_sha256
+        ),
+    )
     print(json.dumps(assessment, indent=2, sort_keys=True))
     return 0
 

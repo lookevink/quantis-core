@@ -2,7 +2,7 @@
 
 **Status:** Rejected
 
-Distinct alternatives emerged, but the mixture badly regressed raw prediction both originally and in a stronger three-regime retry.
+The original corrected experiment rejected the mixture; a stronger three-regime retry produced unfavorable diagnostics but was methodologically inconclusive.
 
 ## Experiment interface
 
@@ -16,9 +16,11 @@ Distinct alternatives emerged, but the mixture badly regressed raw prediction bo
 - [Supporting specification](supporting-spec-2.md)
 - [Supporting specification](supporting-spec-3.md)
 - [Additional behavioral test](test-2.py)
+- [Additional behavioral test](test-3.py)
 - [Supporting script](supporting-script-2.py)
 - [Supporting script](supporting-script-3.py)
 - [Supporting script](supporting-script-4.py)
+- [Supporting script](supporting-script-5.py)
 
 ## Primary references
 
@@ -27,6 +29,10 @@ Distinct alternatives emerged, but the mixture badly regressed raw prediction bo
 ## Artifact
 
 - Local artifact: `artifacts/action-dynamics/prototype-multi-hypothesis-jepa-v1`
+- Supporting artifact: `artifacts/action-dynamics/richer-regime-retry-v1`
+- Supporting artifact: `artifacts/action-dynamics/richer-regime-retry-v2`
+- Supporting artifact: `artifacts/action-dynamics/richer-regime-multi-hypothesis-jepa-v1`
+- Supporting artifact: `artifacts/action-dynamics/richer-regime-retry-v1-validity-audit-v4`
 - Fetch after distribution metadata is recorded: `python tools/artifacts.py fetch multi_hypothesis`
 - Published artifact directories are immutable.
 - The artifact is intentionally not duplicated into this capsule;
