@@ -2,9 +2,9 @@
 
 ## Conclusion
 
-**Methodologically inconclusive. Do not use this richer-regime campaign to
-accept or reject any candidate, and do not collect calibration or evaluation
-from it.**
+**The multi-hypothesis selection retry is methodologically inconclusive. Do
+not use the replacement selection corpus to accept or reject that candidate,
+and do not collect calibration or evaluation from it.**
 
 The stored model outputs are reproducible and would reject the four-component
 JEPA: it lost to a one-component JEPA and badly regressed the raw rank-32
@@ -16,9 +16,10 @@ scientifically inadmissible for a different reason:
   one-recollection ceiling and whole-shard replacement rule were documentary
   rather than execution-enforced.
 
-This is a campaign-provenance failure, not a model failure. The earlier
-narrow-corpus multi-hypothesis result remains rejected on its own evidence;
-this retry does not strengthen or reverse it.
+This is a replacement-selection provenance failure, not a model failure. The
+v1 fit-only screening remains usable within its stated mechanism-routing
+boundary. The earlier narrow-corpus multi-hypothesis result remains rejected
+on its own evidence; this retry does not strengthen or reverse it.
 
 ## Evidence collected
 
@@ -172,12 +173,12 @@ manifests did not cryptographically bind that amendment.
 
 ## What changed our ranking
 
-Before the validity audit, contextual multimodal, HEPA, and
-Error-Certificate-JEPA appeared to fail their fit-only routes, while
-multi-hypothesis JEPA appeared to earn and fail selection. Pair realization is
-not the blocker after protocol-aware recomputation. The unbound recollection
-still prevents treating the replacement selection corpus as preregistered
-evidence, so none of those richer-regime updates is admissible.
+The fit-only screen did not justify contextual multimodal JEPA, HEPA, or
+Error-Certificate-JEPA under their frozen mechanism gates. Multi-hypothesis
+JEPA earned selection, but its stored selection failure is only a diagnostic.
+Pair realization is not the blocker after protocol-aware recomputation; the
+unbound recollection prevents treating the replacement selection corpus as
+preregistered evidence.
 
 The next campaign must make protocol-aware action realization/recovery a shard
 qualification gate, bind any recollection amendment into every replacement
