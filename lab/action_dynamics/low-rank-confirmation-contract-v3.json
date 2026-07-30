@@ -1,0 +1,72 @@
+{
+  "schema_version": 3,
+  "kind": "low_rank_action_dynamics_confirmation_contract",
+  "status": "frozen_pre_collection",
+  "base_collection_protocol": {
+    "path": "lab/action_dynamics/development-protocol-v1.json",
+    "canonical_sha256": "d11e043521a7ca355b48faf58ca46b1a82d1b6f12a08c4e2175b9f14cf6ad1dc"
+  },
+  "generator_seed": 26073061,
+  "evidence_boundary": "Sealed confirmation of one predictor frozen from the earlier open development campaign. All 120 matched pairs are fresh confirmation evidence; collector transport labels named training or validation are non-analytic compatibility fields. No fitting, selection, calibration, threshold choice, retry, or model change may observe these cases. Passing confirms learnable action-conditioned dynamics only on the fixed Quantis checkout lab and declared intervention library. This v3 generator supersedes the invalid v1 host-contention attempt and the invalid v2 infrastructure-failure attempt; neither was qualified or scored.",
+  "candidate": {
+    "kind": "contractive_low_rank_action_dynamics",
+    "rank": 32,
+    "maximum_spectral_radius": 0.98,
+    "model_path": "artifacts/action-dynamics/edge-development-v1-reviewed2/models/contractive_low_rank.json",
+    "model_sha256": "c3456d1314c0d186167c9b63fce608cf65ec923e004c626dfd0343c3fe8b582d",
+    "development_artifact_manifest_path": "artifacts/action-dynamics/edge-development-v1-reviewed2/artifact-manifest.json",
+    "development_artifact_manifest_sha256": "7fbc6a55ff6b7aa1823a6db1a2173d04ad6d86a9a6ec73085590619c7e31d6e9",
+    "compiler_metadata_path": "artifacts/action-dynamics/edge-preprocessing-v1/d02afa33a5977cba69b255cd1a5f31470751b6681da1ecae31b11e86307e65b1/metadata.json",
+    "compiler_metadata_sha256": "bd5ac058235daa9697dc8eda7e249ff381b08cd3be23d63d3d1f53144d8f0a03",
+    "compiler_artifact_manifest_path": "artifacts/action-dynamics/edge-preprocessing-v1/d02afa33a5977cba69b255cd1a5f31470751b6681da1ecae31b11e86307e65b1/artifact-manifest.json",
+    "compiler_artifact_manifest_sha256": "e27836e81841c90e0c37258f69558dc8c65d6ed012a89a1d47c8f59ffd85dff3"
+  },
+  "collection": {
+    "pair_count": 120,
+    "capture_count": 240,
+    "parallel_jobs": 6,
+    "automatic_retry": false,
+    "overwrite": false
+  },
+  "decision_gates": {
+    "aggregate_action_mse_ratio_max": 0.75,
+    "per_family_action_mse_ratio_max": 0.9,
+    "downstream_effect_mse_ratio_max": 0.8,
+    "paired_sign_flip_p_value_max": 0.05,
+    "paired_sign_flip_seed": 26073042,
+    "paired_sign_flip_draws": 99999,
+    "paired_sign_flip_unit": "matched_pair",
+    "paired_sign_flip_tail": "candidate_minus_control_less_than_or_equal",
+    "spectral_radius_max": 0.98,
+    "parameter_count_max": 40000,
+    "serialized_size_bytes_max": 1048576,
+    "rollout_finite_required": true
+  },
+  "execution": {
+    "contract_module": {
+      "path": "src/quantis_core/low_rank_confirmation.py",
+      "sha256": "c129f203105d7a15d52a2782f3c9843958795b293a5a575cd169cbce47d8f5f0"
+    },
+    "runner": {
+      "path": "lab/action_dynamics/run_low_rank_confirmation.py",
+      "sha256": "3782c9084a01a211e53debe9e8936b414067023ba0019afaf51ab89803d76ba2"
+    },
+    "independent_assessor": {
+      "path": "lab/action_dynamics/assess_low_rank_confirmation.py",
+      "sha256": "1c6592067a36d0f17443d1a418ed5f5158dd9f15354b6de1c94d1f60fbdb4398"
+    }
+  },
+  "claim": {
+    "supported": "On the fixed Quantis checkout lab, the frozen rank-32 contractive low-rank predictive core uses declared intervention inputs to improve ten-step observable-state forecasts and downstream paired effects over both its own neutral-action ablation and persistence on a fresh 120-pair campaign.",
+    "excluded": [
+      "benefit from graph topology or message passing",
+      "causal attribution outside the randomized intervention library",
+      "cross-stack or production transfer",
+      "operational alert quality",
+      "a software world model"
+    ],
+    "failure_outcome": "Any failed data-quality or decision gate blocks confirmation. There are no retries or post-collection threshold changes.",
+    "pass_decision": "confirm_learnable_action_dynamics",
+    "failure_decision": "do_not_confirm_learnable_action_dynamics"
+  }
+}
