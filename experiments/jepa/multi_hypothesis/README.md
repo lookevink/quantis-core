@@ -2,7 +2,7 @@
 
 **Status:** Rejected
 
-Distinct alternatives emerged, but the mixture lost to its supervised control and badly regressed raw prediction.
+Distinct alternatives emerged, but the mixture badly regressed raw prediction both originally and in a stronger three-regime retry.
 
 ## Experiment interface
 
@@ -10,8 +10,15 @@ Distinct alternatives emerged, but the mixture lost to its supervised control an
 - [Conclusion-bearing findings](findings.md)
 - [Exact runner](run.py)
 - [Independent assessor](assess.py)
+- [Behavioral test](test.py)
 - [Program ticket](ticket.md)
+- [Additional retained findings](findings-2.md)
 - [Supporting specification](supporting-spec-2.md)
+- [Supporting specification](supporting-spec-3.md)
+- [Additional behavioral test](test-2.py)
+- [Supporting script](supporting-script-2.py)
+- [Supporting script](supporting-script-3.py)
+- [Supporting script](supporting-script-4.py)
 
 ## Primary references
 

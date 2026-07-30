@@ -259,12 +259,16 @@ def _collect_case(
             ],
             environment,
         )
-        result = _run(
-            compose + ["run", "--rm", "runner"],
-            environment,
-            capture=True,
-        )
-        runner_output = result.stdout
+        try:
+            result = _run(
+                compose + ["run", "--rm", "runner"],
+                environment,
+                capture=True,
+            )
+            runner_output = result.stdout
+        except subprocess.CalledProcessError as error:
+            runner_output = str(error.stdout or error.output or "")
+            raise
         _run(compose + ["stop", "collector"], environment)
     finally:
         (capture_directory / "runner.log").write_text(

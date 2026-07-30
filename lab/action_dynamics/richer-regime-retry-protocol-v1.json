@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "kind": "richer_regime_retry_protocol",
+  "generator_seed": 26072901,
+  "evidence_boundary": "Local Docker Compose only. Pair roles are immutable before capture. Fit may influence parameters; selection may choose a frozen candidate; calibration may set thresholds only after selection; evaluation is sealed until both model and threshold hashes are frozen. No failed pair is deleted or retried under this protocol.",
+  "design": {
+    "design_kind": "complete_action_topology_workload_factorial",
+    "action_kinds": [
+      "worker_pause",
+      "postgres_lock",
+      "redis_enqueue_delay",
+      "redis_dequeue_delay",
+      "api_rejection"
+    ],
+    "worker_replica_values": [
+      1,
+      2,
+      3
+    ],
+    "workload_families": [
+      "steady",
+      "ramp_or_burst",
+      "periodic_or_multiphase"
+    ],
+    "replicates_per_cell": 11,
+    "role_replicates": {
+      "fit": [
+        0,
+        1
+      ],
+      "selection": [
+        2
+      ],
+      "calibration": [
+        3,
+        4,
+        5,
+        6
+      ],
+      "evaluation": [
+        7,
+        8,
+        9,
+        10
+      ]
+    }
+  },
+  "trajectory": {
+    "point_count": 108,
+    "sample_period_seconds": 0.25
+  },
+  "workload": {
+    "families": {
+      "steady": {
+        "minimum_requests_per_window": 6,
+        "maximum_requests_per_window": 10
+      },
+      "ramp_or_burst": {
+        "minimum_requests_per_window": 4,
+        "maximum_requests_per_window": 11,
+        "burst_start_index": 36,
+        "burst_stop_index": 48,
+        "burst_extra_requests": 8
+      },
+      "periodic_or_multiphase": {
+        "minimum_requests_per_window": 4,
+        "maximum_requests_per_window": 8,
+        "phase_window_count": 12,
+        "high_phase_extra_requests": 6
+      }
+    },
+    "api_rejection_requests_per_window": 12,
+    "drain_phase_start_index": 84,
+    "drain_phase_stop_index": 92,
+    "probe_phase_start_index": 92,
+    "probe_requests_per_window": 8,
+    "twins_share_exact_schedule": true
+  },
+  "statistical_gate": {
+    "confidence": 0.95,
+    "false_positive_rate_max": 0.05,
+    "minimum_zero_alarm_controls_per_family": 60
+  },
+  "execution": {
+    "runtime": "local_docker_compose",
+    "parallel_jobs": 6,
+    "pair_atomic": true,
+    "automatic_retry": false,
+    "overwrite": false
+  }
+}

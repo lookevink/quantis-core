@@ -1,5 +1,12 @@
 # Multi-hypothesis trajectory JEPA prototype v2 result
 
+> **2026 richer-regime retry:** the recipe was retried after a fit-only
+> preflight found strong residual clustering across steady, ramp/burst, and
+> periodic/multiphase demand. It again failed independent selection: overall
+> MSE was 1.85× raw and action-overlap MSE was 3.10× raw. See the
+> [richer-regime result](richer-regime-alerting-retry-v1-results.md)
+> and [frozen protocol](../specs/richer-regime-alerting-retry-v1.md).
+
 ## Outcome
 
 **Reject this four-component recipe at safe-null selection. Do not calibrate,

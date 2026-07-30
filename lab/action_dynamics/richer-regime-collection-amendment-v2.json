@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "kind": "richer_regime_collection_amendment",
+  "amendment_id": "collection-amendment-v2",
+  "parent_campaign_protocol_file_sha256": "1e02bf8cd8d48f3ec1f6c82142ed8b9c295228c2bcfbebeae1c8547b5b7be06d",
+  "parent_campaign_plan_file_sha256": "980f006516ab664b26913bb7ee0c7f7fdb0e1ca5ffc86e9df9c47a257a4021d4",
+  "failed_execution_plan_file_sha256": "23ae663cfb6ef6358d51909bfe0d4d6f7a605d2479a0236842d9d4ac0936e32e",
+  "failed_attempt": {
+    "campaign": "richer-regime-retry-v1",
+    "corpus_role": "selection",
+    "workload_family": "steady",
+    "failure_boundary": "One treatment runner exited after the initial metric window, before its first scheduled intervention and before any scientific or model outcome was computed.",
+    "retention": "The entire failed attempt remains immutable operational evidence and is forbidden from model input.",
+    "runner_output_limitation": "The host collector discarded CalledProcessError output; the partial OTLP capture and empty runner.log remain retained."
+  },
+  "repair": {
+    "code_scope": "Preserve captured runner output on nonzero subprocess exit.",
+    "scientific_protocol_changed": false,
+    "workload_schedule_changed": false,
+    "model_or_gate_changed": false
+  },
+  "replacement_policy": {
+    "maximum_recollection_attempts": 1,
+    "unit": "entire role-by-workload-family shard",
+    "reuse_parent_fit_shards_by_hash": true,
+    "replacement_output_must_use_new_campaign_directory": true,
+    "failed_attempt_counts_toward_operational_attrition": true,
+    "failed_attempt_counts_as_scientific_outcome": false,
+    "reason": "The failure preceded treatment and model evaluation, so recollection cannot condition on a scientific outcome."
+  }
+}

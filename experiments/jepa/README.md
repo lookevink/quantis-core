@@ -12,7 +12,7 @@ paths already bound into published artifacts.
 |---|---|---|
 | [Soft regime-codebook JEPA](regime_codebook/) | rejected | Broad code usage and improved state probing did not preserve effect prediction or alert calibration. |
 | [Event-native trace JEPA](event_native_trace/) | rejected | The trace encoder learned the bounded path grammar but added no aligned alert or investigation value over its shuffled null. |
-| [Multi-hypothesis trajectory JEPA](multi_hypothesis/) | rejected | Distinct alternatives emerged, but the mixture lost to its supervised control and badly regressed raw prediction. |
+| [Multi-hypothesis trajectory JEPA](multi_hypothesis/) | rejected | Distinct alternatives emerged, but the mixture badly regressed raw prediction both originally and in a stronger three-regime retry. |
 | [Exact SIGReg LeJEPA substitution](sigreg_lejepa/) | rejected | SIGReg broadened latent rank but worsened state probing, earned zero correction gain, and detected no treatments. |
 | [Complete multi-view LeJEPA](complete_lejepa/) | rejected | The predictor-free representation was restorable and state-accessible but lost to reconstruction and nearly doubled raw effect error. |
 | [Episode-predictive Retrieval-JEPA](retrieval_jepa/) | rejected | The query map was causal and edge-feasible, but raw telemetry and PCA retrieved every transfer mechanism while JEPA reached 40% hit@1. |

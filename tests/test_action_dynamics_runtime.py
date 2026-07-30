@@ -1,10 +1,13 @@
 import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any, Mapping, Optional
+
+import pytest
 
 from quantis_core.otlp import read_otlp_capture
 
@@ -315,6 +318,71 @@ def test_collection_places_a_barrier_between_twin_waves(
     assert max(case["completed_unix_nano"] for case in first) <= min(
         case["started_unix_nano"] for case in second
     )
+
+
+def test_failed_runner_output_is_preserved(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    protocol_path = tmp_path / "protocol.json"
+    plan_path = tmp_path / "plan.json"
+    manifests = tmp_path / "manifests"
+    captures = tmp_path / "captures"
+    manifests.mkdir()
+    protocol_path.write_text(
+        json.dumps({"collection": {"parallel_jobs": 6}})
+    )
+    assignments = [
+        {
+            "pair_id": "pair",
+            "case_id": f"case-{role}",
+            "role": role,
+            "lane": 1,
+            "batch": 1,
+            "order_in_pair": order,
+            "worker_replicas": 1,
+        }
+        for order, role in enumerate(("treatment", "control"))
+    ]
+    plan_path.write_text(json.dumps({"assignments": assignments}))
+    for assignment in assignments:
+        (manifests / f"{assignment['case_id']}.json").write_text(
+            "{}"
+        )
+
+    def fake_run(
+        command: list[str],
+        environment: Mapping[str, str],
+        *,
+        check: bool = True,
+        capture: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        del environment, check
+        if capture:
+            raise subprocess.CalledProcessError(
+                1,
+                command,
+                output="preserved runner failure\n",
+            )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(collection, "_run", fake_run)
+    with pytest.raises(subprocess.CalledProcessError):
+        collection.collect_action_cases(
+            protocol_path=protocol_path,
+            plan_path=plan_path,
+            manifests_directory=manifests,
+            captures_directory=captures,
+            compose_file=tmp_path / "compose.yaml",
+            project_prefix="test",
+            application_image_id="sha256:" + "a" * 64,
+            application_build_context_sha256="b" * 64,
+            parallel_jobs=6,
+            attestation_path=tmp_path / "attestation.json",
+        )
+
+    assert (
+        captures / "case-treatment" / "runner.log"
+    ).read_text() == "preserved runner failure\n"
 
 
 def test_action_schedule_applies_transition_t_before_state_t_plus_one() -> None:

@@ -41,15 +41,29 @@
       "slug": "multi_hypothesis",
       "title": "Multi-hypothesis trajectory JEPA",
       "status": "rejected",
-      "summary": "Distinct alternatives emerged, but the mixture lost to its supervised control and badly regressed raw prediction.",
+      "summary": "Distinct alternatives emerged, but the mixture badly regressed raw prediction both originally and in a stronger three-regime retry.",
       "runner": "lab/action_dynamics/prototype_multi_hypothesis_jepa.py",
       "assessor": "lab/action_dynamics/prototype_multi_hypothesis_jepa_v2_assessor.py",
       "spec": "docs/specs/multi-hypothesis-jepa-prototype-v2.md",
       "supporting_specs": [
         "docs/specs/multi-hypothesis-jepa-prototype-v1.md",
-        "docs/specs/multi-hypothesis-jepa-scoring-contract-v1.md"
+        "docs/specs/multi-hypothesis-jepa-scoring-contract-v1.md",
+        "docs/specs/richer-regime-alerting-retry-v1.md"
       ],
-      "findings": ["docs/research/multi-hypothesis-jepa-prototype-v2-results.md"],
+      "findings": [
+        "docs/research/multi-hypothesis-jepa-prototype-v2-results.md",
+        "docs/research/richer-regime-alerting-retry-v1-results.md"
+      ],
+      "supporting_scripts": [
+        "lab/action_dynamics/run_richer_regime_retry.py",
+        "lab/action_dynamics/run_richer_regime_preflight.py",
+        "lab/action_dynamics/retry_multi_hypothesis_jepa.py",
+        "lab/action_dynamics/assess_richer_regime_multi_hypothesis.py"
+      ],
+      "tests": [
+        "tests/test_richer_regime_retry.py",
+        "tests/test_richer_regime_preflight.py"
+      ],
       "ticket": "docs/wayfinding/jepa-implementation-program/005-test-multi-hypothesis-jepa-tracer.md",
       "artifact": "artifacts/action-dynamics/prototype-multi-hypothesis-jepa-v1",
       "citations": [
